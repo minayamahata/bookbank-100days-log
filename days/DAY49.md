@@ -1,5 +1,7 @@
 # DAY49
 
+撮影日: 2026年01月05日
+
 ## 動画リンク
 https://youtu.be/WYlJ0BhHCAg?si=ZeyzaA2LTrShhoVY
 

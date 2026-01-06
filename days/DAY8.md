@@ -1,5 +1,7 @@
 # DAY8
 
+撮影日: 2025年11月24日
+
 ## 動画リンク
 https://youtu.be/MmrMT6qbCds?si=ZfbG22RWdJarczpI
 

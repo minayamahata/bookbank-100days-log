@@ -1,5 +1,7 @@
 # DAY36
 
+撮影日: 2025年12月22日
+
 ## 動画リンク
 https://youtu.be/xQAPXdOIZO0?si=UmHH7jJeTxPFbquA
 

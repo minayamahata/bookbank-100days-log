@@ -1,5 +1,7 @@
 # DAY48
 
+撮影日: 2026年01月04日
+
 ## 動画リンク
 https://youtu.be/X_HdO8LZl3U?si=aJhoBE2r0COj8ZIM
 

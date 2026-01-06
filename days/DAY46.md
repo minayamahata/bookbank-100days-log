@@ -1,5 +1,7 @@
 # DAY46
 
+撮影日: 2026年01月02日
+
 ## 動画リンク
 https://youtu.be/mNZt63aUq8M?si=PB0C17KytTA7U9FV
 

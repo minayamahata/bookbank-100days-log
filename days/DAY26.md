@@ -1,5 +1,7 @@
 # DAY26
 
+撮影日: 2025年12月12日
+
 ## 動画リンク
 https://youtu.be/LD88-RL_Y3w?si=sgkMARFNkkvgfa_w
 

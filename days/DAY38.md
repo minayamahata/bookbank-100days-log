@@ -1,5 +1,7 @@
 # DAY38
 
+撮影日: 2025年12月24日
+
 ## 動画リンク
 https://youtu.be/DJXHdwD4sD0?si=YI_ihc7Nqo3OMBeQ
 

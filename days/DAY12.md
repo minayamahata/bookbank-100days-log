@@ -1,5 +1,7 @@
 # DAY12
 
+撮影日: 2025年11月28日
+
 ## 動画リンク
 https://youtu.be/mAoOfoCMVbU?si=SmEjnonpAzMy_ZpS
 

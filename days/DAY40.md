@@ -1,5 +1,7 @@
 # DAY40
 
+撮影日: 2025年12月26日
+
 ## 動画リンク
 https://youtu.be/jYDXtqePgjM?si=clCJiIxBmOfW8WEY
 

@@ -1,5 +1,7 @@
 # DAY44
 
+撮影日: 2025年12月30日
+
 ## 動画リンク
 https://youtu.be/rgipZ5IhuwI?si=z0LODYpTmIc35Zbf
 

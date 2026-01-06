@@ -1,5 +1,7 @@
 # DAY45
 
+撮影日: 2025年12月31日
+
 ## 動画リンク
 https://youtu.be/XPZFeuaXBFc?si=9yFHLdyAn8nF69SH
 

@@ -1,5 +1,7 @@
 # DAY3
 
+撮影日: 2025年11月19日
+
 ## 動画リンク
 https://youtu.be/LooYUnqQODk?si=z16foymxOxRv0c7Q
 

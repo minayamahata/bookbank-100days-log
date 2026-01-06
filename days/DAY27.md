@@ -1,5 +1,7 @@
 # DAY27
 
+撮影日: 2025年12月13日
+
 ## 動画リンク
 https://youtu.be/M4Y3jyeEmhg?si=bOhvlXcRMuZOTKLk
 

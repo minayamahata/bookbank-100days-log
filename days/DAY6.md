@@ -1,5 +1,7 @@
 # DAY6
 
+撮影日: 2025年11月22日
+
 ## 動画リンク
 https://youtu.be/uvImBvP2FzM?si=WKuDAVb8CYq-QNIS
 

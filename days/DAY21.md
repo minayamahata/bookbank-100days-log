@@ -1,5 +1,7 @@
 # DAY21
 
+撮影日: 2025年12月07日
+
 ## 動画リンク
 https://youtu.be/zBM48jQyf8E?si=eZR_pQzXs86rBmgy
 

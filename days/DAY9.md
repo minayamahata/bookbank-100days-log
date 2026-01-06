@@ -1,5 +1,7 @@
 # DAY9
 
+撮影日: 2025年11月25日
+
 ## 動画リンク
 https://youtu.be/azo6a-PGPEg?si=sh7FKc2UMxGB2bl1
 

@@ -1,5 +1,7 @@
 # DAY19
 
+撮影日: 2025年12月05日
+
 ## 動画リンク
 https://youtu.be/68gjADtX3lY?si=vqCIpt_ohKA5dBdG
 

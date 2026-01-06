@@ -1,5 +1,7 @@
 # DAY41
 
+撮影日: 2025年12月27日
+
 ## 動画リンク
 https://youtu.be/0KyZMi8HZUw?si=qWOxJTeccjOXlYLt
 

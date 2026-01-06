@@ -1,5 +1,7 @@
 # DAY30
 
+撮影日: 2025年12月16日
+
 ## 動画リンク
 https://youtu.be/ZMjICCk6XV4?si=zkZz7ZVEv2a1FUP0
 

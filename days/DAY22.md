@@ -1,5 +1,7 @@
 # DAY22
 
+撮影日: 2025年12月08日
+
 ## 動画リンク
 https://youtu.be/fjtMPA4OqhE?si=x1nHUVrl80_upZt0
 

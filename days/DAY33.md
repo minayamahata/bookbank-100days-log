@@ -1,5 +1,7 @@
 # DAY33
 
+撮影日: 2025年12月19日
+
 ## 動画リンク
 https://youtu.be/ruuOVCQdHtQ?si=dexYnfm_yNIAH3cS
 

@@ -1,5 +1,7 @@
 # DAY1
 
+撮影日: 2025年11月17日
+
 ## 動画リンク
 https://youtu.be/9Jw12tgYVOs?si=qv4GxAKLblj_F0zs
 

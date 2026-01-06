@@ -1,5 +1,7 @@
 # DAY35
 
+撮影日: 2025年12月21日
+
 ## 動画リンク
 https://youtu.be/i6qJR5OF5s0?si=HDuW5Cfb11nBIlda
 

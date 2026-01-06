@@ -1,5 +1,7 @@
 # DAY24
 
+撮影日: 2025年12月10日
+
 ## 動画リンク
 https://youtu.be/lkWdqUNyDro?si=omUZG51vTE_FtwAo
 

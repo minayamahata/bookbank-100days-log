@@ -1,5 +1,7 @@
 # DAY37
 
+撮影日: 2025年12月23日
+
 ## 動画リンク
 https://youtu.be/SxhB4ctNmCw?si=hvY2pQgEY9qV6r_H
 

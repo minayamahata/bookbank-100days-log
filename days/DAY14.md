@@ -1,5 +1,7 @@
 # DAY14
 
+撮影日: 2025年11月30日
+
 ## 動画リンク
 https://youtu.be/wA8tx826jDA?si=gNZ6gwBhaaW0yncl
 

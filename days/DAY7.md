@@ -1,5 +1,7 @@
 # DAY7
 
+撮影日: 2025年11月23日
+
 ## 動画リンク
 https://youtu.be/Odd3rsfCJP8?si=MovUIXXJMqIzozSf
 

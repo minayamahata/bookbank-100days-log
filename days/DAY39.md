@@ -1,5 +1,7 @@
 # DAY39
 
+撮影日: 2025年12月25日
+
 ## 動画リンク
 https://youtu.be/PlWk46ihmp8?si=--eSXJg_xs-mrBoo
 

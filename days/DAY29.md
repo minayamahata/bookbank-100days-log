@@ -1,5 +1,7 @@
 # DAY29
 
+撮影日: 2025年12月15日
+
 ## 動画リンク
 https://youtu.be/dlgL-wf1Jr8?si=Cj3N8_6ZDBcUXKpM
 

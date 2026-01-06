@@ -1,5 +1,7 @@
 # DAY16
 
+撮影日: 2025年12月02日
+
 ## 動画リンク
 https://youtu.be/3w4m1Jm9zd0?si=RTLzQ_y1K0Jn9wo9
 

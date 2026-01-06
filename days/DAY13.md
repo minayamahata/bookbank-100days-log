@@ -1,5 +1,7 @@
 # DAY13
 
+撮影日: 2025年11月29日
+
 ## 動画リンク
 https://youtu.be/AknlVqjJv54?si=YgHXOwL1gtvSqj4C
 

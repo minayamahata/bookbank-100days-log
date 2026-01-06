@@ -1,5 +1,7 @@
 # DAY15
 
+撮影日: 2025年12月01日
+
 ## 動画リンク
 https://youtu.be/MOF7GkfE6pU?si=xXWmboNzHWY2_kaA
 

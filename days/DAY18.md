@@ -1,5 +1,7 @@
 # DAY18
 
+撮影日: 2025年12月04日
+
 ## 動画リンク
 https://youtu.be/2iJZsi43MDI?si=ATu7NE_cLk7phdBe
 

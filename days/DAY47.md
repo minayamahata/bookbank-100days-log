@@ -1,5 +1,7 @@
 # DAY47
 
+撮影日: 2026年01月03日
+
 ## 動画リンク
 https://youtu.be/CKAUpi9JmBo?si=wUFDcK_UPwcmZBw6
 

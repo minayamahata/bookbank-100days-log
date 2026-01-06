@@ -1,5 +1,7 @@
 # DAY42
 
+撮影日: 2025年12月28日
+
 ## 動画リンク
 https://youtu.be/zkSMejG3cDE?si=93e6zZiogfbpReao
 

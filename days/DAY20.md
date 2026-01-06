@@ -1,5 +1,7 @@
 # DAY20
 
+撮影日: 2025年12月06日
+
 ## 動画リンク
 https://youtu.be/f6BK_7y7o0k?si=5x-yEqTON7o2jn56
 

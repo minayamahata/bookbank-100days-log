@@ -1,5 +1,7 @@
 # DAY34
 
+撮影日: 2025年12月20日
+
 ## 動画リンク
 https://youtu.be/Lb4eJv5y4oE?si=lDX02C-1KMx7qbpY
 

@@ -1,5 +1,7 @@
 # DAY25
 
+撮影日: 2025年12月11日
+
 ## 動画リンク
 https://youtu.be/5o2ukGtCZdc?si=29gouyAiuW_v20n8
 

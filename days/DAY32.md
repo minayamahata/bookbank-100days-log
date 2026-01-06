@@ -1,5 +1,7 @@
 # DAY32
 
+撮影日: 2025年12月18日
+
 ## 動画リンク
 https://youtu.be/ZMjICCk6XV4?si=k1AcbJ_wpiotKaYQ
 

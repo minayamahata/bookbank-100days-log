@@ -1,5 +1,7 @@
 # DAY17
 
+撮影日: 2025年12月03日
+
 ## 動画リンク
 https://youtu.be/EhW-UmliQdg?si=g6kURRAC8RCfoSyV
 

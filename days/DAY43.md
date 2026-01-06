@@ -1,5 +1,7 @@
 # DAY43
 
+撮影日: 2025年12月29日
+
 ## 動画リンク
 https://youtu.be/6bBITjFZi_k?si=q1m4zr9bKCZ7KOiu
 

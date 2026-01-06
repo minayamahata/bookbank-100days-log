@@ -1,5 +1,7 @@
 # DAY31
 
+撮影日: 2025年12月17日
+
 ## 動画リンク
 https://youtu.be/OdbWTmWJito?si=Q3v1EJ7nYzOd_3HM
 

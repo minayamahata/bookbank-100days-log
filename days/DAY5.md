@@ -1,5 +1,7 @@
 # DAY5
 
+撮影日: 2025年11月21日
+
 ## 動画リンク
 https://youtu.be/eLrQUAcU33I?si=wfFM8nd6biXQbjaI
 

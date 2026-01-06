@@ -1,5 +1,7 @@
 # DAY23
 
+撮影日: 2025年12月09日
+
 ## 動画リンク
 https://youtu.be/27iyU-M88CQ?si=1z2XTIGGC_LFJZvP
 

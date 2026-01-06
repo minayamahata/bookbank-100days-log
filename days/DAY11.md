@@ -1,5 +1,7 @@
 # DAY11
 
+撮影日: 2025年11月27日
+
 ## 動画リンク
 https://youtu.be/Onqx54MoeLQ?si=KGZOH2MaAR25Io8u
 

@@ -1,5 +1,7 @@
 # DAY28
 
+撮影日: 2025年12月14日
+
 ## 動画リンク
 https://youtu.be/lzO5dm4rllM?si=tyXdhe8QEQouCpaN
 
