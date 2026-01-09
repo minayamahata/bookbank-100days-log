@@ -17,26 +17,6 @@ Spiritual Bank
 出雲大社へ行った時の様子
 
 ## この日やったこと
-### Obsidianのインストールと初期設定
-- Valtの設定
-- 日本語化
-- 外観の設定（Border）
 
-### プラグイン
-- Calendar
-- Dataview
-- ExcaliBrain
-- Excalidraw
-- LINE Notes Sync
-- Linter
-- Omnisearch
-- Recent Files
-- Remotely Save
-- Style Settings
-- Typing Assistant
 
 ### 参考サイト
-https://obsidiantips.com/
-https://note.com/iam_shin
-https://youtu.be/Z2SA3M86s_4?si=a4IoMJ3njGPAsCnw
-https://youtu.be/Ms2wmwunr1A?si=JKcu2yCbHZTbNOEe
