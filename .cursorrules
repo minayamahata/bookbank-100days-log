@@ -1,0 +1,165 @@
+# Cursor Rules for BookBank Development
+
+## 作業前の必須確認事項
+
+1. **開発履歴と現状の把握**
+   - 作業を開始する前に必ず `@DEV_LOG.md` を読んでください
+   - 実装済み機能、未実装機能、現在のフェーズを確認してください
+
+2. **プロジェクト概要の確認**
+   - プロジェクトの目的や概要は `@README.md` を参照してください
+
+## プロジェクト構成
+
+```
+BookBank-100days-log/
+├── days/                          # 100日チャレンジの開発記録日報
+├── docs/                          # 設計ドキュメント（事前設計）
+├── DEV_LOG.md                     # 開発状況まとめ（最優先参照）
+├── Roadmap.md                     # DAY54-100の開発計画
+└── dev/BookBank/                  # 実際のXcodeプロジェクト
+    ├── BookBank.xcodeproj
+    └── BookBank/
+        ├── BookBankApp.swift      # アプリエントリーポイント
+        ├── Models/                # SwiftDataモデル
+        └── Views/                 # SwiftUI Views
+```
+
+## 技術スタック
+
+- **言語**: Swift 5.0
+- **UI**: SwiftUI
+- **データ管理**: SwiftData
+- **iOS最小バージョン**: iOS 17.0以降
+- **Bundle ID**: `ayame-inc.BookBank`
+- **テスト**: Swift Testing (Unit) / XCTest (UI)
+- **依存関係**: なし（ネイティブAppleフレームワークのみ）
+
+## 設計ポリシー（重要）
+
+### 1. 設計ドキュメントの位置づけ
+- `docs/` 配下の設計資料は**最終仕様ではなく、思考整理のための事前設計**です
+- 実装時に不備・矛盾・改善点を発見した場合は、必ず指摘してください
+- 指摘時は、理由と具体的な代替案を提示してください
+
+### 2. 実装の優先順位
+1. **iOS / SwiftData として健全な設計**を最優先
+2. 保守性・拡張性を重視
+3. 「設計どおりに実装」は二の次
+
+### 3. 非エンジニアへの配慮
+- 設計者は非エンジニアであることを前提としてください
+- 技術的な説明は、わかりやすい言葉と例え話を使ってください
+- コミットメッセージは「何ができるようになったか」を明確に記載してください
+
+## ビルドコマンド
+
+```bash
+# プロジェクトディレクトリに移動
+cd dev/BookBank
+
+# Debug ビルド
+xcodebuild build -scheme BookBank -configuration Debug
+
+# Release ビルド
+xcodebuild build -scheme BookBank -configuration Release
+
+# すべてのテストを実行
+xcodebuild test -scheme BookBank -configuration Debug
+
+# ユニットテストのみ実行
+xcodebuild test -scheme BookBank -configuration Debug -only-testing=BookBankTests
+
+# UIテストのみ実行
+xcodebuild test -scheme BookBank -configuration Debug -only-testing=BookBankUITests
+
+# Xcodeで開く
+open BookBank.xcodeproj
+```
+
+## コーディング規約
+
+### Swift設定
+- Swift 5.0
+- MainActor デフォルト分離
+- Approachable Concurrency 有効
+
+### ファイル配置
+- Models: `BookBank/Models/`
+- Views: `BookBank/Views/`
+- ViewModels: `BookBank/ViewModels/`（予定）
+
+### 命名規則
+- クラス/構造体: PascalCase（例: `PassbookDetailView`）
+- 変数/関数: camelCase（例: `totalValue`）
+- 定数: camelCase（例: `maxBookCount`）
+
+## Git運用
+
+### コミットメッセージ形式
+
+```
+タイトル（1行目）: 何ができるようになったかを簡潔に
+
+【できるようになったこと】
+- 具体的な機能1
+- 具体的な機能2
+
+【次のステップ】
+- 次にやること
+```
+
+### サブモジュール構成
+- 親リポジトリ: `BookBank-100days-log`（日報・設計）
+- サブモジュール: `dev/BookBank`（コード）
+
+**コミット手順**:
+```bash
+# 1. サブモジュール内でコミット
+cd dev/BookBank
+git add .
+git commit -m "メッセージ"
+git push origin main
+
+# 2. 親リポジトリで参照を更新
+cd ../..
+git add dev/BookBank
+git commit -m "update: BookBankプロジェクトの更新を反映"
+git push origin main
+```
+
+## SwiftData使用時の注意
+
+### @Query でデータ取得
+```swift
+@Query(sort: \Passbook.sortOrder) private var passbooks: [Passbook]
+```
+
+### データ保存
+```swift
+context.insert(newObject)
+try context.save()
+```
+
+### リレーションのフィルタリング
+```swift
+// persistentModelID で比較
+allUserBooks.filter { 
+    $0.passbook?.persistentModelID == passbook.persistentModelID 
+}
+```
+
+## 実装時のチェックリスト
+
+- [ ] DEV_LOG.mdで現在の状態を確認したか
+- [ ] 既存のモデル定義を尊重しているか
+- [ ] エラーハンドリングは適切か
+- [ ] 空状態の表示は考慮されているか
+- [ ] コミットメッセージは非エンジニアにも分かりやすいか
+- [ ] lintエラーはないか
+
+## 参考リンク
+
+- [SwiftData Documentation](https://developer.apple.com/documentation/swiftdata)
+- [SwiftUI Documentation](https://developer.apple.com/documentation/swiftui)
+- [Swift Charts Documentation](https://developer.apple.com/documentation/charts)
