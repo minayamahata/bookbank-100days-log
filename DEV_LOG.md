@@ -1,6 +1,6 @@
 # BookBank 開発ログ
 
-最終更新: 2026年01月14日
+最終更新: 2026年01月15日
 
 ---
 
@@ -166,6 +166,7 @@ init() {
 - 選択した口座の詳細表示
 - その口座に紐づくUserBookの一覧表示
 - 空状態の処理（「まだ本が登録されていません」）
+- 右上の「+」ボタンから検索画面を開く
 
 **表示項目**:
 - 上部: 口座名、合計金額、登録書籍数
@@ -173,18 +174,49 @@ init() {
 
 ---
 
+### ✅ 本の検索画面（BookSearchView.swift）
+
+**実装内容**:
+- 検索バーでタイトル・ISBNを検索（API連携は今後実装予定）
+- 検索結果が0件の場合、「手動で登録する」ボタンを表示
+- 右上のペンシルアイコンからも手動登録が可能
+- 検索結果から選択して登録（API実装後）
+
+**表示項目**:
+- 検索バー
+- 検索結果リスト（タイトル、著者、価格）
+- 空状態のメッセージ
+
+---
+
+### ✅ 手動登録画面（AddBookView.swift）
+
+**実装内容**:
+- タイトル（必須 *）
+- 著者名（任意）
+- 価格（必須 * - 読書銀行のコンセプトに必須）
+- メモ（任意）
+- お気に入りフラグ
+- 保存後、自動的に通帳画面に戻る
+
+**バリデーション**:
+- タイトルと価格の両方が入力されていないと保存不可
+
+---
+
 ## 未実装機能（次のステップ）
 
 ### 🔜 最優先
 
-1. **本の登録機能**
-   - モーダルで登録フォームを表示
-   - タイトル、著者、価格の入力
-   - 総合口座に保存
+1. **楽天ブックスAPI連携**
+   - BookSearchViewで実際の本を検索
+   - タイトル・ISBN検索
+   - 検索結果から選択して登録
 
 2. **本の詳細画面**
    - UserBookをタップして詳細表示
-   - 編集・削除機能
+   - メモの閲覧・編集
+   - 削除機能
 
 ### 📋 後続機能
 
@@ -220,7 +252,9 @@ BookBank/
 ├── BookBankApp.swift              # アプリエントリーポイント、SwiftData設定
 ├── ContentView.swift               # 口座一覧画面
 └── Views/
-    └── PassbookDetailView.swift   # 通帳画面
+    ├── PassbookDetailView.swift   # 通帳画面
+    ├── BookSearchView.swift       # 本の検索画面
+    └── AddBookView.swift          # 手動登録画面
 ```
 
 ### モデル
@@ -274,21 +308,15 @@ private var userBooks: [UserBook] {
 
 ## Git構成
 
-- **親リポジトリ**: `BookBank-100days-log`（日報・設計ドキュメント）
-- **サブモジュール**: `dev/BookBank`（Xcodeプロジェクト）
+- **リポジトリ**: `BookBank-100days-log`（日報・設計ドキュメント・Xcodeプロジェクト）
+- **管理方法**: 1つのリポジトリで統合管理（2026-01-15にサブモジュール構成から変更）
 
 **コミット時**:
 ```bash
-# サブモジュール内でコミット
-cd dev/BookBank
+# プロジェクトルートで
+cd /Users/37/AYAME-Cursor/BookBank-100days-log
 git add .
 git commit -m "メッセージ"
-git push origin main
-
-# 親リポジトリで参照を更新
-cd ../..
-git add dev/BookBank
-git commit -m "update: BookBankプロジェクトの更新を反映"
 git push origin main
 ```
 
@@ -305,12 +333,20 @@ git push origin main
 
 ## 開発履歴
 
-### 2026-01-14
+### 2026-01-15（DAY57）
+- ✅ 本の検索画面（BookSearchView）作成
+- ✅ 手動登録画面（AddBookView）作成 - タイトル・金額必須
+- ✅ 通帳画面の+ボタンを検索画面に変更
+- ✅ 登録後に通帳画面に戻るUX改善
+- ✅ Git構成の修正（サブモジュール→通常のフォルダ管理）
+- ✅ 消失ファイルの再作成（BookBankApp.swift, ContentView.swift, Models/など）
+
+### 2026-01-14（DAY55-56）
 - ✅ SwiftData ModelContainer設定
 - ✅ 総合口座の自動作成機能
 - ✅ 口座一覧画面（ContentView）
 - ✅ 通帳画面（PassbookDetailView）
 
-### 2026-01-11
+### 2026-01-11（DAY54）
 - ✅ Xcodeプロジェクト作成
 - ✅ SwiftDataモデル定義（Passbook, UserBook, Subscription）
