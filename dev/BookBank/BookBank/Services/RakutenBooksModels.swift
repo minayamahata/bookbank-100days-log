@@ -42,6 +42,12 @@ struct RakutenBook: Codable, Identifiable {
     let itemCaption: String
     let mediumImageUrl: String?
     let largeImageUrl: String?
+    let size: String? // 発行形態（例：単行本、文庫）
+    let seriesName: String? // シリーズ・レーベル名
+    let booksGenreId: String? // ジャンルID
+    
+    // ページ数は楽天APIに含まれていないため、オプションで追加
+    // 実際には itemCaption から抽出する必要がある
     
     /// 商品説明（長い）
     var itemDescription: String? {
@@ -79,10 +85,29 @@ extension RakutenBook {
             isbn: isbn.isEmpty ? nil : isbn,
             publisher: publisherName.isEmpty ? nil : publisherName,
             publishedYear: publishedYear,
+            seriesName: seriesName,
             price: itemPrice,
-            thumbnailURL: mediumImageUrl,
+            imageURL: largeImageUrl ?? mediumImageUrl, // 大サイズ優先、なければ中サイズ
+            bookFormat: size,
+            pageCount: extractPageCount(),
             source: .api,
             passbook: passbook
         )
+    }
+    
+    /// itemCaptionからページ数を抽出（例：「320ページ」から320を抽出）
+    private func extractPageCount() -> Int? {
+        // 正規表現で「数字+ページ」を検索
+        let pattern = "(\\d+)ページ"
+        if let regex = try? NSRegularExpression(pattern: pattern, options: []) {
+            let nsString = itemCaption as NSString
+            let results = regex.matches(in: itemCaption, options: [], range: NSRange(location: 0, length: nsString.length))
+            
+            if let match = results.first {
+                let pageString = nsString.substring(with: match.range(at: 1))
+                return Int(pageString)
+            }
+        }
+        return nil
     }
 }

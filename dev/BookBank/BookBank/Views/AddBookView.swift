@@ -147,7 +147,7 @@ struct AddBookView: View {
             publisher: nil,
             publishedYear: nil,
             price: price,
-            thumbnailURL: nil,
+            imageURL: nil,
             source: .manual,
             memo: memo.isEmpty ? nil : memo.trimmingCharacters(in: .whitespaces),
             isFavorite: isFavorite,

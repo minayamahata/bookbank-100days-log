@@ -22,12 +22,21 @@ final class UserBook {
 
     /// 出版年
     var publishedYear: Int?
+    
+    /// シリーズ・レーベル名
+    var seriesName: String?
 
     /// 定価（書籍の公式価格）
     var price: Int?
 
-    /// 表紙画像URL
-    var thumbnailURL: String?
+    /// 表紙画像URL（大サイズ - リスト表示では縮小表示）
+    var imageURL: String?
+    
+    /// 発行形態（例：単行本、文庫本、電子書籍など）
+    var bookFormat: String?
+    
+    /// ページ数
+    var pageCount: Int?
 
     /// 登録元
     var source: BookSource
@@ -66,8 +75,11 @@ final class UserBook {
         isbn: String? = nil,
         publisher: String? = nil,
         publishedYear: Int? = nil,
+        seriesName: String? = nil,
         price: Int? = nil,
-        thumbnailURL: String? = nil,
+        imageURL: String? = nil,
+        bookFormat: String? = nil,
+        pageCount: Int? = nil,
         source: BookSource = .manual,
         memo: String? = nil,
         isFavorite: Bool = false,
@@ -78,8 +90,11 @@ final class UserBook {
         self.isbn = isbn
         self.publisher = publisher
         self.publishedYear = publishedYear
+        self.seriesName = seriesName
         self.price = price
-        self.thumbnailURL = thumbnailURL
+        self.imageURL = imageURL
+        self.bookFormat = bookFormat
+        self.pageCount = pageCount
         self.source = source
         self.memo = memo
         self.isFavorite = isFavorite

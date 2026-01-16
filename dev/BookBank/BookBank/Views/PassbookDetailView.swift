@@ -27,12 +27,6 @@ struct PassbookDetailView: View {
     /// 本の検索画面の表示フラグ
     @State private var isShowingBookSearch = false
     
-    /// 削除確認アラートの表示フラグ
-    @State private var showDeleteAlert = false
-    
-    /// 削除対象の本
-    @State private var bookToDelete: UserBook?
-    
     // MARK: - SwiftData Query
     
     /// この口座に紐づく書籍を取得
@@ -93,42 +87,43 @@ struct PassbookDetailView: View {
                 // 書籍一覧を表示
                 List {
                     ForEach(userBooks) { book in
-                        HStack(alignment: .top, spacing: 12) {
-                            // 左カラム：日付、タイトル、著者
-                            VStack(alignment: .leading, spacing: 2) {
-                                // 日付
-                                Text(formatDate(book.registeredAt))
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                                
-                                // タイトル
-                                Text(book.title)
-                                    .font(.subheadline)
-                                    .lineLimit(2)
-                                
-                                // 著者
-                                if !book.displayAuthor.isEmpty {
-                                    Text(book.displayAuthor)
-                                        .font(.caption2)
+                        NavigationLink(destination: UserBookDetailView(book: book)) {
+                            HStack(alignment: .top, spacing: 12) {
+                                // 左カラム：日付、タイトル、著者
+                                VStack(alignment: .leading, spacing: 2) {
+                                    // 日付
+                                    Text(formatDate(book.registeredAt))
+                                        .font(.caption)
                                         .foregroundColor(.secondary)
+                                    
+                                    // タイトル
+                                    Text(book.title)
+                                        .font(.subheadline)
+                                        .lineLimit(2)
+                                    
+                                    // 著者
+                                    if !book.displayAuthor.isEmpty {
+                                        Text(book.displayAuthor)
+                                            .font(.caption2)
+                                            .foregroundColor(.secondary)
+                                    }
+                                }
+                                
+                                Spacer()
+                                
+                                // 右カラム：金額
+                                if let priceText = book.displayPrice {
+                                    Text(priceText)
+                                        .font(.subheadline)
+                                        .fontWeight(.semibold)
+                                        .foregroundColor(.blue)
                                 }
                             }
-                            
-                            Spacer()
-                            
-                            // 右カラム：金額
-                            if let priceText = book.displayPrice {
-                                Text(priceText)
-                                    .font(.subheadline)
-                                    .fontWeight(.semibold)
-                                    .foregroundColor(.blue)
-                            }
+                            .padding(.vertical, 2)
                         }
-                        .padding(.vertical, 2)
                         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                             Button(role: .destructive) {
-                                bookToDelete = book
-                                showDeleteAlert = true
+                                deleteBook(book)
                             } label: {
                                 Label("削除", systemImage: "trash")
                             }
@@ -152,20 +147,6 @@ struct PassbookDetailView: View {
         .sheet(isPresented: $isShowingBookSearch) {
             BookSearchView(passbook: passbook)
         }
-        .alert("本を削除しますか？", isPresented: $showDeleteAlert) {
-            Button("キャンセル", role: .cancel) {
-                bookToDelete = nil
-            }
-            Button("削除", role: .destructive) {
-                if let book = bookToDelete {
-                    deleteBook(book)
-                }
-            }
-        } message: {
-            if let book = bookToDelete {
-                Text("「\(book.title)」を削除します。この操作は取り消せません。")
-            }
-        }
     }
     
     // MARK: - Actions
@@ -176,7 +157,6 @@ struct PassbookDetailView: View {
         
         do {
             try context.save()
-            bookToDelete = nil
         } catch {
             print("削除エラー: \(error)")
         }

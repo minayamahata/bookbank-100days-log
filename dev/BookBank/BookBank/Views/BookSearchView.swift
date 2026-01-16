@@ -425,8 +425,8 @@ struct BookSearchResultRow: View {
     
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            // サムネイル画像
-            if let imageUrlString = result.mediumImageUrl,
+            // サムネイル画像（大サイズを縮小表示）
+            if let imageUrlString = result.largeImageUrl ?? result.mediumImageUrl,
                let imageUrl = URL(string: imageUrlString) {
                 AsyncImage(url: imageUrl) { image in
                     image
