@@ -379,12 +379,17 @@ struct BookSearchView: View {
     
     /// 本が既に登録済みかチェック
     private func isBookRegistered(_ book: RakutenBook) -> Bool {
+        // この口座に登録されている本のみチェック
+        let booksInThisPassbook = allUserBooks.filter { 
+            $0.passbook?.persistentModelID == passbook.persistentModelID 
+        }
+        
         // ISBNで判定
         if !book.isbn.isEmpty {
-            return allUserBooks.contains { $0.isbn == book.isbn }
+            return booksInThisPassbook.contains { $0.isbn == book.isbn }
         }
         // ISBNがない場合はタイトルと著者で判定
-        return allUserBooks.contains { userBook in
+        return booksInThisPassbook.contains { userBook in
             userBook.title == book.title && userBook.author == book.author
         }
     }

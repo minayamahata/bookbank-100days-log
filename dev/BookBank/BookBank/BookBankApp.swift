@@ -43,7 +43,7 @@ struct BookBankApp: App {
     
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            MainTabView()
         }
         .modelContainer(modelContainer)
     }

@@ -24,8 +24,7 @@ struct PassbookDetailView: View {
     
     // MARK: - State
     
-    /// 本の検索画面の表示フラグ
-    @State private var isShowingBookSearch = false
+    // (削除: 検索画面の表示フラグは不要)
     
     // MARK: - SwiftData Query
     
@@ -50,58 +49,52 @@ struct PassbookDetailView: View {
     // MARK: - Body
     
     var body: some View {
-        VStack(spacing: 0) {
-            // 上部：口座情報
-            VStack(spacing: 8) {
-                Text(passbook.name)
-                    .font(.title2)
-                    .fontWeight(.bold)
-                
-                Text("¥\(passbook.totalValue.formatted())")
-                    .font(.system(size: 36, weight: .bold))
-                    .foregroundColor(.blue)
-                
-                Text("登録書籍: \(passbook.bookCount)冊")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-            }
-            .padding()
-            .frame(maxWidth: .infinity)
-            .background(Color(.systemGroupedBackground))
-            
-            // 中央：書籍リスト
-            if userBooks.isEmpty {
-                // 書籍が0件の場合
-                VStack(spacing: 16) {
-                    Image(systemName: "books.vertical")
-                        .font(.system(size: 60))
-                        .foregroundColor(.gray)
+        List {
+            // 口座情報
+            Section {
+                VStack(spacing: 8) {
+                    Text(passbook.name)
+                        .font(.title2)
+                        .fontWeight(.bold)
                     
-                    Text("まだ本が登録されていません")
-                        .font(.headline)
+                    Text("¥\(passbook.totalValue.formatted())")
+                        .font(.system(size: 36, weight: .bold))
+                        .foregroundColor(.blue)
+                    
+                    Text("登録書籍: \(passbook.bookCount)冊")
+                        .font(.subheadline)
                         .foregroundColor(.secondary)
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .padding()
-            } else {
-                // 書籍一覧を表示
-                List {
+                .frame(maxWidth: .infinity)
+            }
+            
+            // 書籍リスト
+            Section {
+                if userBooks.isEmpty {
+                    VStack(spacing: 16) {
+                        Image(systemName: "books.vertical")
+                            .font(.system(size: 60))
+                            .foregroundColor(.gray)
+                        
+                        Text("まだ本が登録されていません")
+                            .font(.headline)
+                            .foregroundColor(.secondary)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                } else {
                     ForEach(userBooks) { book in
                         NavigationLink(destination: UserBookDetailView(book: book)) {
-                            HStack(alignment: .top, spacing: 12) {
-                                // 左カラム：日付、タイトル、著者
+                            HStack(alignment: .center, spacing: 12) {
                                 VStack(alignment: .leading, spacing: 2) {
-                                    // 日付
                                     Text(formatDate(book.registeredAt))
                                         .font(.caption)
                                         .foregroundColor(.secondary)
                                     
-                                    // タイトル
                                     Text(book.title)
                                         .font(.subheadline)
                                         .lineLimit(2)
                                     
-                                    // 著者
                                     if !book.displayAuthor.isEmpty {
                                         Text(book.displayAuthor)
                                             .font(.caption2)
@@ -111,7 +104,6 @@ struct PassbookDetailView: View {
                                 
                                 Spacer()
                                 
-                                // 右カラム：金額
                                 if let priceText = book.displayPrice {
                                     Text(priceText)
                                         .font(.subheadline)
@@ -119,48 +111,17 @@ struct PassbookDetailView: View {
                                         .foregroundColor(.blue)
                                 }
                             }
-                            .padding(.vertical, 2)
-                        }
-                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                            Button(role: .destructive) {
-                                deleteBook(book)
-                            } label: {
-                                Label("削除", systemImage: "trash")
-                            }
                         }
                     }
                 }
             }
         }
+        .listStyle(.insetGrouped)
         .navigationTitle("通帳")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            // 本を検索・追加ボタン
-            ToolbarItem(placement: .primaryAction) {
-                Button(action: {
-                    isShowingBookSearch = true
-                }) {
-                    Image(systemName: "plus")
-                }
-            }
-        }
-        .sheet(isPresented: $isShowingBookSearch) {
-            BookSearchView(passbook: passbook)
-        }
     }
     
     // MARK: - Actions
-    
-    /// 本を削除
-    private func deleteBook(_ book: UserBook) {
-        context.delete(book)
-        
-        do {
-            try context.save()
-        } catch {
-            print("削除エラー: \(error)")
-        }
-    }
     
     /// 日付をYYYY.MM.DD形式でフォーマット
     private func formatDate(_ date: Date) -> String {
