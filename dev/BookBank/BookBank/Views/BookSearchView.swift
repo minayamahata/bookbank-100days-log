@@ -22,13 +22,24 @@ struct BookSearchView: View {
     
     // MARK: - Properties
     
-    /// 登録先の口座
+    /// 登録先の口座（初期値）
     let passbook: Passbook
+    
+    /// 口座選択を許可するかどうか
+    let allowPassbookChange: Bool
     
     // MARK: - SwiftData Query
     
     /// 全ての登録済み書籍を取得
     @Query private var allUserBooks: [UserBook]
+    
+    /// すべての口座を取得
+    @Query(sort: \Passbook.sortOrder) private var allPassbooks: [Passbook]
+    
+    /// カスタム口座のみ取得
+    private var customPassbooks: [Passbook] {
+        allPassbooks.filter { $0.type == .custom && $0.isActive }
+    }
     
     // MARK: - State
     
@@ -68,8 +79,19 @@ struct BookSearchView: View {
     /// 未登録のみ表示フラグ
     @State private var showUnregisteredOnly: Bool = false
     
+    /// 選択中の口座
+    @State private var selectedPassbook: Passbook?
+    
     /// 楽天Books APIサービス
     private let rakutenService = RakutenBooksService()
+    
+    // MARK: - Initialization
+    
+    init(passbook: Passbook, allowPassbookChange: Bool = false) {
+        self.passbook = passbook
+        self.allowPassbookChange = allowPassbookChange
+        _selectedPassbook = State(initialValue: passbook)
+    }
     
     // MARK: - Computed Properties
     
@@ -86,6 +108,27 @@ struct BookSearchView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
+                // 口座選択プルダウン（allowPassbookChangeがtrueの場合のみ表示）
+                if allowPassbookChange {
+                    HStack {
+                        Text("登録先の口座")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                        
+                        Spacer()
+                        
+                        Picker("口座", selection: $selectedPassbook) {
+                            ForEach(customPassbooks) { passbook in
+                                Text(passbook.name).tag(passbook as Passbook?)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                    }
+                    .padding(.horizontal)
+                    .padding(.vertical, 12)
+                    .background(Color(.systemGray6))
+                }
+                
                 // フィルターオプション
                 if hasSearched && !searchResults.isEmpty {
                     HStack {
@@ -285,9 +328,11 @@ struct BookSearchView: View {
                 }
             }
             .sheet(isPresented: $isShowingManualEntry) {
-                AddBookView(passbook: passbook) {
-                    // 手動登録が完了したら検索画面も閉じて通帳画面に戻る
-                    dismiss()
+                if let targetPassbook = selectedPassbook {
+                    AddBookView(passbook: targetPassbook, allowPassbookChange: allowPassbookChange) {
+                        // 手動登録が完了したら検索画面も閉じて通帳画面に戻る
+                        dismiss()
+                    }
                 }
             }
         }
@@ -352,7 +397,8 @@ struct BookSearchView: View {
     
     /// 検索結果から本を保存
     private func saveBook(from result: RakutenBook) {
-        let newBook = result.toUserBook(passbook: passbook)
+        guard let targetPassbook = selectedPassbook else { return }
+        let newBook = result.toUserBook(passbook: targetPassbook)
         
         context.insert(newBook)
         
@@ -377,19 +423,16 @@ struct BookSearchView: View {
         }
     }
     
-    /// 本が既に登録済みかチェック
+    /// 本が既に登録済みかチェック（全口座を対象）
     private func isBookRegistered(_ book: RakutenBook) -> Bool {
-        // この口座に登録されている本のみチェック
-        let booksInThisPassbook = allUserBooks.filter { 
-            $0.passbook?.persistentModelID == passbook.persistentModelID 
-        }
+        // 全口座の本をチェック（重複登録を防ぐ）
         
         // ISBNで判定
         if !book.isbn.isEmpty {
-            return booksInThisPassbook.contains { $0.isbn == book.isbn }
+            return allUserBooks.contains { $0.isbn == book.isbn }
         }
         // ISBNがない場合はタイトルと著者で判定
-        return booksInThisPassbook.contains { userBook in
+        return allUserBooks.contains { userBook in
             userBook.title == book.title && userBook.author == book.author
         }
     }

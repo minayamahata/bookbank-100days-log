@@ -14,34 +14,70 @@ struct PassbookDetailView: View {
     
     // MARK: - Properties
     
-    /// 表示対象の口座
-    let passbook: Passbook
+    /// 表示対象の口座（nilの場合は総合口座）
+    let passbook: Passbook?
+    
+    /// 総合口座モードかどうか
+    let isOverall: Bool
     
     // MARK: - Environment
     
     /// SwiftDataのモデルコンテキスト
     @Environment(\.modelContext) private var context
     
-    // MARK: - State
-    
-    // (削除: 検索画面の表示フラグは不要)
-    
     // MARK: - SwiftData Query
+    
+    /// すべての口座を取得（総合口座の計算用）
+    @Query(sort: \Passbook.sortOrder) private var allPassbooks: [Passbook]
     
     /// この口座に紐づく書籍を取得
     @Query private var allUserBooks: [UserBook]
     
     /// この口座に紐づく書籍のみをフィルタリング
     private var userBooks: [UserBook] {
-        allUserBooks.filter { book in
-            book.passbook?.persistentModelID == passbook.persistentModelID
+        if isOverall {
+            // 総合口座: すべての本を表示
+            return allUserBooks
+        } else if let passbook = passbook {
+            // カスタム口座: その口座の本のみ
+            return allUserBooks.filter { book in
+                book.passbook?.persistentModelID == passbook.persistentModelID
+            }
+        } else {
+            return []
+        }
+    }
+    
+    /// 表示用の口座名
+    private var displayName: String {
+        isOverall ? "総合口座" : (passbook?.name ?? "")
+    }
+    
+    /// 合計金額（総合口座の場合はすべての口座の合計）
+    private var totalValue: Int {
+        if isOverall {
+            return allPassbooks.filter { $0.type == .custom && $0.isActive }
+                .reduce(0) { $0 + $1.totalValue }
+        } else {
+            return passbook?.totalValue ?? 0
+        }
+    }
+    
+    /// 登録書籍数
+    private var bookCount: Int {
+        if isOverall {
+            return allPassbooks.filter { $0.type == .custom && $0.isActive }
+                .reduce(0) { $0 + $1.bookCount }
+        } else {
+            return passbook?.bookCount ?? 0
         }
     }
     
     // MARK: - Initialization
     
-    init(passbook: Passbook) {
+    init(passbook: Passbook?, isOverall: Bool = false) {
         self.passbook = passbook
+        self.isOverall = isOverall
         // registeredAt の降順でソート（新しい本が上に表示される）
         _allUserBooks = Query(sort: \UserBook.registeredAt, order: .reverse)
     }
@@ -53,15 +89,11 @@ struct PassbookDetailView: View {
             // 口座情報
             Section {
                 VStack(spacing: 8) {
-                    Text(passbook.name)
-                        .font(.title2)
-                        .fontWeight(.bold)
-                    
-                    Text("¥\(passbook.totalValue.formatted())")
+                    Text("¥\(totalValue.formatted())")
                         .font(.system(size: 36, weight: .bold))
                         .foregroundColor(.blue)
                     
-                    Text("登録書籍: \(passbook.bookCount)冊")
+                    Text("登録書籍: \(bookCount)冊")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                 }
@@ -117,7 +149,7 @@ struct PassbookDetailView: View {
             }
         }
         .listStyle(.insetGrouped)
-        .navigationTitle("通帳")
+        .navigationTitle(displayName)
         .navigationBarTitleDisplayMode(.inline)
     }
     
@@ -134,8 +166,14 @@ struct PassbookDetailView: View {
 // MARK: - Preview
 
 #Preview {
-    NavigationStack {
-        PassbookDetailView(passbook: Passbook.createOverall())
+    let config = ModelConfiguration(isStoredInMemoryOnly: true)
+    let container = try! ModelContainer(for: Passbook.self, UserBook.self, configurations: config)
+    
+    let passbook = Passbook(name: "漫画口座", type: .custom, sortOrder: 1)
+    container.mainContext.insert(passbook)
+    
+    return NavigationStack {
+        PassbookDetailView(passbook: passbook, isOverall: false)
     }
-    .modelContainer(for: [Passbook.self, UserBook.self, Subscription.self])
+    .modelContainer(container)
 }

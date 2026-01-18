@@ -269,12 +269,7 @@ init() {
 
 ### 🔜 最優先
 
-1. **口座管理機能**
-   - カスタム口座の作成
-   - 口座の編集・削除
-   - 本を別の口座に移動
-
-2. **ソート機能（通帳画面）**
+1. **ソート機能（通帳画面）**
    - 日付順、価格順、タイトル順
 
 3. **グラフ表示**
@@ -300,14 +295,20 @@ init() {
 
 ```
 BookBank/
-├── BookBankApp.swift              # アプリエントリーポイント、SwiftData設定
-├── ContentView.swift               # 口座一覧画面
+├── BookBankApp.swift              # アプリエントリーポイント、SwiftData設定、RootView
+├── ContentView.swift               # （未使用）
 ├── Views/
-│   ├── PassbookDetailView.swift   # 通帳画面
+│   ├── OnboardingView.swift       # オンボーディング画面
+│   ├── MainTabView.swift          # タブバー（通帳・本棚の2つ）
+│   ├── PassbookSelectorView.swift # 口座選択画面
+│   ├── PassbookDetailView.swift   # 通帳画面（総合口座・カスタム口座対応）
+│   ├── BookshelfView.swift        # 本棚画面（口座別）
+│   ├── OverallBookshelfView.swift # 総合口座の本棚画面
+│   ├── AddPassbookView.swift      # 口座追加画面
+│   ├── BookSearchView.swift       # 本の検索画面（口座選択機能付き）
+│   ├── AddBookView.swift          # 手動登録画面（口座選択機能付き）
 │   ├── UserBookDetailView.swift   # 本の詳細画面
-│   ├── MemoEditorView.swift       # メモ編集モーダル
-│   ├── BookSearchView.swift       # 本の検索画面
-│   └── AddBookView.swift          # 手動登録画面
+│   └── MemoEditorView.swift       # メモ編集モーダル
 └── Services/
     ├── RakutenBooksService.swift  # 楽天Books API通信
     └── RakutenBooksModels.swift   # APIレスポンスモデル
@@ -388,6 +389,64 @@ git push origin main
 ---
 
 ## 開発履歴
+
+### 2026-01-19（DAY61）
+- ✅ **口座管理機能の完全実装**
+  - カスタム口座の作成・削除機能
+  - 総合口座 = すべてのカスタム口座の合計表示（仮想口座）
+  - UserBookは必ずどこかのカスタム口座に所属
+  
+- ✅ **タブバー構成の大幅変更**
+  - 3タブ（ホーム・口座・本棚）→ 2タブ（通帳・本棚）に変更
+  - 口座切り替えボタンを左上に配置（口座名▼）
+  - 総合口座の復活（デフォルト表示）
+  - 各口座で通帳・本棚を切り替え可能
+  
+- ✅ **オンボーディング画面（OnboardingView）**
+  - 初回起動時に最初の口座開設を促す
+  - おすすめ口座名の候補表示（プライベート、漫画、仕事用）
+  - FlowLayoutでレスポンシブなボタン配置
+  - キーボードに「完了」ボタン表示（submitLabel）
+  - 入力欄の右に「口座」ラベル表示
+  
+- ✅ **口座選択画面（PassbookSelectorView）**
+  - フルスクリーンページとして実装
+  - 総合口座とカスタム口座をセクション分け
+  - NavigationLinkで口座追加画面に遷移（モーダルが重ならない）
+  - チェックマークで選択中の口座を表示
+  
+- ✅ **口座追加画面（AddPassbookView）**
+  - キャンセルボタン削除（戻るボタンと重複）
+  - おすすめボタンを横スクロールから折り返し表示に変更
+  - キーボードに「完了」ボタン表示
+  - 入力欄の右に「口座」ラベル表示
+  
+- ✅ **本登録時の口座選択機能**
+  - BookSearchViewに口座選択プルダウン追加
+  - AddBookViewに口座選択プルダウン追加
+  - 現在開いている口座がデフォルト値として設定
+  - どの画面からでも好きな口座に登録可能
+  
+- ✅ **PassbookDetailViewの総合口座対応**
+  - `passbook: Passbook?` で総合口座（nil）とカスタム口座の両方に対応
+  - `isOverall: Bool` フラグで表示を切り替え
+  - 総合口座: 全カスタム口座の書籍数・金額を集計表示
+  - カスタム口座: その口座の書籍のみ表示
+  - ナビゲーションタイトルに口座名を表示
+  
+- ✅ **BookshelfViewの口座対応**
+  - 選択中の口座の本のみを表示
+  - 総合口座用の本棚ビュー（OverallBookshelfView）を作成
+  
+- ✅ **重複登録防止機能**
+  - 全口座を対象に重複チェック
+  - 同じ本を複数の口座に登録できないように変更
+  - ISBNまたはタイトル+著者で判定
+  
+- ✅ **BookBankApp.swiftの初期化ロジック変更**
+  - 総合口座の自動作成を廃止
+  - カスタム口座がない場合はオンボーディングを表示
+  - RootViewで起動時の分岐処理
 
 ### 2026-01-18（DAY60）
 - ✅ **タブバーのUI改善**

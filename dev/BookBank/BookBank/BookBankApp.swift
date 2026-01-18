@@ -43,7 +43,7 @@ struct BookBankApp: App {
     
     var body: some Scene {
         WindowGroup {
-            MainTabView()
+            RootView()
         }
         .modelContainer(modelContainer)
     }
@@ -51,25 +51,41 @@ struct BookBankApp: App {
     // MARK: - Private Methods
     
     /// 初回起動時のデフォルトデータを作成
+    /// 新仕様: 総合口座は作成せず、カスタム口座のみ管理
     private func initializeDefaultData() {
-        let context = modelContainer.mainContext
-        
-        // 総合口座が存在するかチェック
-        let fetchDescriptor = FetchDescriptor<Passbook>()
-        
-        do {
-            let allPassbooks = try context.fetch(fetchDescriptor)
-            let existingOverallPassbooks = allPassbooks.filter { $0.type == .overall }
-            
-            // 総合口座が存在しない場合のみ作成
-            if existingOverallPassbooks.isEmpty {
-                let overallPassbook = Passbook.createOverall()
-                context.insert(overallPassbook)
-                try context.save()
-                print("✅ Default 'Overall Passbook' created")
+        // 現在は何もしない（オンボーディングで最初の口座を作成）
+        print("✅ BookBank initialized (no default data)")
+    }
+}
+
+// MARK: - RootView
+
+/// アプリのルートビュー
+/// カスタム口座の有無によってオンボーディングまたはメイン画面を表示
+struct RootView: View {
+    @Query private var passbooks: [Passbook]
+    @State private var showOnboarding = false
+    
+    // カスタム口座を取得
+    private var customPassbooks: [Passbook] {
+        passbooks.filter { $0.type == .custom }
+    }
+    
+    var body: some View {
+        Group {
+            if customPassbooks.isEmpty {
+                // カスタム口座がない場合はオンボーディングを表示
+                Color.clear
+                    .onAppear {
+                        showOnboarding = true
+                    }
+            } else {
+                // カスタム口座がある場合はメイン画面を表示
+                MainTabView()
             }
-        } catch {
-            print("❌ Error initializing default data: \(error)")
+        }
+        .fullScreenCover(isPresented: $showOnboarding) {
+            OnboardingView()
         }
     }
 }

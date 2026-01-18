@@ -22,13 +22,29 @@ struct AddBookView: View {
     
     // MARK: - Properties
     
-    /// 登録先の口座
+    /// 登録先の口座（初期値）
     let passbook: Passbook
+    
+    /// 口座選択を許可するかどうか
+    let allowPassbookChange: Bool
     
     /// 保存成功時のコールバック（親画面を閉じるため）
     var onSave: (() -> Void)?
     
+    // MARK: - SwiftData Query
+    
+    /// すべての口座を取得
+    @Query(sort: \Passbook.sortOrder) private var allPassbooks: [Passbook]
+    
+    /// カスタム口座のみ取得
+    private var customPassbooks: [Passbook] {
+        allPassbooks.filter { $0.type == .custom && $0.isActive }
+    }
+    
     // MARK: - Form State
+    
+    /// 選択中の口座
+    @State private var selectedPassbook: Passbook?
     
     /// 書籍タイトル（必須）
     @State private var title: String = ""
@@ -45,6 +61,15 @@ struct AddBookView: View {
     /// お気に入りフラグ
     @State private var isFavorite: Bool = false
     
+    // MARK: - Initialization
+    
+    init(passbook: Passbook, allowPassbookChange: Bool = false, onSave: (() -> Void)? = nil) {
+        self.passbook = passbook
+        self.allowPassbookChange = allowPassbookChange
+        self.onSave = onSave
+        _selectedPassbook = State(initialValue: passbook)
+    }
+    
     // MARK: - Validation
     
     /// 保存ボタンが有効かどうか（タイトルと金額が必須）
@@ -59,6 +84,18 @@ struct AddBookView: View {
     var body: some View {
         NavigationStack {
             Form {
+                // 口座選択セクション（allowPassbookChangeがtrueの場合のみ表示）
+                if allowPassbookChange {
+                    Section(header: Text("登録先の口座")) {
+                        Picker("口座", selection: $selectedPassbook) {
+                            ForEach(customPassbooks) { passbook in
+                                Text(passbook.name).tag(passbook as Passbook?)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                    }
+                }
+                
                 // 基本情報セクション
                 Section(header: Text("基本情報")) {
                     // タイトル（必須）
@@ -135,7 +172,8 @@ struct AddBookView: View {
     /// 本を保存する
     private func saveBook() {
         // 価格の数値変換（必須なのでアンラップ）
-        guard let price = Int(priceText) else {
+        guard let price = Int(priceText),
+              let targetPassbook = selectedPassbook else {
             return
         }
         
@@ -151,7 +189,7 @@ struct AddBookView: View {
             source: .manual,
             memo: memo.isEmpty ? nil : memo.trimmingCharacters(in: .whitespaces),
             isFavorite: isFavorite,
-            passbook: passbook
+            passbook: targetPassbook
         )
         
         // SwiftDataに保存
@@ -173,6 +211,12 @@ struct AddBookView: View {
 // MARK: - Preview
 
 #Preview {
-    AddBookView(passbook: Passbook.createOverall())
-        .modelContainer(for: [Passbook.self, UserBook.self, Subscription.self])
+    let config = ModelConfiguration(isStoredInMemoryOnly: true)
+    let container = try! ModelContainer(for: Passbook.self, UserBook.self, configurations: config)
+    
+    let passbook = Passbook(name: "漫画口座", type: .custom, sortOrder: 1)
+    container.mainContext.insert(passbook)
+    
+    return AddBookView(passbook: passbook)
+        .modelContainer(container)
 }

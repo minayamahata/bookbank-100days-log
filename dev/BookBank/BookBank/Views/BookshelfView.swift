@@ -11,8 +11,18 @@ import SwiftData
 struct BookshelfView: View {
     @Environment(\.modelContext) private var context
     
+    // 表示対象の口座
+    let passbook: Passbook
+    
     // すべての本を取得（登録日降順）
     @Query(sort: \UserBook.registeredAt, order: .reverse) private var allBooks: [UserBook]
+    
+    // この口座の本のみをフィルタリング
+    private var userBooks: [UserBook] {
+        allBooks.filter { book in
+            book.passbook?.persistentModelID == passbook.persistentModelID
+        }
+    }
     
     // グリッドの列定義（4カラム）
     private let columns = [
@@ -23,9 +33,8 @@ struct BookshelfView: View {
     ]
     
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                if allBooks.isEmpty {
+        ScrollView {
+            if userBooks.isEmpty {
                     // 空状態
                     VStack(spacing: 16) {
                         Image(systemName: "books.vertical")
@@ -42,24 +51,23 @@ struct BookshelfView: View {
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .padding()
-                } else {
-                    // 本棚グリッド
-                    LazyVGrid(columns: columns, spacing: 2) {
-                        ForEach(allBooks) { book in
+            } else {
+                // 本棚グリッド
+                LazyVGrid(columns: columns, spacing: 2) {
+                    ForEach(userBooks) { book in
                             NavigationLink(destination: UserBookDetailView(book: book)) {
                                 BookCoverView(book: book)
                             }
                             .buttonStyle(.plain)
                         }
                     }
-                    .padding(.horizontal, 2) // 左右の余白を2pxに
-                    .padding(.bottom, 100) // タブバー分の余白を確実に確保
-                }
+                .padding(.horizontal, 2) // 左右の余白を2pxに
+                .padding(.bottom, 100) // タブバー分の余白を確実に確保
             }
-            .ignoresSafeArea(edges: .bottom) // タブバーの下まで表示
-            .navigationTitle("本棚")
-            .navigationBarTitleDisplayMode(.inline)
         }
+        .ignoresSafeArea(edges: .bottom) // タブバーの下まで表示
+        .navigationTitle(passbook.name)
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 
@@ -135,7 +143,7 @@ struct BookCoverView: View {
     let config = ModelConfiguration(isStoredInMemoryOnly: true)
     let container = try! ModelContainer(for: Passbook.self, UserBook.self, configurations: config)
     
-    let passbook = Passbook.createOverall()
+    let passbook = Passbook(name: "漫画", type: .custom, sortOrder: 1)
     container.mainContext.insert(passbook)
     
     // サンプル本を追加
@@ -152,6 +160,6 @@ struct BookCoverView: View {
         container.mainContext.insert(book)
     }
     
-    return BookshelfView()
+    return BookshelfView(passbook: passbook)
         .modelContainer(container)
 }
