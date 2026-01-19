@@ -82,6 +82,9 @@ struct BookSearchView: View {
     /// 選択中の口座
     @State private var selectedPassbook: Passbook?
     
+    /// 検索バーの表示状態（自動的にキーボードを表示するため）
+    @State private var isSearchPresented: Bool = true
+    
     /// 楽天Books APIサービス
     private let rakutenService = RakutenBooksService()
     
@@ -106,199 +109,199 @@ struct BookSearchView: View {
     // MARK: - Body
     
     var body: some View {
-        NavigationStack {
-            VStack(spacing: 0) {
-                // 口座選択プルダウン（allowPassbookChangeがtrueの場合のみ表示）
-                if allowPassbookChange {
-                    HStack {
-                        Text("登録先の口座")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                        
-                        Spacer()
-                        
-                        Picker("口座", selection: $selectedPassbook) {
-                            ForEach(customPassbooks) { passbook in
-                                Text(passbook.name).tag(passbook as Passbook?)
-                            }
+        VStack(spacing: 0) {
+            // 口座選択プルダウン（allowPassbookChangeがtrueの場合のみ表示）
+            if allowPassbookChange {
+                HStack {
+                    Text("登録先の口座")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                    
+                    Spacer()
+                    
+                    Picker("口座", selection: $selectedPassbook) {
+                        ForEach(customPassbooks) { passbook in
+                            Text(passbook.name).tag(passbook as Passbook?)
                         }
-                        .pickerStyle(.menu)
                     }
-                    .padding(.horizontal)
-                    .padding(.vertical, 12)
-                    .background(Color(.systemGray6))
+                    .pickerStyle(.menu)
                 }
-                
-                // フィルターオプション
-                if hasSearched && !searchResults.isEmpty {
-                    HStack {
-                        Toggle(isOn: $showUnregisteredOnly) {
-                            HStack(spacing: 4) {
-                                Image(systemName: showUnregisteredOnly ? "checkmark.square.fill" : "square")
-                                    .foregroundColor(showUnregisteredOnly ? .blue : .secondary)
-                                Text("未登録のみを表示")
-                                    .font(.subheadline)
-                            }
+                .padding(.horizontal)
+                .padding(.vertical, 12)
+                .background(Color(.systemGray6))
+            }
+            
+            // フィルターオプション
+            if hasSearched && !searchResults.isEmpty {
+                HStack {
+                    Toggle(isOn: $showUnregisteredOnly) {
+                        HStack(spacing: 4) {
+                            Image(systemName: showUnregisteredOnly ? "checkmark.square.fill" : "square")
+                                .foregroundColor(showUnregisteredOnly ? .blue : .secondary)
+                            Text("未登録のみを表示")
+                                .font(.subheadline)
                         }
-                        .toggleStyle(.button)
-                        .buttonStyle(.plain)
-                        
-                        Spacer()
                     }
-                    .padding(.horizontal)
-                    .padding(.vertical, 8)
-                    .background(Color(.systemGroupedBackground))
+                    .toggleStyle(.button)
+                    .buttonStyle(.plain)
+                    
+                    Spacer()
                 }
-                
-                // 検索結果リスト or 空状態
-                if isSearching {
-                    // 検索中の表示
-                    VStack(spacing: 16) {
-                        ProgressView()
-                        Text("検索中...")
-                            .foregroundColor(.secondary)
+                .padding(.horizontal)
+                .padding(.vertical, 8)
+                .background(Color(.systemGroupedBackground))
+            }
+            
+            // 検索結果リスト or 空状態
+            if isSearching {
+                // 検索中の表示
+                VStack(spacing: 16) {
+                    ProgressView()
+                    Text("検索中...")
+                        .foregroundColor(.secondary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if searchResults.isEmpty && hasSearched {
+                // 検索結果が0件の場合
+                VStack(spacing: 24) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 60))
+                        .foregroundColor(.gray)
+                    
+                    Text("本が見つかりませんでした")
+                        .font(.headline)
+                        .foregroundColor(.secondary)
+                    
+                    Text("別のキーワードで検索するか、\n手動で登録してください")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                    
+                    // 手動登録ボタン
+                    Button(action: {
+                        isShowingManualEntry = true
+                    }) {
+                        HStack {
+                            Image(systemName: "pencil")
+                            Text("手動で登録する")
+                        }
+                        .font(.headline)
+                        .foregroundColor(.white)
+                        .padding()
+                        .frame(maxWidth: .infinity)
+                        .background(Color.blue)
+                        .cornerRadius(10)
                     }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else if searchResults.isEmpty && hasSearched {
-                    // 検索結果が0件の場合
-                    VStack(spacing: 24) {
-                        Image(systemName: "magnifyingglass")
-                            .font(.system(size: 60))
-                            .foregroundColor(.gray)
+                    .padding(.horizontal, 32)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding()
+            } else if !filteredSearchResults.isEmpty {
+                // 検索結果の表示
+                List {
+                    ForEach(filteredSearchResults) { result in
+                        let isAlreadyRegistered = isBookRegistered(result)
                         
-                        Text("本が見つかりませんでした")
-                            .font(.headline)
-                            .foregroundColor(.secondary)
-                        
-                        Text("別のキーワードで検索するか、\n手動で登録してください")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                            .multilineTextAlignment(.center)
-                        
-                        // 手動登録ボタン
                         Button(action: {
-                            isShowingManualEntry = true
+                            if !isAlreadyRegistered {
+                                saveBook(from: result)
+                            }
                         }) {
-                            HStack {
-                                Image(systemName: "pencil")
-                                Text("手動で登録する")
-                            }
-                            .font(.headline)
-                            .foregroundColor(.white)
-                            .padding()
-                            .frame(maxWidth: .infinity)
-                            .background(Color.blue)
-                            .cornerRadius(10)
+                            BookSearchResultRow(result: result, isRegistered: isAlreadyRegistered)
                         }
-                        .padding(.horizontal, 32)
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .padding()
-                } else if !filteredSearchResults.isEmpty {
-                    // 検索結果の表示
-                    List {
-                        ForEach(filteredSearchResults) { result in
-                            let isAlreadyRegistered = isBookRegistered(result)
-                            
-                            Button(action: {
-                                if !isAlreadyRegistered {
-                                    saveBook(from: result)
-                                }
-                            }) {
-                                BookSearchResultRow(result: result, isRegistered: isAlreadyRegistered)
-                            }
-                            .disabled(isAlreadyRegistered)
-                            .onAppear {
-                                // 最後の要素が表示されたら次のページを読み込む
-                                if result.id == filteredSearchResults.last?.id && canLoadMore && !isLoadingMore {
-                                    loadMoreResults()
-                                }
-                            }
-                        }
-                        
-                        // 追加読み込み中のインジケーター
-                        if isLoadingMore {
-                            HStack {
-                                Spacer()
-                                ProgressView()
-                                    .padding()
-                                Spacer()
+                        .disabled(isAlreadyRegistered)
+                        .onAppear {
+                            // 最後の要素が表示されたら次のページを読み込む
+                            if result.id == filteredSearchResults.last?.id && canLoadMore && !isLoadingMore {
+                                loadMoreResults()
                             }
                         }
                     }
-                } else if hasSearched && searchResults.isEmpty {
-                    // 検索結果が0件（フィルター前）
-                    VStack(spacing: 24) {
-                        Image(systemName: "magnifyingglass")
-                            .font(.system(size: 60))
-                            .foregroundColor(.gray)
-                        
-                        Text("本が見つかりませんでした")
-                            .font(.headline)
-                            .foregroundColor(.secondary)
-                        
-                        Text("別のキーワードで検索するか、\n手動で登録してください")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                            .multilineTextAlignment(.center)
-                        
-                        // 手動登録ボタン
-                        Button(action: {
-                            isShowingManualEntry = true
-                        }) {
-                            HStack {
-                                Image(systemName: "pencil")
-                                Text("手動で登録する")
-                            }
-                            .font(.headline)
-                            .foregroundColor(.white)
-                            .padding()
-                            .frame(maxWidth: .infinity)
-                            .background(Color.blue)
-                            .cornerRadius(10)
+                    
+                    // 追加読み込み中のインジケーター
+                    if isLoadingMore {
+                        HStack {
+                            Spacer()
+                            ProgressView()
+                                .padding()
+                            Spacer()
                         }
-                        .padding(.horizontal, 32)
                     }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .padding()
-                } else if hasSearched && !searchResults.isEmpty && filteredSearchResults.isEmpty {
-                    // フィルター適用後に0件
-                    VStack(spacing: 16) {
-                        Image(systemName: "checkmark.circle")
-                            .font(.system(size: 60))
-                            .foregroundColor(.green)
-                        
-                        Text("すべて登録済みです")
-                            .font(.headline)
-                            .foregroundColor(.secondary)
-                        
-                        Text("この検索結果の本はすべて登録されています")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                            .multilineTextAlignment(.center)
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else {
-                    // 初期状態（検索前）
-                    VStack(spacing: 16) {
-                        Image(systemName: "book.fill")
-                            .font(.system(size: 60))
-                            .foregroundColor(.gray)
-                        
-                        Text("本のタイトルや著者名で検索")
-                            .font(.headline)
-                            .foregroundColor(.secondary)
-                        
-                        Text("見つからない場合は手動で登録できます")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
+                .listStyle(.plain)
+            } else if hasSearched && searchResults.isEmpty {
+                // 検索結果が0件（フィルター前）
+                VStack(spacing: 24) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 60))
+                        .foregroundColor(.gray)
+                    
+                    Text("本が見つかりませんでした")
+                        .font(.headline)
+                        .foregroundColor(.secondary)
+                    
+                    Text("別のキーワードで検索するか、\n手動で登録してください")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                    
+                    // 手動登録ボタン
+                    Button(action: {
+                        isShowingManualEntry = true
+                    }) {
+                        HStack {
+                            Image(systemName: "pencil")
+                            Text("手動で登録する")
+                        }
+                        .font(.headline)
+                        .foregroundColor(.white)
+                        .padding()
+                        .frame(maxWidth: .infinity)
+                        .background(Color.blue)
+                        .cornerRadius(10)
+                    }
+                    .padding(.horizontal, 32)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding()
+            } else if hasSearched && !searchResults.isEmpty && filteredSearchResults.isEmpty {
+                // フィルター適用後に0件
+                VStack(spacing: 16) {
+                    Image(systemName: "checkmark.circle")
+                        .font(.system(size: 60))
+                        .foregroundColor(.green)
+                    
+                    Text("すべて登録済みです")
+                        .font(.headline)
+                        .foregroundColor(.secondary)
+                    
+                    Text("この検索結果の本はすべて登録されています")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                // 初期状態（検索前）
+                VStack(spacing: 16) {
+                    Image(systemName: "book.fill")
+                        .font(.system(size: 60))
+                        .foregroundColor(.gray)
+                    
+                    Text("本のタイトルや著者名で検索")
+                        .font(.headline)
+                        .foregroundColor(.secondary)
+                    
+                    Text("見つからない場合は手動で登録できます")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
         }
         .navigationTitle("本を検索")
         .navigationBarTitleDisplayMode(.inline)
-        .searchable(text: $searchText, prompt: "タイトルまたは著者名")
+        .searchable(text: $searchText, isPresented: $isSearchPresented, prompt: "タイトルまたは著者名")
         .onSubmit(of: .search) {
             performSearch()
         }
@@ -311,28 +314,27 @@ struct BookSearchView: View {
             }
         }
         .toolbar {
-                // キャンセルボタン
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("キャンセル") {
-                        dismiss()
-                    }
-                }
-                
-                // 手動登録ボタン（常に表示）
-                ToolbarItem(placement: .primaryAction) {
-                    Button(action: {
-                        isShowingManualEntry = true
-                    }) {
-                        Image(systemName: "pencil")
-                    }
+            // キャンセルボタン
+            ToolbarItem(placement: .cancellationAction) {
+                Button("キャンセル") {
+                    dismiss()
                 }
             }
-            .sheet(isPresented: $isShowingManualEntry) {
-                if let targetPassbook = selectedPassbook {
-                    AddBookView(passbook: targetPassbook, allowPassbookChange: allowPassbookChange) {
-                        // 手動登録が完了したら検索画面も閉じて通帳画面に戻る
-                        dismiss()
-                    }
+            
+            // 手動登録ボタン
+            ToolbarItem(placement: .primaryAction) {
+                Button(action: {
+                    isShowingManualEntry = true
+                }) {
+                    Image(systemName: "pencil")
+                }
+            }
+        }
+        .sheet(isPresented: $isShowingManualEntry) {
+            if let targetPassbook = selectedPassbook {
+                AddBookView(passbook: targetPassbook, allowPassbookChange: allowPassbookChange) {
+                    // 手動登録が完了したら検索画面も閉じて通帳画面に戻る
+                    dismiss()
                 }
             }
         }

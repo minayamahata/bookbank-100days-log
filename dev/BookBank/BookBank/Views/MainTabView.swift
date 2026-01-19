@@ -25,24 +25,26 @@ struct MainTabView: View {
             TabView {
                 // 通帳タブ
                 NavigationStack {
-                    if customPassbooks.isEmpty {
-                        emptyStateView
-                    } else if selectedPassbook == nil {
-                        // 総合口座（全体表示）
-                        PassbookDetailView(passbook: nil, isOverall: true)
-                            .toolbar {
-                                ToolbarItem(placement: .topBarLeading) {
-                                    passbookSwitcherButton
+                    Group {
+                        if customPassbooks.isEmpty {
+                            emptyStateView
+                        } else if selectedPassbook == nil {
+                            // 総合口座（全体表示）
+                            PassbookDetailView(passbook: nil, isOverall: true)
+                                .toolbar {
+                                    ToolbarItem(placement: .topBarLeading) {
+                                        passbookSwitcherButton
+                                    }
                                 }
-                            }
-                    } else {
-                        // カスタム口座
-                        PassbookDetailView(passbook: selectedPassbook, isOverall: false)
-                            .toolbar {
-                                ToolbarItem(placement: .topBarLeading) {
-                                    passbookSwitcherButton
+                        } else {
+                            // カスタム口座
+                            PassbookDetailView(passbook: selectedPassbook, isOverall: false)
+                                .toolbar {
+                                    ToolbarItem(placement: .topBarLeading) {
+                                        passbookSwitcherButton
+                                    }
                                 }
-                            }
+                        }
                     }
                 }
                 .tabItem {
@@ -51,24 +53,26 @@ struct MainTabView: View {
                 
                 // 本棚タブ
                 NavigationStack {
-                    if customPassbooks.isEmpty {
-                        emptyStateView
-                    } else if selectedPassbook == nil {
-                        // 総合口座（全体表示）
-                        OverallBookshelfView()
-                            .toolbar {
-                                ToolbarItem(placement: .topBarLeading) {
-                                    passbookSwitcherButton
+                    Group {
+                        if customPassbooks.isEmpty {
+                            emptyStateView
+                        } else if selectedPassbook == nil {
+                            // 総合口座（全体表示）
+                            OverallBookshelfView()
+                                .toolbar {
+                                    ToolbarItem(placement: .topBarLeading) {
+                                        passbookSwitcherButton
+                                    }
                                 }
-                            }
-                    } else {
-                        // カスタム口座
-                        BookshelfView(passbook: selectedPassbook!)
-                            .toolbar {
-                                ToolbarItem(placement: .topBarLeading) {
-                                    passbookSwitcherButton
+                        } else {
+                            // カスタム口座
+                            BookshelfView(passbook: selectedPassbook!)
+                                .toolbar {
+                                    ToolbarItem(placement: .topBarLeading) {
+                                        passbookSwitcherButton
+                                    }
                                 }
-                            }
+                        }
                     }
                 }
                 .tabItem {
@@ -77,30 +81,33 @@ struct MainTabView: View {
             }
             
             // 独立した登録ボタン（右下に配置、タブバーと高さを揃える）
-            Button(action: {
-                // 総合口座の場合は最初のカスタム口座に登録
-                let targetPassbook = selectedPassbook ?? customPassbooks.first
-                if targetPassbook != nil {
-                    showBookSearch = true
+            if !showBookSearch {
+                Button(action: {
+                    // 総合口座の場合は最初のカスタム口座に登録
+                    let targetPassbook = selectedPassbook ?? customPassbooks.first
+                    if targetPassbook != nil {
+                        showBookSearch = true
+                    }
+                }) {
+                    Image(systemName: "plus")
+                        .font(.system(size: 22, weight: .semibold))
+                        .foregroundColor(.white)
+                        .frame(width: 56, height: 56)
+                        .background(
+                            Circle()
+                                .fill(Color.blue)
+                                .shadow(color: Color.blue.opacity(0.4), radius: 8, x: 0, y: 4)
+                        )
                 }
-            }) {
-                Image(systemName: "plus")
-                    .font(.system(size: 22, weight: .semibold))
-                    .foregroundColor(.white)
-                    .frame(width: 56, height: 56)
-                    .background(
-                        Circle()
-                            .fill(Color.blue)
-                            .shadow(color: Color.blue.opacity(0.4), radius: 8, x: 0, y: 4)
-                    )
+                .padding(.trailing, 20)
+                .padding(.bottom, 8) // タブバーの高さと揃える
             }
-            .padding(.trailing, 20)
-            .padding(.bottom, 8) // タブバーの高さと揃える
         }
         .sheet(isPresented: $showBookSearch) {
-            let targetPassbook = selectedPassbook ?? customPassbooks.first
-            if let passbook = targetPassbook {
-                BookSearchView(passbook: passbook, allowPassbookChange: true)
+            if let passbook = selectedPassbook ?? customPassbooks.first {
+                NavigationStack {
+                    BookSearchView(passbook: passbook, allowPassbookChange: true)
+                }
             }
         }
         .fullScreenCover(isPresented: $showPassbookSelector) {
