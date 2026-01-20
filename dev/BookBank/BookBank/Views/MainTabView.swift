@@ -78,6 +78,25 @@ struct MainTabView: View {
                 .tabItem {
                     Label("本棚", systemImage: "books.vertical.fill")
                 }
+
+                // 集計タブ
+                NavigationStack {
+                    Group {
+                        if customPassbooks.isEmpty {
+                            emptyStateView
+                        } else {
+                            StatisticsView(passbook: selectedPassbook)
+                                .toolbar {
+                                    ToolbarItem(placement: .topBarLeading) {
+                                        passbookSwitcherButton
+                                    }
+                                }
+                        }
+                    }
+                }
+                .tabItem {
+                    Label("集計", systemImage: "chart.bar.fill")
+                }
             }
             
             // 独立した登録ボタン（右下に配置、タブバーと高さを揃える）
