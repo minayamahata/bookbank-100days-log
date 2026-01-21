@@ -146,14 +146,9 @@ struct MainTabView: View {
         Button(action: {
             showPassbookSelector = true
         }) {
-            HStack(spacing: 4) {
-                Text(selectedPassbook?.name ?? "総合口座")
-                    .font(.headline)
-                    .foregroundColor(.primary)
-                Image(systemName: "chevron.down")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
+            Text(selectedPassbook?.name ?? "総合口座")
+                .font(.caption)
+                .foregroundColor(.primary)
         }
     }
     

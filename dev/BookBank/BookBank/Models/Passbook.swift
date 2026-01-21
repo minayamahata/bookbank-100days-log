@@ -29,7 +29,7 @@ final class Passbook {
     // MARK: - Relationships
 
     /// この口座に登録されている書籍（逆参照）
-    @Relationship(deleteRule: .nullify, inverse: \UserBook.passbook)
+    @Relationship(deleteRule: .cascade, inverse: \UserBook.passbook)
     var userBooks: [UserBook]
 
     // MARK: - Initialization

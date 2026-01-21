@@ -18,61 +18,84 @@ struct UserBookDetailView: View {
     @State private var showDeleteAlert = false
     
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                // 表紙画像 + お気に入りボタン
-                ZStack(alignment: .topTrailing) {
-                    if let imageURL = book.imageURL,
-                       let url = URL(string: imageURL) {
-                        AsyncImage(url: url) { image in
-                            image
-                                .resizable()
-                                .aspectRatio(contentMode: .fit)
-                                .frame(maxHeight: 200)
-                                .shadow(color: Color.black.opacity(0.08), radius: 8, x: 0, y: 2)
-                        } placeholder: {
-                            Rectangle()
-                                .fill(Color.gray.opacity(0.2))
-                                .frame(height: 200)
-                                .overlay {
-                                    ProgressView()
-                                }
-                        }
-                        .frame(maxWidth: .infinity)
-                    } else {
-                        // 画像がない場合
-                        Rectangle()
-                            .fill(Color.gray.opacity(0.2))
-                            .frame(height: 120)
-                            .overlay {
-                                VStack {
-                                    Image(systemName: "book.closed")
-                                        .font(.system(size: 30))
-                                        .foregroundColor(.gray)
-                                    Text("画像なし")
-                                        .font(.caption)
-                                        .foregroundColor(.gray)
-                                }
+        ZStack {
+            // 背景：表紙画像をぼかして表示
+            if let imageURL = book.imageURL,
+               let url = URL(string: imageURL) {
+                AsyncImage(url: url) { image in
+                    image
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .blur(radius: 80)
+                        .overlay(Color.black.opacity(0.3))
+                } placeholder: {
+                    Color(.systemGroupedBackground)
+                }
+                .ignoresSafeArea()
+            } else {
+                Color(.systemGroupedBackground)
+                    .ignoresSafeArea()
+            }
+
+            // コンテンツ
+            ScrollView {
+                VStack(spacing: 16) {
+                    // 表紙画像 + お気に入りボタン（カードの外）
+                    ZStack(alignment: .topTrailing) {
+                        if let imageURL = book.imageURL,
+                           let url = URL(string: imageURL) {
+                            AsyncImage(url: url) { image in
+                                image
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fit)
+                                    .frame(maxHeight: 160)
+                                    .clipShape(RoundedRectangle(cornerRadius: 2))
+                                    .shadow(color: Color.black.opacity(0.3), radius: 20, x: 0, y: 8)
+                            } placeholder: {
+                                RoundedRectangle(cornerRadius: 20)
+                                    .fill(.ultraThinMaterial)
+                                    .frame(height: 200)
+                                    .overlay {
+                                        ProgressView()
+                                    }
                             }
-                            .shadow(color: Color.black.opacity(0.08), radius: 8, x: 0, y: 2)
-                            .padding(.horizontal)
+                            .frame(maxWidth: .infinity)
+                        } else {
+                            // 画像がない場合
+                            RoundedRectangle(cornerRadius: 20)
+                                .fill(.ultraThinMaterial)
+                                .frame(height: 120)
+                                .overlay {
+                                    VStack {
+                                        Image(systemName: "book.closed")
+                                            .font(.system(size: 30))
+                                            .foregroundColor(.secondary)
+                                        Text("画像なし")
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                    }
+                                }
+                                .shadow(color: Color.black.opacity(0.15), radius: 20, x: 0, y: 10)
+                                .padding(.horizontal)
+                        }
+
+                        // お気に入りボタン（画像の右上）
+                        Button(action: {
+                            book.isFavorite.toggle()
+                            try? context.save()
+                        }) {
+                            Image(systemName: book.isFavorite ? "star.fill" : "star")
+                                .font(.title3)
+                                .foregroundColor(book.isFavorite ? .yellow : .white)
+                                .padding(8)
+                                .background(Circle().fill(Color.black.opacity(0.5)))
+                        }
+                        .padding(12)
                     }
                     
-                    // お気に入りボタン（画像の右上）
-                    Button(action: {
-                        book.isFavorite.toggle()
-                        try? context.save()
-                    }) {
-                        Image(systemName: book.isFavorite ? "star.fill" : "star")
-                            .font(.title3)
-                            .foregroundColor(book.isFavorite ? .yellow : .white)
-                            .padding(8)
-                            .background(Circle().fill(Color.black.opacity(0.5)))
-                    }
-                    .padding(12)
-                }
-                
-                VStack(alignment: .leading, spacing: 8) {
+                    // 白いカード（情報部分のみ）
+                    VStack(alignment: .leading, spacing: 8) {
                     // タイトル
                     Text(book.title)
                         .font(.title2)
@@ -111,6 +134,10 @@ struct UserBookDetailView: View {
                     
                     // 詳細情報
                     VStack(alignment: .leading, spacing: 8) {
+                        if let passbookName = book.passbook?.name {
+                            DetailInfoRow(label: "登録口座", value: passbookName)
+                        }
+
                         DetailInfoRow(label: "登録日", value: formatDate(book.registeredAt))
                         
                         if let publisher = book.publisher {
@@ -141,8 +168,8 @@ struct UserBookDetailView: View {
                     }) {
                         ZStack(alignment: .topLeading) {
                             // 背景
-                            RoundedRectangle(cornerRadius: 8)
-                                .fill(Color(.systemGray6))
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(.thinMaterial)
                                 .frame(minHeight: 120)
                             
                             // メモ表示または プレースホルダー
@@ -164,10 +191,15 @@ struct UserBookDetailView: View {
                         }
                     }
                     .buttonStyle(.plain)
+                    }
+                    .padding()
+                    .background(.ultraThinMaterial)
+                    .cornerRadius(20)
+                    .shadow(color: Color.black.opacity(0.15), radius: 20, x: 0, y: 10)
                 }
-                .padding(.horizontal)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 20)
             }
-            .padding(.vertical)
         }
         .navigationTitle("本の詳細")
         .navigationBarTitleDisplayMode(.inline)

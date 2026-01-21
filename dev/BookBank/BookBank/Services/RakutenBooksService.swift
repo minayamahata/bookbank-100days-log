@@ -37,26 +37,36 @@ class RakutenBooksService {
             return []
         }
         
-        // タイトル検索と著者検索を並行実行
+        // タイトル検索と著者検索を並行実行（キーワード検索は広範囲すぎるため除外）
         async let titleResults = searchByTitle(keyword, page: page)
         async let authorResults = searchByAuthor(keyword, page: page)
         
         let (titles, authors) = try await (titleResults, authorResults)
         
-        // 重複を除外してマージ（ISBNで判定）
+        // タイトル検索結果を優先的に配置
         var uniqueBooks: [String: RakutenBook] = [:]
+        var orderedISBNs: [String] = []
         
+        // タイトル検索結果を優先的に追加（関連度が高い）
         for book in titles {
-            uniqueBooks[book.isbn] = book
-        }
-        
-        for book in authors {
             if uniqueBooks[book.isbn] == nil {
                 uniqueBooks[book.isbn] = book
+                orderedISBNs.append(book.isbn)
             }
         }
         
-        return Array(uniqueBooks.values)
+        // 著者検索結果を追加（タイトルに含まれないもののみ）
+        for book in authors {
+            if uniqueBooks[book.isbn] == nil {
+                uniqueBooks[book.isbn] = book
+                orderedISBNs.append(book.isbn)
+            }
+        }
+        
+        print("🔍 検索結果: タイトル=\(titles.count)件, 著者=\(authors.count)件, 合計=\(uniqueBooks.count)件")
+        
+        // 順序を保持して返す
+        return orderedISBNs.compactMap { uniqueBooks[$0] }
     }
     
     /// タイトルで書籍を検索（内部用）
@@ -66,15 +76,16 @@ class RakutenBooksService {
             URLQueryItem(name: "applicationId", value: applicationId),
             URLQueryItem(name: "title", value: keyword),
             URLQueryItem(name: "format", value: "json"),
-            URLQueryItem(name: "hits", value: "30"),
+            URLQueryItem(name: "hits", value: "30"),  // API上限を考慮して30件に戻す
             URLQueryItem(name: "page", value: "\(page)"),
-            URLQueryItem(name: "sort", value: "-releaseDate")  // 発売日順（新しい順）
+            URLQueryItem(name: "sort", value: "standard")  // 関連度順（検索精度優先）
         ]
         
         guard let url = components?.url else {
             throw RakutenBooksError.invalidURL
         }
         
+        print("🔍 タイトル検索: \(keyword)")
         return try await performRequest(url: url)
     }
     
@@ -85,15 +96,16 @@ class RakutenBooksService {
             URLQueryItem(name: "applicationId", value: applicationId),
             URLQueryItem(name: "author", value: keyword),
             URLQueryItem(name: "format", value: "json"),
-            URLQueryItem(name: "hits", value: "30"),
+            URLQueryItem(name: "hits", value: "30"),  // API上限を考慮して30件に戻す
             URLQueryItem(name: "page", value: "\(page)"),
-            URLQueryItem(name: "sort", value: "-releaseDate")  // 発売日順（新しい順）
+            URLQueryItem(name: "sort", value: "standard")  // 関連度順（検索精度優先）
         ]
         
         guard let url = components?.url else {
             throw RakutenBooksError.invalidURL
         }
         
+        print("🔍 著者検索: \(keyword)")
         return try await performRequest(url: url)
     }
     
@@ -124,6 +136,8 @@ class RakutenBooksService {
     
     /// APIリクエストを実行
     private func performRequest(url: URL) async throws -> [RakutenBook] {
+        print("📡 API Request: \(url.absoluteString)")
+        
         let (data, response) = try await URLSession.shared.data(from: url)
         
         // HTTPステータスコードの確認
@@ -138,6 +152,8 @@ class RakutenBooksService {
         // JSONデコード
         let decoder = JSONDecoder()
         let searchResponse = try decoder.decode(RakutenBooksSearchResponse.self, from: data)
+        
+        print("✅ API Response: \(searchResponse.Items.count)件の書籍を取得")
         
         // 書籍データを抽出
         return searchResponse.Items.map { $0.Item }

@@ -66,7 +66,7 @@ struct BookshelfView: View {
             }
         }
         .ignoresSafeArea(edges: .bottom) // タブバーの下まで表示
-        .navigationTitle(passbook.name)
+        .navigationTitle("本棚")
         .navigationBarTitleDisplayMode(.inline)
     }
 }
@@ -111,6 +111,7 @@ struct BookCoverView: View {
                             EmptyView()
                         }
                     }
+                    .id(imageURL)
                 } else {
                     // 画像がない場合
                     Rectangle()

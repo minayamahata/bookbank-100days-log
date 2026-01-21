@@ -20,10 +20,21 @@ struct PassbookDetailView: View {
     /// 総合口座モードかどうか
     let isOverall: Bool
     
+    // MARK: - State
+    
+    /// 編集モーダルの表示フラグ
+    @State private var showEditPassbook = false
+    
+    /// 編集中の口座名
+    @State private var editingName = ""
+    
     // MARK: - Environment
     
     /// SwiftDataのモデルコンテキスト
     @Environment(\.modelContext) private var context
+    
+    /// 画面を閉じるためのアクション
+    @Environment(\.dismiss) private var dismiss
     
     // MARK: - SwiftData Query
     
@@ -149,17 +160,162 @@ struct PassbookDetailView: View {
             }
         }
         .listStyle(.insetGrouped)
-        .navigationTitle(displayName)
+        .navigationTitle("通帳")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            // 総合口座以外は編集ボタンを表示
+            if !isOverall {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button(action: {
+                        editingName = passbook?.name ?? ""
+                        showEditPassbook = true
+                    }) {
+                        Image(systemName: "gearshape")
+                    }
+                }
+            }
+        }
+        .sheet(isPresented: $showEditPassbook) {
+            EditPassbookSheet(
+                passbookName: $editingName,
+                passbook: passbook,
+                bookCount: bookCount,
+                onSave: {
+                    savePassbookName()
+                },
+                onDelete: {
+                    deletePassbook()
+                }
+            )
+        }
     }
     
     // MARK: - Actions
+    
+    /// 口座名を保存
+    private func savePassbookName() {
+        guard let passbook = passbook else { return }
+        
+        // 空白のみの名前は許可しない
+        let trimmedName = editingName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty else { return }
+        
+        passbook.name = trimmedName
+        passbook.updatedAt = Date()
+        
+        do {
+            try context.save()
+            print("✅ 口座名を更新しました: \(trimmedName)")
+        } catch {
+            print("❌ 口座名の更新に失敗しました: \(error)")
+        }
+    }
+    
+    /// 口座を削除
+    private func deletePassbook() {
+        guard let passbook = passbook else { return }
+        
+        let passbookName = passbook.name
+        let booksCount = passbook.userBooks.count
+        
+        // 口座を削除（関連する本も cascade で削除される）
+        context.delete(passbook)
+        
+        do {
+            try context.save()
+            print("✅ 口座「\(passbookName)」を削除しました（\(booksCount)冊の本も削除）")
+            // 画面を閉じて口座一覧に戻る
+            dismiss()
+        } catch {
+            print("❌ 口座の削除に失敗しました: \(error)")
+        }
+    }
     
     /// 日付をYYYY.MM.DD形式でフォーマット
     private func formatDate(_ date: Date) -> String {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy.MM.dd"
         return formatter.string(from: date)
+    }
+}
+
+// MARK: - EditPassbookSheet
+
+/// 口座名編集シート
+struct EditPassbookSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @Binding var passbookName: String
+    let passbook: Passbook?
+    let bookCount: Int
+    let onSave: () -> Void
+    let onDelete: () -> Void
+    
+    @State private var showDeleteAlert = false
+    
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    TextField("口座名", text: $passbookName)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                } header: {
+                    Text("口座名")
+                } footer: {
+                    Text("この口座の名前を変更できます")
+                }
+                
+                // 削除セクション
+                Section {
+                    Button(role: .destructive, action: {
+                        showDeleteAlert = true
+                    }) {
+                        HStack {
+                            Spacer()
+                            Text("この口座を削除")
+                            Spacer()
+                        }
+                    }
+                } footer: {
+                    if bookCount > 0 {
+                        Text("この口座に登録されている\(bookCount)冊の本も削除されます")
+                            .foregroundColor(.red)
+                    } else {
+                        Text("この口座は空です")
+                    }
+                }
+            }
+            .navigationTitle("口座を編集")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("キャンセル") {
+                        dismiss()
+                    }
+                }
+                
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("保存") {
+                        onSave()
+                        dismiss()
+                    }
+                    .disabled(passbookName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
+            .alert("口座を削除しますか？", isPresented: $showDeleteAlert) {
+                Button("キャンセル", role: .cancel) { }
+                Button("削除", role: .destructive) {
+                    onDelete()
+                    dismiss()
+                }
+            } message: {
+                if bookCount > 0 {
+                    Text("「\(passbookName)」を削除すると、この口座に登録されている\(bookCount)冊の本も削除されます。\n\nこの操作は取り消せません。")
+                } else {
+                    Text("「\(passbookName)」を削除してもよろしいですか？\n\nこの操作は取り消せません。")
+                }
+            }
+        }
     }
 }
 

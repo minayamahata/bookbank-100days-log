@@ -57,7 +57,7 @@ struct OverallBookshelfView: View {
             }
         }
         .ignoresSafeArea(edges: .bottom) // タブバーの下まで表示
-        .navigationTitle("総合口座")
+        .navigationTitle("本棚")
         .navigationBarTitleDisplayMode(.inline)
     }
 }

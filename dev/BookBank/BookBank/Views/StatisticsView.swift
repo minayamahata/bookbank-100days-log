@@ -18,7 +18,7 @@ struct ChartDataPoint: Identifiable {
     let count: Int
 }
 
-/// 集計画面
+/// 集計画面	
 /// 年別の読書統計をスワイプで切り替えて表示
 struct StatisticsView: View {
     
@@ -66,7 +66,22 @@ struct StatisticsView: View {
         
         return years.sorted()
     }
-    
+
+    /// 総冊数（口座全体）
+    private var totalBookCount: Int {
+        targetBooks.count
+    }
+
+    /// 総合計金額（口座全体）
+    private var totalAmount: Int {
+        targetBooks.compactMap { $0.priceAtRegistration }.reduce(0, +)
+    }
+
+    /// メモの総文字数（口座全体）
+    private var totalMemoCharacterCount: Int {
+        targetBooks.compactMap { $0.memo }.reduce(0) { $0 + $1.count }
+    }
+
     // MARK: - Body
     
     var body: some View {
@@ -83,8 +98,7 @@ struct StatisticsView: View {
                             .foregroundColor(.green)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.horizontal)
-                            .padding(.top)
-                            .padding(.bottom, 8)
+                            .padding(.top, 8)
                         
                         // グラフ部分のTabView
                         TabView(selection: $selectedYear) {
@@ -95,8 +109,45 @@ struct StatisticsView: View {
                         }
                         .tabViewStyle(.page)
                         .indexViewStyle(.page(backgroundDisplayMode: .always))
-                        .frame(height: 480)
-                        
+                        .frame(height: 420)
+
+                        // 口座サマリー
+                        VStack(spacing: 12) {
+                            HStack {
+                                Text("総合計金額")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                Spacer()
+                                Text("¥\(totalAmount.formatted())")
+                                    .font(.subheadline)
+                                    .fontWeight(.medium)
+                            }
+                            HStack {
+                                Text("総冊数")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                Spacer()
+                                Text("\(totalBookCount)冊")
+                                    .font(.subheadline)
+                                    .fontWeight(.medium)
+                            }
+                            HStack {
+                                Text("メモ文字数")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                Spacer()
+                                Text("\(totalMemoCharacterCount.formatted())文字")
+                                    .font(.subheadline)
+                                    .fontWeight(.medium)
+                            }
+                        }
+                        .padding()
+                        .background(Color(.systemBackground))
+                        .cornerRadius(12)
+                        .shadow(color: Color.black.opacity(0.05), radius: 8, x: 0, y: 2)
+                        .padding(.horizontal)
+                        .padding(.top, 16)
+
                         // 読書レポートへの入口
                         readingReportCard
                             .padding(.horizontal)
@@ -105,7 +156,7 @@ struct StatisticsView: View {
                 }
             }
         }
-        .navigationTitle(passbook?.name ?? "総合口座")
+        .navigationTitle("集計")
         .navigationBarTitleDisplayMode(.inline)
         .background(Color(.systemGroupedBackground))
     }
@@ -255,6 +306,13 @@ struct YearlyChartContent: View {
                         )
                         .foregroundStyle(Color.green)
                         .symbolSize(30)
+                        .annotation(position: dataPoint.month % 2 == 0 ? .top : .bottom, spacing: 4) {
+                            if dataPoint.amount > 0 {
+                                Text("\(dataPoint.amount.formatted())")
+                                    .font(.system(size: 7))
+                                    .foregroundColor(.secondary)
+                            }
+                        }
                     }
                     
                     // X軸の範囲を12ヶ月分に拡張するための透明なマーク
@@ -267,7 +325,7 @@ struct YearlyChartContent: View {
                         .symbolSize(1)
                     }
                 }
-                .frame(height: 150)
+                .frame(height: 120)
                 .chartYAxis {
                     AxisMarks(position: .trailing) {
                         AxisGridLine()
@@ -296,6 +354,13 @@ struct YearlyChartContent: View {
                             )
                             .foregroundStyle(Color.green.opacity(0.7))
                             .cornerRadius(2)
+                            .annotation(position: .top, spacing: 4) {
+                                if dataPoint.count > 0 {
+                                    Text("\(dataPoint.count)")
+                                        .font(.system(size: 7))
+                                        .foregroundColor(.secondary)
+                                }
+                            }
                         } else {
                             // 未来の月は透明な棒を配置（X軸ラベルのため）
                             BarMark(
@@ -307,7 +372,7 @@ struct YearlyChartContent: View {
                         }
                     }
                 }
-                .frame(height: 150)
+                .frame(height: 120)
                 .chartYAxis {
                     AxisMarks(position: .trailing) {
                         AxisGridLine()
