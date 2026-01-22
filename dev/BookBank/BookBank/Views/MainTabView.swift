@@ -11,8 +11,15 @@ import SwiftData
 struct MainTabView: View {
     @Query(sort: \Passbook.sortOrder) private var passbooks: [Passbook]
     @State private var selectedPassbook: Passbook?
-    @State private var showBookSearch = false
     @State private var showPassbookSelector = false
+    
+    /// 各タブのナビゲーションパス
+    @State private var passbookNavPath = NavigationPath()
+    @State private var bookshelfNavPath = NavigationPath()
+    @State private var statisticsNavPath = NavigationPath()
+    
+    /// 現在選択中のタブ
+    @State private var selectedTab = 0
     
     // カスタム口座を取得
     private var customPassbooks: [Passbook] {
@@ -22,9 +29,9 @@ struct MainTabView: View {
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
             // 標準のTabView（通帳・本棚）
-            TabView {
+            TabView(selection: $selectedTab) {
                 // 通帳タブ
-                NavigationStack {
+                NavigationStack(path: $passbookNavPath) {
                     Group {
                         if customPassbooks.isEmpty {
                             emptyStateView
@@ -46,13 +53,17 @@ struct MainTabView: View {
                                 }
                         }
                     }
+                    .navigationDestination(for: BookSearchDestination.self) { destination in
+                        BookSearchView(passbook: destination.passbook, allowPassbookChange: true)
+                    }
                 }
                 .tabItem {
                     Label("通帳", systemImage: "list.bullet")
                 }
+                .tag(0)
                 
                 // 本棚タブ
-                NavigationStack {
+                NavigationStack(path: $bookshelfNavPath) {
                     Group {
                         if customPassbooks.isEmpty {
                             emptyStateView
@@ -74,13 +85,17 @@ struct MainTabView: View {
                                 }
                         }
                     }
+                    .navigationDestination(for: BookSearchDestination.self) { destination in
+                        BookSearchView(passbook: destination.passbook, allowPassbookChange: true)
+                    }
                 }
                 .tabItem {
                     Label("本棚", systemImage: "books.vertical.fill")
                 }
+                .tag(1)
 
                 // 集計タブ
-                NavigationStack {
+                NavigationStack(path: $statisticsNavPath) {
                     Group {
                         if customPassbooks.isEmpty {
                             emptyStateView
@@ -93,19 +108,34 @@ struct MainTabView: View {
                                 }
                         }
                     }
+                    .navigationDestination(for: BookSearchDestination.self) { destination in
+                        BookSearchView(passbook: destination.passbook, allowPassbookChange: true)
+                    }
                 }
                 .tabItem {
                     Label("集計", systemImage: "chart.bar.fill")
                 }
+                .tag(2)
             }
             
             // 独立した登録ボタン（右下に配置、タブバーと高さを揃える）
-            if !showBookSearch {
+            // ナビゲーション中は非表示
+            if passbookNavPath.isEmpty && bookshelfNavPath.isEmpty && statisticsNavPath.isEmpty {
                 Button(action: {
                     // 総合口座の場合は最初のカスタム口座に登録
-                    let targetPassbook = selectedPassbook ?? customPassbooks.first
-                    if targetPassbook != nil {
-                        showBookSearch = true
+                    if let targetPassbook = selectedPassbook ?? customPassbooks.first {
+                        let destination = BookSearchDestination(passbook: targetPassbook)
+                        // 現在のタブに応じてナビゲーション
+                        switch selectedTab {
+                        case 0:
+                            passbookNavPath.append(destination)
+                        case 1:
+                            bookshelfNavPath.append(destination)
+                        case 2:
+                            statisticsNavPath.append(destination)
+                        default:
+                            passbookNavPath.append(destination)
+                        }
                     }
                 }) {
                     Image(systemName: "plus")
@@ -120,13 +150,6 @@ struct MainTabView: View {
                 }
                 .padding(.trailing, 20)
                 .padding(.bottom, 8) // タブバーの高さと揃える
-            }
-        }
-        .sheet(isPresented: $showBookSearch) {
-            if let passbook = selectedPassbook ?? customPassbooks.first {
-                NavigationStack {
-                    BookSearchView(passbook: passbook, allowPassbookChange: true)
-                }
             }
         }
         .fullScreenCover(isPresented: $showPassbookSelector) {
@@ -164,6 +187,21 @@ struct MainTabView: View {
                 .foregroundColor(.secondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+// MARK: - Navigation Destination
+
+/// 本の検索画面へのナビゲーション用データ
+struct BookSearchDestination: Hashable {
+    let passbook: Passbook
+    
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(passbook.persistentModelID)
+    }
+    
+    static func == (lhs: BookSearchDestination, rhs: BookSearchDestination) -> Bool {
+        lhs.passbook.persistentModelID == rhs.passbook.persistentModelID
     }
 }
 

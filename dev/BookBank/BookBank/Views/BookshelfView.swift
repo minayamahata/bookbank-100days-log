@@ -7,6 +7,7 @@
 
 import SwiftUI
 import SwiftData
+import UIKit
 
 struct BookshelfView: View {
     @Environment(\.modelContext) private var context
@@ -81,7 +82,7 @@ struct BookCoverView: View {
                 // 表紙画像（画面幅の25%、アスペクト比2:3）
                 if let imageURL = book.imageURL,
                    let url = URL(string: imageURL) {
-                    AsyncImage(url: url) { phase in
+                    CachedAsyncImage(url: url) { phase in
                         switch phase {
                         case .success(let image):
                             image
@@ -89,7 +90,7 @@ struct BookCoverView: View {
                                 .aspectRatio(contentMode: .fill) // object-fit: cover
                                 .frame(width: geometry.size.width, height: geometry.size.width * 1.5)
                                 .clipped()
-                        case .failure(_):
+                        case .failure:
                             // 読み込み失敗
                             Rectangle()
                                 .fill(Color.gray.opacity(0.2))
@@ -99,7 +100,7 @@ struct BookCoverView: View {
                                         .font(.system(size: 24))
                                         .foregroundColor(.gray)
                                 }
-                        case .empty:
+                        case .loading:
                             // 読み込み中
                             Rectangle()
                                 .fill(Color.gray.opacity(0.2))
@@ -107,11 +108,8 @@ struct BookCoverView: View {
                                 .overlay {
                                     ProgressView()
                                 }
-                        @unknown default:
-                            EmptyView()
                         }
                     }
-                    .id(imageURL)
                 } else {
                     // 画像がない場合
                     Rectangle()
@@ -137,6 +135,102 @@ struct BookCoverView: View {
         }
         .aspectRatio(2/3, contentMode: .fit) // アスペクト比2:3（横:縦）
         .cornerRadius(2) // 2pxの角丸
+    }
+}
+
+// MARK: - CachedAsyncImage
+
+/// 画像読み込みの状態
+enum CachedImagePhase {
+    case loading
+    case success(Image)
+    case failure
+}
+
+/// メモリキャッシュ付きの非同期画像ローダー
+struct CachedAsyncImage<Content: View>: View {
+    let url: URL
+    let content: (CachedImagePhase) -> Content
+    
+    @State private var phase: CachedImagePhase = .loading
+    
+    init(url: URL, @ViewBuilder content: @escaping (CachedImagePhase) -> Content) {
+        self.url = url
+        self.content = content
+    }
+    
+    var body: some View {
+        content(phase)
+            .task(id: url) {
+                await loadImage()
+            }
+    }
+    
+    private func loadImage() async {
+        // まずメモリキャッシュを確認
+        if let cachedImage = ImageCache.shared.get(forKey: url.absoluteString) {
+            phase = .success(Image(uiImage: cachedImage))
+            return
+        }
+        
+        // キャッシュになければダウンロード
+        do {
+            let (data, response) = try await URLSession.shared.data(from: url)
+            
+            // HTTPレスポンスの確認
+            guard let httpResponse = response as? HTTPURLResponse,
+                  (200...299).contains(httpResponse.statusCode) else {
+                phase = .failure
+                return
+            }
+            
+            // 画像データの変換
+            guard let uiImage = UIImage(data: data) else {
+                phase = .failure
+                return
+            }
+            
+            // メモリキャッシュに保存
+            ImageCache.shared.set(uiImage, forKey: url.absoluteString)
+            
+            // 成功
+            phase = .success(Image(uiImage: uiImage))
+        } catch {
+            phase = .failure
+        }
+    }
+}
+
+// MARK: - ImageCache
+
+/// 画像のメモリキャッシュ
+final class ImageCache {
+    static let shared = ImageCache()
+    
+    private let cache = NSCache<NSString, UIImage>()
+    
+    private init() {
+        // キャッシュの制限を設定
+        cache.countLimit = 100 // 最大100枚
+        cache.totalCostLimit = 50 * 1024 * 1024 // 最大50MB
+    }
+    
+    func get(forKey key: String) -> UIImage? {
+        cache.object(forKey: key as NSString)
+    }
+    
+    func set(_ image: UIImage, forKey key: String) {
+        // 画像のおおよそのメモリサイズを計算
+        let cost = Int(image.size.width * image.size.height * image.scale * 4)
+        cache.setObject(image, forKey: key as NSString, cost: cost)
+    }
+    
+    func remove(forKey key: String) {
+        cache.removeObject(forKey: key as NSString)
+    }
+    
+    func removeAll() {
+        cache.removeAllObjects()
     }
 }
 

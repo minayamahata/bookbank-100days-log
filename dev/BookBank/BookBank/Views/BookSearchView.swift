@@ -82,8 +82,14 @@ struct BookSearchView: View {
     /// 選択中の口座
     @State private var selectedPassbook: Passbook?
     
-    /// 検索バーの表示状態（自動的にキーボードを表示するため）
-    @State private var isSearchPresented: Bool = true
+    /// 検索バーのフォーカス状態
+    @FocusState private var isSearchFocused: Bool
+    
+    /// バーコードスキャナーの表示フラグ
+    @State private var isShowingBarcodeScanner: Bool = false
+    
+    /// ISBN検索中フラグ
+    @State private var isSearchingByISBN: Bool = false
     
     /// 楽天Books APIサービス
     private let rakutenService = RakutenBooksService()
@@ -110,6 +116,44 @@ struct BookSearchView: View {
     
     var body: some View {
         VStack(spacing: 0) {
+            // 検索バー（固定位置）
+            HStack(spacing: 8) {
+                Image(systemName: "magnifyingglass")
+                    .foregroundColor(.secondary)
+                
+                TextField("タイトルまたは著者名", text: $searchText)
+                    .textFieldStyle(.plain)
+                    .focused($isSearchFocused)
+                    .submitLabel(.search)
+                    .onSubmit {
+                        performSearch()
+                    }
+                
+                if !searchText.isEmpty {
+                    Button(action: {
+                        searchText = ""
+                    }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundColor(.secondary)
+                    }
+                }
+                
+                // バーコードスキャンボタン
+                Button(action: {
+                    isShowingBarcodeScanner = true
+                }) {
+                    Image(systemName: "barcode.viewfinder")
+                        .font(.system(size: 20))
+                        .foregroundColor(.secondary)
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(Color(.systemGray6))
+            .cornerRadius(10)
+            .padding(.horizontal)
+            .padding(.vertical, 8)
+            
             // 口座選択プルダウン（allowPassbookChangeがtrueの場合のみ表示）
             if allowPassbookChange {
                 HStack {
@@ -157,7 +201,7 @@ struct BookSearchView: View {
                 // 検索中の表示
                 VStack(spacing: 16) {
                     ProgressView()
-                    Text("検索中...")
+                    Text(isSearchingByISBN ? "バーコードで検索中..." : "検索中...")
                         .foregroundColor(.secondary)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -283,27 +327,16 @@ struct BookSearchView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 // 初期状態（検索前）
-                VStack(spacing: 16) {
-                    Image(systemName: "book.fill")
-                        .font(.system(size: 60))
-                        .foregroundColor(.gray)
-                    
-                    Text("本のタイトルや著者名で検索")
-                        .font(.headline)
-                        .foregroundColor(.secondary)
-                    
-                    Text("見つからない場合は手動で登録できます")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                Spacer()
             }
         }
         .navigationTitle("本を検索")
         .navigationBarTitleDisplayMode(.inline)
-        .searchable(text: $searchText, isPresented: $isSearchPresented, prompt: "タイトルまたは著者名")
-        .onSubmit(of: .search) {
-            performSearch()
+        .onAppear {
+            // 画面表示時に自動的に検索バーにフォーカス
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                isSearchFocused = true
+            }
         }
         .overlay(alignment: .top) {
             // トースト通知
@@ -314,13 +347,6 @@ struct BookSearchView: View {
             }
         }
         .toolbar {
-            // キャンセルボタン
-            ToolbarItem(placement: .cancellationAction) {
-                Button("キャンセル") {
-                    dismiss()
-                }
-            }
-            
             // 手動登録ボタン
             ToolbarItem(placement: .primaryAction) {
                 Button(action: {
@@ -337,6 +363,23 @@ struct BookSearchView: View {
                     dismiss()
                 }
             }
+        }
+        .fullScreenCover(isPresented: $isShowingBarcodeScanner) {
+            BarcodeScannerView { isbn in
+                // バーコードからISBNを取得したらAPIで検索
+                searchByISBN(isbn)
+            }
+        }
+        .alert("本が見つかりません", isPresented: .constant(errorMessage == "ISBN検索で本が見つかりませんでした")) {
+            Button("手動で登録") {
+                errorMessage = nil
+                isShowingManualEntry = true
+            }
+            Button("閉じる", role: .cancel) {
+                errorMessage = nil
+            }
+        } message: {
+            Text("このISBNの本が楽天ブックスに登録されていません。手動で登録してください。")
         }
     }
     
@@ -436,6 +479,48 @@ struct BookSearchView: View {
         // ISBNがない場合はタイトルと著者で判定
         return allUserBooks.contains { userBook in
             userBook.title == book.title && userBook.author == book.author
+        }
+    }
+    
+    /// ISBNで本を検索
+    private func searchByISBN(_ isbn: String) {
+        isSearching = true
+        hasSearched = true
+        errorMessage = nil
+        isSearchingByISBN = true
+        searchResults = []
+        searchText = isbn  // 検索バーにISBNを表示
+        
+        Task {
+            do {
+                // 楽天Books APIでISBN検索
+                let results = try await rakutenService.searchByISBN(isbn)
+                
+                if results.isEmpty {
+                    // 本が見つからない場合
+                    errorMessage = "ISBN検索で本が見つかりませんでした"
+                    searchResults = []
+                } else {
+                    searchResults = results
+                    
+                    // 1件だけの場合は自動的に詳細を表示（登録済みでない場合のみ）
+                    if results.count == 1, let book = results.first {
+                        if !isBookRegistered(book) {
+                            // 自動的に登録
+                            saveBook(from: book)
+                        }
+                    }
+                }
+                
+                isSearching = false
+                isSearchingByISBN = false
+            } catch {
+                errorMessage = "検索中にエラーが発生しました: \(error.localizedDescription)"
+                searchResults = []
+                isSearching = false
+                isSearchingByISBN = false
+                print("ISBN検索エラー: \(error)")
+            }
         }
     }
 }
