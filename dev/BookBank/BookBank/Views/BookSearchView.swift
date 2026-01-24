@@ -8,6 +8,12 @@
 import SwiftUI
 import SwiftData
 
+/// 検索結果の並べ替えオプション
+enum SortOption: String, CaseIterable {
+    case newestFirst = "発売日が新しい順"
+    case oldestFirst = "発売日が古い順"
+}
+
 /// 本の検索画面
 /// API検索で本を探し、見つからない場合は手動登録に誘導する
 struct BookSearchView: View {
@@ -78,6 +84,9 @@ struct BookSearchView: View {
     
     /// 未登録のみ表示フラグ
     @State private var showUnregisteredOnly: Bool = false
+
+    /// 選択中の並べ替えオプション
+    @State private var selectedSortOption: SortOption = .newestFirst
     
     /// 選択中の口座
     @State private var selectedPassbook: Passbook?
@@ -104,12 +113,87 @@ struct BookSearchView: View {
     
     // MARK: - Computed Properties
     
-    /// フィルタリングされた検索結果
+    /// フィルタリング・ソート済みの検索結果
     private var filteredSearchResults: [RakutenBook] {
-        if showUnregisteredOnly {
-            return searchResults.filter { !isBookRegistered($0) }
+        var results = showUnregisteredOnly
+            ? searchResults.filter { !isBookRegistered($0) }
+            : searchResults
+
+        switch selectedSortOption {
+        case .newestFirst:
+            results.sort { a, b in
+                let dateA = parseSalesDate(a.salesDate)
+                let dateB = parseSalesDate(b.salesDate)
+                switch (dateA, dateB) {
+                case let (da?, db?): return da > db
+                case (_?, nil): return true
+                case (nil, _?): return false
+                case (nil, nil): return false
+                }
+            }
+        case .oldestFirst:
+            results.sort { a, b in
+                let dateA = parseSalesDate(a.salesDate)
+                let dateB = parseSalesDate(b.salesDate)
+                switch (dateA, dateB) {
+                case let (da?, db?): return da < db
+                case (_?, nil): return true
+                case (nil, _?): return false
+                case (nil, nil): return false
+                }
+            }
         }
-        return searchResults
+
+        return results
+    }
+
+    /// salesDateの文字列をDateに変換
+    private func parseSalesDate(_ dateString: String) -> Date? {
+        // 不要な文字を除去（「頃」「上旬」「中旬」「下旬」「以降」「予定」など）
+        let cleanedString = dateString
+            .replacingOccurrences(of: "頃", with: "")
+            .replacingOccurrences(of: "上旬", with: "")
+            .replacingOccurrences(of: "中旬", with: "")
+            .replacingOccurrences(of: "下旬", with: "")
+            .replacingOccurrences(of: "以降", with: "")
+            .replacingOccurrences(of: "予定", with: "")
+            .replacingOccurrences(of: "初旬", with: "")
+            .replacingOccurrences(of: "末", with: "")
+            .trimmingCharacters(in: .whitespaces)
+        
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ja_JP")
+        formatter.timeZone = TimeZone(identifier: "Asia/Tokyo")
+
+        // "2012年09月07日" 形式
+        formatter.dateFormat = "yyyy年MM月dd日"
+        if let date = formatter.date(from: cleanedString) { return date }
+
+        // "2012年09月" 形式
+        formatter.dateFormat = "yyyy年MM月"
+        if let date = formatter.date(from: cleanedString) { return date }
+
+        // "2012年" 形式
+        formatter.dateFormat = "yyyy年"
+        if let date = formatter.date(from: cleanedString) { return date }
+        
+        // 数字だけ抽出してみる（例：「2012年09月07日発売」→「20120907」）
+        let numbers = cleanedString.filter { $0.isNumber }
+        if numbers.count >= 8 {
+            // YYYYMMDD形式
+            formatter.dateFormat = "yyyyMMdd"
+            if let date = formatter.date(from: String(numbers.prefix(8))) { return date }
+        } else if numbers.count >= 6 {
+            // YYYYMM形式
+            formatter.dateFormat = "yyyyMM"
+            if let date = formatter.date(from: String(numbers.prefix(6))) { return date }
+        } else if numbers.count >= 4 {
+            // YYYY形式
+            formatter.dateFormat = "yyyy"
+            if let date = formatter.date(from: String(numbers.prefix(4))) { return date }
+        }
+
+        return nil
     }
     
     // MARK: - Body
@@ -175,21 +259,29 @@ struct BookSearchView: View {
                 .background(Color(.systemGray6))
             }
             
-            // フィルターオプション
+            // フィルター・並べ替えオプション
             if hasSearched && !searchResults.isEmpty {
                 HStack {
                     Toggle(isOn: $showUnregisteredOnly) {
                         HStack(spacing: 4) {
                             Image(systemName: showUnregisteredOnly ? "checkmark.square.fill" : "square")
                                 .foregroundColor(showUnregisteredOnly ? .blue : .secondary)
-                            Text("未登録のみを表示")
+                            Text("未登録のみ")
                                 .font(.subheadline)
                         }
                     }
                     .toggleStyle(.button)
                     .buttonStyle(.plain)
-                    
+
                     Spacer()
+
+                    Picker("並べ替え", selection: $selectedSortOption) {
+                        ForEach(SortOption.allCases, id: \.self) { option in
+                            Text(option.rawValue).tag(option)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .font(.subheadline)
                 }
                 .padding(.horizontal)
                 .padding(.vertical, 8)
@@ -559,8 +651,8 @@ struct BookSearchResultRow: View {
     let isRegistered: Bool
     
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            // サムネイル画像（大サイズを縮小表示）
+        HStack(alignment: .center, spacing: 12) {
+            // サムネイル画像
             if let imageUrlString = result.largeImageUrl ?? result.mediumImageUrl,
                let imageUrl = URL(string: imageUrlString) {
                 AsyncImage(url: imageUrl) { image in
@@ -589,42 +681,42 @@ struct BookSearchResultRow: View {
                     .opacity(isRegistered ? 0.4 : 1.0)
             }
             
-            // 書籍情報
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 2) {
+                // タイトル
                 Text(result.title)
-                    .font(.headline)
+                    .font(.subheadline)
                     .foregroundColor(isRegistered ? .secondary : .primary)
                     .lineLimit(2)
                 
+                // 著者名
                 if !result.author.isEmpty {
                     Text(result.author)
-                        .font(.subheadline)
+                        .font(.caption2)
                         .foregroundColor(.secondary)
                         .lineLimit(1)
                 }
                 
-                HStack(spacing: 8) {
-                    Text("¥\(result.itemPrice.formatted())")
-                        .font(.subheadline)
+                // 登録済みバッジ
+                if isRegistered {
+                    Text("登録済み")
+                        .font(.caption2)
                         .fontWeight(.semibold)
-                        .foregroundColor(isRegistered ? .secondary : .blue)
-                    
-                    if isRegistered {
-                        Text("登録済み")
-                            .font(.caption)
-                            .fontWeight(.semibold)
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 2)
-                            .background(Color.gray)
-                            .cornerRadius(4)
-                    }
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.gray)
+                        .cornerRadius(4)
                 }
             }
             
             Spacer()
+            
+            // 価格
+            Text("¥\(result.itemPrice.formatted())")
+                .font(.subheadline)
+                .fontWeight(.semibold)
+                .foregroundColor(isRegistered ? .secondary : .blue)
         }
-        .padding(.vertical, 4)
         .opacity(isRegistered ? 0.6 : 1.0)
     }
 }

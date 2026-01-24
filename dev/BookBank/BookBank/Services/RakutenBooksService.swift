@@ -13,11 +13,11 @@ class RakutenBooksService {
     
     // MARK: - Properties
     
-    /// 楽天アプリケーションID（後で設定してください）
+    /// 楽天アプリケーションID
     private let applicationId: String
     
-    /// APIのベースURL
-    private let baseURL = "https://app.rakuten.co.jp/services/api/BooksBook/Search/20170404"
+    /// APIのベースURL（総合検索API - 書籍・コミック・雑誌すべて対応）
+    private let baseURL = "https://app.rakuten.co.jp/services/api/BooksTotal/Search/20170404"
     
     // MARK: - Initialization
     
@@ -27,7 +27,7 @@ class RakutenBooksService {
     
     // MARK: - Public Methods
     
-    /// タイトルと著者名で書籍を検索
+    /// キーワードで書籍を検索
     /// - Parameters:
     ///   - keyword: 検索キーワード（タイトルまたは著者名）
     ///   - page: ページ番号（1から開始）
@@ -37,76 +37,26 @@ class RakutenBooksService {
             return []
         }
         
-        // タイトル検索と著者検索を並行実行（キーワード検索は広範囲すぎるため除外）
-        async let titleResults = searchByTitle(keyword, page: page)
-        async let authorResults = searchByAuthor(keyword, page: page)
-        
-        let (titles, authors) = try await (titleResults, authorResults)
-        
-        // タイトル検索結果を優先的に配置
-        var uniqueBooks: [String: RakutenBook] = [:]
-        var orderedISBNs: [String] = []
-        
-        // タイトル検索結果を優先的に追加（関連度が高い）
-        for book in titles {
-            if uniqueBooks[book.isbn] == nil {
-                uniqueBooks[book.isbn] = book
-                orderedISBNs.append(book.isbn)
-            }
-        }
-        
-        // 著者検索結果を追加（タイトルに含まれないもののみ）
-        for book in authors {
-            if uniqueBooks[book.isbn] == nil {
-                uniqueBooks[book.isbn] = book
-                orderedISBNs.append(book.isbn)
-            }
-        }
-        
-        print("🔍 検索結果: タイトル=\(titles.count)件, 著者=\(authors.count)件, 合計=\(uniqueBooks.count)件")
-        
-        // 順序を保持して返す
-        return orderedISBNs.compactMap { uniqueBooks[$0] }
-    }
-    
-    /// タイトルで書籍を検索（内部用）
-    private func searchByTitle(_ keyword: String, page: Int) async throws -> [RakutenBook] {
         var components = URLComponents(string: baseURL)
         components?.queryItems = [
             URLQueryItem(name: "applicationId", value: applicationId),
-            URLQueryItem(name: "title", value: keyword),
+            URLQueryItem(name: "keyword", value: keyword),
+            URLQueryItem(name: "booksGenreId", value: "001"),  // 本カテゴリ（コミック含む）
             URLQueryItem(name: "format", value: "json"),
-            URLQueryItem(name: "hits", value: "30"),  // API上限を考慮して30件に戻す
+            URLQueryItem(name: "formatVersion", value: "2"),   // シンプルなJSON形式
+            URLQueryItem(name: "field", value: "1"),           // 狭い検索（関連度が高い結果のみ）
+            URLQueryItem(name: "hits", value: "30"),
             URLQueryItem(name: "page", value: "\(page)"),
-            URLQueryItem(name: "sort", value: "standard")  // 関連度順（検索精度優先）
+            URLQueryItem(name: "sort", value: "standard"),     // 関連度順
+            URLQueryItem(name: "outOfStockFlag", value: "1")   // 品切れも含める
         ]
         
         guard let url = components?.url else {
             throw RakutenBooksError.invalidURL
         }
         
-        print("🔍 タイトル検索: \(keyword)")
-        return try await performRequest(url: url)
-    }
-    
-    /// 著者名で書籍を検索（内部用）
-    private func searchByAuthor(_ keyword: String, page: Int) async throws -> [RakutenBook] {
-        var components = URLComponents(string: baseURL)
-        components?.queryItems = [
-            URLQueryItem(name: "applicationId", value: applicationId),
-            URLQueryItem(name: "author", value: keyword),
-            URLQueryItem(name: "format", value: "json"),
-            URLQueryItem(name: "hits", value: "30"),  // API上限を考慮して30件に戻す
-            URLQueryItem(name: "page", value: "\(page)"),
-            URLQueryItem(name: "sort", value: "standard")  // 関連度順（検索精度優先）
-        ]
-        
-        guard let url = components?.url else {
-            throw RakutenBooksError.invalidURL
-        }
-        
-        print("🔍 著者検索: \(keyword)")
-        return try await performRequest(url: url)
+        print("🔍 キーワード検索: \(keyword)")
+        return try await performRequest(url: url, filterKeyword: keyword)
     }
     
     /// ISBNで書籍を検索
@@ -121,21 +71,27 @@ class RakutenBooksService {
         var components = URLComponents(string: baseURL)
         components?.queryItems = [
             URLQueryItem(name: "applicationId", value: applicationId),
-            URLQueryItem(name: "isbn", value: cleanISBN),
-            URLQueryItem(name: "format", value: "json")
+            URLQueryItem(name: "isbnjan", value: cleanISBN),   // 総合検索APIではisbnjanを使用
+            URLQueryItem(name: "format", value: "json"),
+            URLQueryItem(name: "formatVersion", value: "2"),   // シンプルなJSON形式
+            URLQueryItem(name: "outOfStockFlag", value: "1")   // 品切れも含める
         ]
         
         guard let url = components?.url else {
             throw RakutenBooksError.invalidURL
         }
         
-        return try await performRequest(url: url)
+        print("🔍 ISBN検索: \(cleanISBN)")
+        return try await performRequest(url: url, filterKeyword: nil)
     }
     
     // MARK: - Private Methods
     
     /// APIリクエストを実行
-    private func performRequest(url: URL) async throws -> [RakutenBook] {
+    /// - Parameters:
+    ///   - url: リクエストURL
+    ///   - filterKeyword: タイトルまたは著者名に含まれるべきキーワード（nilの場合はフィルタリングしない）
+    private func performRequest(url: URL, filterKeyword: String?) async throws -> [RakutenBook] {
         print("📡 API Request: \(url.absoluteString)")
         
         let (data, response) = try await URLSession.shared.data(from: url)
@@ -149,14 +105,79 @@ class RakutenBooksService {
             throw RakutenBooksError.httpError(statusCode: httpResponse.statusCode)
         }
         
-        // JSONデコード
+        // デバッグ用：レスポンスを出力
+        if let jsonString = String(data: data, encoding: .utf8) {
+            print("📥 API Response (first 500 chars): \(String(jsonString.prefix(500)))")
+        }
+        
+        // JSONデコード（formatVersion=2形式）
         let decoder = JSONDecoder()
-        let searchResponse = try decoder.decode(RakutenBooksSearchResponse.self, from: data)
+        let searchResponse = try decoder.decode(RakutenBooksTotalSearchResponse.self, from: data)
         
         print("✅ API Response: \(searchResponse.Items.count)件の書籍を取得")
         
-        // 書籍データを抽出
-        return searchResponse.Items.map { $0.Item }
+        // 書籍データを抽出してRakutenBookに変換（本・コミックのみ）
+        let books = searchResponse.Items.compactMap { item -> RakutenBook? in
+            // CD/DVD/ゲーム/ソフトウェアを除外
+            
+            // 1. artistNameがある = CD/DVD
+            if let artistName = item.artistName, !artistName.isEmpty {
+                return nil
+            }
+            
+            // 2. labelがある = CD/DVD
+            if let label = item.label, !label.isEmpty {
+                return nil
+            }
+            
+            // 3. hardwareがある = ゲーム
+            if let hardware = item.hardware, !hardware.isEmpty {
+                return nil
+            }
+            
+            // 4. osがある = ソフトウェア
+            if let os = item.os, !os.isEmpty {
+                return nil
+            }
+            
+            // 5. booksGenreIdが001以外 = 本以外
+            if let genreId = item.booksGenreId {
+                // 001=本、002=CD、003=DVD、004=ゲーム、005=ソフト、006=洋書、007=雑誌
+                // 001と006と007は許可（本、洋書、雑誌）
+                let prefix = String(genreId.prefix(3))
+                if !["001", "006", "007"].contains(prefix) {
+                    return nil
+                }
+            }
+            
+            return item.toRakutenBook()
+        }
+        
+        // キーワードフィルタリング（タイトルまたは著者名に含まれるもののみ）
+        guard let keyword = filterKeyword, !keyword.isEmpty else {
+            return books
+        }
+        
+        // スペースを除去して比較用の文字列を作成
+        let normalizedKeyword = keyword
+            .lowercased()
+            .replacingOccurrences(of: " ", with: "")
+            .replacingOccurrences(of: "　", with: "")  // 全角スペースも除去
+        
+        return books.filter { book in
+            // タイトルと著者名からもスペースを除去して比較
+            let normalizedTitle = book.title
+                .lowercased()
+                .replacingOccurrences(of: " ", with: "")
+                .replacingOccurrences(of: "　", with: "")
+            let normalizedAuthor = book.author
+                .lowercased()
+                .replacingOccurrences(of: " ", with: "")
+                .replacingOccurrences(of: "　", with: "")
+            
+            // キーワードがタイトルまたは著者名に含まれているかチェック
+            return normalizedTitle.contains(normalizedKeyword) || normalizedAuthor.contains(normalizedKeyword)
+        }
     }
 }
 

@@ -1,6 +1,6 @@
 # BookBank 開発ログ
 
-最終更新: 2026年01月21日
+最終更新: 2026年01月24日
 
 ---
 
@@ -414,6 +414,20 @@ git push origin main
 ---
 
 ## 開発履歴
+
+### 2026-01-24（DAY66）
+- ✅ **楽天Books API を総合検索APIに変更**
+  - 書籍専用API（BooksBook/Search）から総合検索API（BooksTotal/Search）に変更
+  - コミック・雑誌も検索可能に（booksGenreId="001"で本カテゴリに絞る）
+  - formatVersion=2でシンプルなJSON形式に対応
+  - タイトル・著者の並行検索からキーワード検索に一本化（検索精度向上）
+  - `RakutenTotalBookItem`モデルを追加し、`RakutenBook`に変換する仕組みを実装
+  
+- ✅ **UserBookDetailViewのカスタムヘッダー実装**
+  - 標準のNavigationBarを非表示にし、自前のヘッダーを実装
+  - `.ultraThinMaterial`背景でガラス風エフェクトを維持
+  - 戻るボタンを自前で実装（chevron + "戻る"テキスト）
+  - safeAreaInsetでヘッダーを配置（ノッチ対応）
 
 ### 2026-01-22（DAY64）
 - ✅ **口座削除機能の実装**
