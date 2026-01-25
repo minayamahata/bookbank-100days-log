@@ -441,11 +441,11 @@ struct BookSearchView: View {
         .toolbar {
             // 手動登録ボタン
             ToolbarItem(placement: .primaryAction) {
-                Button(action: {
+                Button("手動登録") {
                     isShowingManualEntry = true
-                }) {
-                    Image(systemName: "pencil")
                 }
+                .font(.footnote)
+                .foregroundColor(.primary)
             }
         }
         .sheet(isPresented: $isShowingManualEntry) {
@@ -629,7 +629,7 @@ struct ToastView: View {
                 .foregroundColor(.white)
                 .font(.title3)
             
-            Text("¥\(amount.formatted()) 入金しました！")
+            Text("\(amount.formatted())円 入金しました！")
                 .foregroundColor(.white)
                 .fontWeight(.semibold)
         }
@@ -712,10 +712,15 @@ struct BookSearchResultRow: View {
             Spacer()
             
             // 価格
-            Text("¥\(result.itemPrice.formatted())")
-                .font(.subheadline)
-                .fontWeight(.semibold)
-                .foregroundColor(isRegistered ? .secondary : .blue)
+            HStack(alignment: .lastTextBaseline, spacing: 1) {
+                Text("\(result.itemPrice.formatted())")
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                Text("円")
+                    .font(.caption2)
+                    .fontWeight(.semibold)
+            }
+            .foregroundColor(isRegistered ? .secondary : .blue)
         }
         .opacity(isRegistered ? 0.6 : 1.0)
     }

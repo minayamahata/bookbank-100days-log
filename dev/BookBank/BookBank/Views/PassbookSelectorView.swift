@@ -14,6 +14,10 @@ struct PassbookSelectorView: View {
     @Query(sort: \Passbook.sortOrder) private var passbooks: [Passbook]
     
     @Binding var selectedPassbook: Passbook?
+    var onSelect: (() -> Void)?  // 選択時のコールバック
+    
+    @State private var passbookToEdit: Passbook?
+    @State private var showAddPassbook = false
     
     // カスタム口座を取得
     private var customPassbooks: [Passbook] {
@@ -21,79 +25,283 @@ struct PassbookSelectorView: View {
     }
     
     var body: some View {
-        List {
-            // 総合口座
-            Section {
+        VStack(spacing: 0) {
+            ScrollView {
+                VStack(spacing: 12) {
+                    // マイ口座（ひとつずつ分ける）
+                    ForEach(customPassbooks) { passbook in
+                        passbookRow(
+                            name: passbook.name,
+                            subtitle: nil,
+                            color: PassbookColor.color(for: passbook, in: customPassbooks),
+                            isSelected: selectedPassbook?.persistentModelID == passbook.persistentModelID,
+                            showMenu: true,
+                            onMenuTap: {
+                                passbookToEdit = passbook
+                            }
+                        ) {
+                            selectedPassbook = passbook
+                            onSelect?()
+                        }
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 20)
+            }
+            
+            Spacer()
+            
+            // 下部に配置：新しい口座を追加
+            VStack(spacing: 0) {
+                Divider()
+                
                 Button(action: {
-                    selectedPassbook = nil
-                    dismiss()
+                    showAddPassbook = true
                 }) {
                     HStack {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("総合口座")
-                                .font(.body)
-                                .foregroundColor(.primary)
-                            
-                            Text("すべての口座の合計")
+                        Image(systemName: "plus")
+                            .font(.body)
+                        Text("新しい口座を追加")
+                            .font(.body)
+                        Spacer()
+                    }
+                    .foregroundColor(.primary)
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 16)
+                }
+            }
+            .background(Color(UIColor.systemBackground))
+        }
+        .background(Color(UIColor.systemGroupedBackground))
+        .navigationTitle("口座を選択")
+        .navigationBarTitleDisplayMode(.inline)
+        .sheet(item: $passbookToEdit) { passbook in
+            EditPassbookView(passbook: passbook)
+        }
+        .sheet(isPresented: $showAddPassbook) {
+            AddPassbookView()
+        }
+    }
+    
+    // 口座行のビュー
+    private func passbookRow(
+        name: String,
+        subtitle: String?,
+        color: Color,
+        isSelected: Bool,
+        showMenu: Bool,
+        onMenuTap: (() -> Void)? = nil,
+        onTap: @escaping () -> Void
+    ) -> some View {
+        HStack(spacing: 12) {
+            // 口座情報（タップで選択）
+            Button(action: onTap) {
+                HStack(spacing: 12) {
+                    // 色のマーク
+                    Circle()
+                        .fill(color)
+                        .frame(width: 8, height: 8)
+                    
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(name)
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                            .foregroundColor(.primary)
+                        
+                        if let subtitle = subtitle {
+                            Text(subtitle)
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
-                        
-                        Spacer()
-                        
-                        if selectedPassbook == nil {
-                            Image(systemName: "checkmark")
-                                .foregroundColor(.blue)
-                        }
                     }
+                    
+                    Spacer()
                 }
+                .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
             
-            // カスタム口座
-            Section(header: Text("マイ口座")) {
-                ForEach(customPassbooks) { passbook in
-                    Button(action: {
-                        selectedPassbook = passbook
-                        dismiss()
-                    }) {
-                        HStack {
-                            Text(passbook.name)
-                                .font(.body)
-                                .foregroundColor(.primary)
-                            
-                            Spacer()
-                            
-                            if selectedPassbook?.persistentModelID == passbook.persistentModelID {
-                                Image(systemName: "checkmark")
-                                    .foregroundColor(.blue)
+            // 三点リーダー（タップで編集）
+            if showMenu {
+                Button(action: {
+                    onMenuTap?()
+                }) {
+                    Image(systemName: "ellipsis")
+                        .font(.body)
+                        .foregroundColor(.secondary)
+                        .frame(width: 32, height: 32)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(isSelected ? Color.blue.opacity(0.1) : Color(UIColor.systemBackground))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(isSelected ? Color.blue.opacity(0.3) : Color.clear, lineWidth: 1)
+        )
+    }
+}
+
+// MARK: - EditPassbookView
+
+/// 口座編集ビュー（PassbookSelectorから呼び出し用）
+struct EditPassbookView: View {
+    @Environment(\.modelContext) private var context
+    @Environment(\.dismiss) private var dismiss
+    
+    @Bindable var passbook: Passbook
+    @State private var editingName: String = ""
+    @State private var selectedColorIndex: Int = 0
+    @State private var showDeleteAlert = false
+    
+    // この口座の本の数を取得
+    @Query private var allBooks: [UserBook]
+    @Query(sort: \Passbook.sortOrder) private var allPassbooks: [Passbook]
+    
+    private var bookCount: Int {
+        allBooks.filter { $0.passbook?.persistentModelID == passbook.persistentModelID }.count
+    }
+    
+    private var customPassbooks: [Passbook] {
+        allPassbooks.filter { $0.type == .custom && $0.isActive }
+    }
+    
+    init(passbook: Passbook) {
+        self.passbook = passbook
+        _editingName = State(initialValue: passbook.name)
+        // colorIndexがあればそれを、なければリスト内の位置を使う
+        if let colorIndex = passbook.colorIndex {
+            _selectedColorIndex = State(initialValue: colorIndex)
+        }
+    }
+    
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                Form {
+                    Section {
+                        TextField("口座名", text: $editingName)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                    } header: {
+                        Text("口座名")
+                    } 
+                    
+                    Section {
+                        LazyVGrid(columns: [
+                            GridItem(.adaptive(minimum: 44))
+                        ], spacing: 12) {
+                            ForEach(0..<PassbookColor.count, id: \.self) { index in
+                                Button {
+                                    selectedColorIndex = index
+                                } label: {
+                                    Circle()
+                                        .fill(PassbookColor.color(for: index))
+                                        .frame(width: 36, height: 36)
+                                        .overlay {
+                                            if selectedColorIndex == index {
+                                                Circle()
+                                                    .stroke(Color.primary, lineWidth: 2)
+                                                    .frame(width: 44, height: 44)
+                                            }
+                                        }
+                                }
+                                .buttonStyle(.plain)
                             }
                         }
+                        .padding(.vertical, 8)
+                    } header: {
+                        Text("テーマカラー")
                     }
                 }
-            }
-            
-            // 新しい口座を追加
-            Section {
-                NavigationLink(destination: AddPassbookView()) {
-                    HStack {
-                        Image(systemName: "plus.circle.fill")
-                            .foregroundColor(.blue)
-                        Text("新しい口座を追加")
-                            .foregroundColor(.blue)
+                .onAppear {
+                    // colorIndexが未設定の場合、リスト内の位置に基づいた色をデフォルトにする
+                    if passbook.colorIndex == nil {
+                        if let index = customPassbooks.firstIndex(where: { $0.persistentModelID == passbook.persistentModelID }) {
+                            selectedColorIndex = index % PassbookColor.count
+                        }
                     }
+                }
+                
+                // 削除ボタン（画面下固定）
+                VStack(spacing: 0) {
+                    Divider()
+                    
+                    VStack(spacing: 4) {
+                        Button(role: .destructive, action: {
+                            showDeleteAlert = true
+                        }) {
+                            HStack {
+                                Spacer()
+                                Text("この口座を削除")
+                                Spacer()
+                            }
+                            .padding(.vertical, 12)
+                        }
+                        
+                        if bookCount > 0 {
+                            Text("この口座に登録されている\(bookCount)冊の本も削除されます")
+                                .font(.caption)
+                                .foregroundColor(.red)
+                                .padding(.bottom, 8)
+                        }
+                    }
+                    .background(Color(UIColor.systemGroupedBackground))
+                }
+            }
+            .navigationTitle("口座を編集")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("キャンセル") {
+                        dismiss()
+                    }
+                }
+                
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("保存") {
+                        savePassbook()
+                    }
+                    .disabled(editingName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
+            .alert("口座を削除しますか？", isPresented: $showDeleteAlert) {
+                Button("キャンセル", role: .cancel) { }
+                Button("削除", role: .destructive) {
+                    deletePassbook()
+                }
+            } message: {
+                if bookCount > 0 {
+                    Text("「\(editingName)」を削除すると、この口座に登録されている\(bookCount)冊の本も削除されます。\n\nこの操作は取り消せません。")
+                } else {
+                    Text("「\(editingName)」を削除してもよろしいですか？\n\nこの操作は取り消せません。")
                 }
             }
         }
-        .listStyle(.insetGrouped)
-        .navigationTitle("口座を選択")
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .cancellationAction) {
-                Button("閉じる") {
-                    dismiss()
-                }
-            }
+    }
+    
+    private func savePassbook() {
+        passbook.name = editingName.trimmingCharacters(in: .whitespacesAndNewlines)
+        passbook.colorIndex = selectedColorIndex
+        try? context.save()
+        dismiss()
+    }
+    
+    private func deletePassbook() {
+        // 関連する本も削除
+        let booksToDelete = allBooks.filter { $0.passbook?.persistentModelID == passbook.persistentModelID }
+        for book in booksToDelete {
+            context.delete(book)
         }
+        
+        context.delete(passbook)
+        try? context.save()
+        dismiss()
     }
 }
 
@@ -107,6 +315,8 @@ struct PassbookSelectorView: View {
     container.mainContext.insert(passbook1)
     container.mainContext.insert(passbook2)
     
-    return PassbookSelectorView(selectedPassbook: .constant(nil))
-        .modelContainer(container)
+    return NavigationStack {
+        PassbookSelectorView(selectedPassbook: .constant(nil))
+    }
+    .modelContainer(container)
 }

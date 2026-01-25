@@ -7,6 +7,7 @@
 
 import SwiftUI
 import SwiftData
+import UIKit
 
 @main
 struct BookBankApp: App {
@@ -19,6 +20,9 @@ struct BookBankApp: App {
     // MARK: - Initialization
     
     init() {
+        // ナビゲーションバーのタイトルフォントを設定
+        Self.configureNavigationBarAppearance()
+        
         // スキーマ定義
         let schema = Schema([
             Passbook.self,
@@ -37,6 +41,26 @@ struct BookBankApp: App {
         } catch {
             fatalError("Could not create ModelContainer: \(error)")
         }
+    }
+    
+    /// ナビゲーションバーの外観を設定
+    private static func configureNavigationBarAppearance() {
+        let appearance = UINavigationBarAppearance()
+        appearance.configureWithDefaultBackground()
+        
+        // インラインタイトル用のフォント（.subheadline相当 = 15pt）
+        appearance.titleTextAttributes = [
+            .font: UIFont.systemFont(ofSize: 15, weight: .semibold)
+        ]
+        
+        // ラージタイトル用のフォント
+        appearance.largeTitleTextAttributes = [
+            .font: UIFont.systemFont(ofSize: 15, weight: .semibold)
+        ]
+        
+        UINavigationBar.appearance().standardAppearance = appearance
+        UINavigationBar.appearance().compactAppearance = appearance
+        UINavigationBar.appearance().scrollEdgeAppearance = appearance
     }
     
     // MARK: - Body

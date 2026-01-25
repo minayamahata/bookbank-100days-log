@@ -1,6 +1,6 @@
 # BookBank 開発ログ
 
-最終更新: 2026年01月24日
+最終更新: 2026年01月25日
 
 ---
 
@@ -414,6 +414,44 @@ git push origin main
 ---
 
 ## 開発履歴
+
+### 2026-01-25（DAY67）
+- ✅ **口座テーマカラー選択機能の実装**
+  - Passbookモデルに`colorIndex: Int?`プロパティを追加
+  - PassbookColorを8色から12色に拡張（red, yellow, teal, brownを追加）
+  - 口座編集画面にカラーパレットUIを追加（グリッド表示で選択）
+  - AccountListView、PassbookSelectorViewでcolorIndexを反映
+  
+- ✅ **口座一覧ページの円グラフ改善**
+  - 総資産・金額・冊数を円グラフの中央に配置
+  - グラフの高さを160px→220pxに拡大
+  - ドーナツの太さを細く調整（innerRadius: 0.6→0.75）
+  - 線の間隔を調整（angularInset: 1.5）
+  
+- ✅ **手動登録画面（AddBookView）の改善**
+  - キャンセルボタンの色を削除（.primary）
+  - 口座名の色を削除（.tint(.primary)）
+  - 入力エリア以外タップでキーボードを閉じる機能
+  - メモとお気に入りセクションを削除
+  - セクションヘッダーを.footnoteに変更
+  
+- ✅ **本検索画面（BookSearchView）の改善**
+  - 右上の鉛筆アイコンを「手動登録」テキストに変更
+  - フォントサイズを.footnote、色を.primaryに変更
+  
+- ✅ **全ページのNavigationTitleフォント統一**
+  - BookBankApp.swiftでUINavigationBarAppearanceを設定
+  - 全ページのタイトルを.subheadline相当（15pt）に変更
+  
+- ✅ **ページタイトルの変更**
+  - 通帳ページ：「BookBank」→「通帳」
+  - 本棚ページ：「BookBank」→「本棚」
+  
+- ✅ **口座選択・一覧ページの細かいUI調整**
+  - 色を表す●を12px→8pxに変更
+  - 口座名のフォントを.body→.subheadlineに変更
+  - 三点リーダーを.body→.captionに変更
+  - グラフ中央の「総資産」を.headline、色を.primaryに変更
 
 ### 2026-01-24（DAY66）
 - ✅ **楽天Books API を総合検索APIに変更**

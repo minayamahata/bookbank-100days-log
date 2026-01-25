@@ -34,6 +34,7 @@ struct StatisticsView: View {
     // MARK: - SwiftData Query
     
     @Query private var allUserBooks: [UserBook]
+    @Query(sort: \Passbook.sortOrder) private var allPassbooks: [Passbook]
     
     // MARK: - State
     
@@ -41,6 +42,19 @@ struct StatisticsView: View {
     @State private var selectedYear: Int = Calendar.current.component(.year, from: Date())
     
     // MARK: - Computed Properties
+    
+    /// カスタム口座のリスト
+    private var customPassbooks: [Passbook] {
+        allPassbooks.filter { $0.type == .custom && $0.isActive }
+    }
+    
+    /// この口座のテーマカラー
+    private var themeColor: Color {
+        if let passbook = passbook {
+            return PassbookColor.color(for: passbook, in: customPassbooks)
+        }
+        return .blue  // 総合口座は青
+    }
     
     /// 対象口座の書籍（口座指定がない場合は全書籍）
     private var targetBooks: [UserBook] {
@@ -95,7 +109,7 @@ struct StatisticsView: View {
                         Text(String(selectedYear))
                             .font(.title2)
                             .fontWeight(.bold)
-                            .foregroundColor(.green)
+                            .foregroundColor(themeColor)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.horizontal)
                             .padding(.top, 8)
@@ -103,7 +117,7 @@ struct StatisticsView: View {
                         // グラフ部分のTabView
                         TabView(selection: $selectedYear) {
                             ForEach(availableYears, id: \.self) { year in
-                                YearlyChartContent(year: year, passbook: passbook, targetBooks: targetBooks)
+                                YearlyChartContent(year: year, passbook: passbook, targetBooks: targetBooks, themeColor: themeColor)
                                     .tag(year)
                             }
                         }
@@ -118,9 +132,14 @@ struct StatisticsView: View {
                                     .font(.caption)
                                     .foregroundColor(.secondary)
                                 Spacer()
-                                Text("¥\(totalAmount.formatted())")
-                                    .font(.subheadline)
-                                    .fontWeight(.medium)
+                                HStack(alignment: .lastTextBaseline, spacing: 1) {
+                                    Text("\(totalAmount.formatted())")
+                                        .font(.subheadline)
+                                        .fontWeight(.medium)
+                                    Text("円")
+                                        .font(.caption2)
+                                        .fontWeight(.medium)
+                                }
                             }
                             HStack {
                                 Text("総冊数")
@@ -216,6 +235,7 @@ struct YearlyChartContent: View {
     let year: Int
     let passbook: Passbook?
     let targetBooks: [UserBook]
+    let themeColor: Color
     
     // MARK: - Computed Properties
     
@@ -296,7 +316,7 @@ struct YearlyChartContent: View {
                             x: .value("Month", dataPoint.label),
                             y: .value("Amount", dataPoint.amount)
                         )
-                        .foregroundStyle(Color.green)
+                        .foregroundStyle(themeColor)
                         .interpolationMethod(.linear)
                         .lineStyle(StrokeStyle(lineWidth: 2))
                         
@@ -304,7 +324,7 @@ struct YearlyChartContent: View {
                             x: .value("Month", dataPoint.label),
                             y: .value("Amount", dataPoint.amount)
                         )
-                        .foregroundStyle(Color.green)
+                        .foregroundStyle(themeColor)
                         .symbolSize(30)
                         .annotation(position: dataPoint.month % 2 == 0 ? .top : .bottom, spacing: 4) {
                             if dataPoint.amount > 0 {
@@ -352,7 +372,7 @@ struct YearlyChartContent: View {
                                 y: .value("Count", dataPoint.count),
                                 width: 12
                             )
-                            .foregroundStyle(Color.green.opacity(0.7))
+                            .foregroundStyle(themeColor.opacity(0.7))
                             .cornerRadius(2)
                             .annotation(position: .top, spacing: 4) {
                                 if dataPoint.count > 0 {
@@ -405,11 +425,24 @@ struct YearlyChartContent: View {
 struct ReadingReportView: View {
     let passbook: Passbook?
     
+    @Query(sort: \Passbook.sortOrder) private var allPassbooks: [Passbook]
+    
+    private var customPassbooks: [Passbook] {
+        allPassbooks.filter { $0.type == .custom && $0.isActive }
+    }
+    
+    private var themeColor: Color {
+        if let passbook = passbook {
+            return PassbookColor.color(for: passbook, in: customPassbooks)
+        }
+        return .blue
+    }
+    
     var body: some View {
         VStack(spacing: 16) {
             Image(systemName: "chart.pie.fill")
                 .font(.system(size: 60))
-                .foregroundColor(.green)
+                .foregroundColor(themeColor)
             
             Text("読書レポート")
                 .font(.title2)

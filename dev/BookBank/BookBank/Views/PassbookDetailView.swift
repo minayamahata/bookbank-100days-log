@@ -14,19 +14,8 @@ struct PassbookDetailView: View {
     
     // MARK: - Properties
     
-    /// 表示対象の口座（nilの場合は総合口座）
-    let passbook: Passbook?
-    
-    /// 総合口座モードかどうか
-    let isOverall: Bool
-    
-    // MARK: - State
-    
-    /// 編集モーダルの表示フラグ
-    @State private var showEditPassbook = false
-    
-    /// 編集中の口座名
-    @State private var editingName = ""
+    /// 表示対象の口座
+    let passbook: Passbook
     
     // MARK: - Environment
     
@@ -38,7 +27,7 @@ struct PassbookDetailView: View {
     
     // MARK: - SwiftData Query
     
-    /// すべての口座を取得（総合口座の計算用）
+    /// すべての口座を取得
     @Query(sort: \Passbook.sortOrder) private var allPassbooks: [Passbook]
     
     /// この口座に紐づく書籍を取得
@@ -46,49 +35,42 @@ struct PassbookDetailView: View {
     
     /// この口座に紐づく書籍のみをフィルタリング
     private var userBooks: [UserBook] {
-        if isOverall {
-            // 総合口座: すべての本を表示
-            return allUserBooks
-        } else if let passbook = passbook {
-            // カスタム口座: その口座の本のみ
-            return allUserBooks.filter { book in
-                book.passbook?.persistentModelID == passbook.persistentModelID
-            }
-        } else {
-            return []
+        allUserBooks.filter { book in
+            book.passbook?.persistentModelID == passbook.persistentModelID
         }
     }
     
-    /// 表示用の口座名
-    private var displayName: String {
-        isOverall ? "総合口座" : (passbook?.name ?? "")
-    }
-    
-    /// 合計金額（総合口座の場合はすべての口座の合計）
+    /// 合計金額
     private var totalValue: Int {
-        if isOverall {
-            return allPassbooks.filter { $0.type == .custom && $0.isActive }
-                .reduce(0) { $0 + $1.totalValue }
-        } else {
-            return passbook?.totalValue ?? 0
-        }
+        passbook.totalValue
     }
     
+    /// 今日の日付文字列
+    private var todayString: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy.MM.dd"
+        return formatter.string(from: Date())
+    }
+
     /// 登録書籍数
     private var bookCount: Int {
-        if isOverall {
-            return allPassbooks.filter { $0.type == .custom && $0.isActive }
-                .reduce(0) { $0 + $1.bookCount }
-        } else {
-            return passbook?.bookCount ?? 0
-        }
+        passbook.bookCount
+    }
+    
+    /// カスタム口座のリスト
+    private var customPassbooks: [Passbook] {
+        allPassbooks.filter { $0.type == .custom && $0.isActive }
+    }
+    
+    /// この口座のテーマカラー
+    private var themeColor: Color {
+        PassbookColor.color(for: passbook, in: customPassbooks)
     }
     
     // MARK: - Initialization
     
-    init(passbook: Passbook?, isOverall: Bool = false) {
+    init(passbook: Passbook) {
         self.passbook = passbook
-        self.isOverall = isOverall
         // registeredAt の降順でソート（新しい本が上に表示される）
         _allUserBooks = Query(sort: \UserBook.registeredAt, order: .reverse)
     }
@@ -96,140 +78,164 @@ struct PassbookDetailView: View {
     // MARK: - Body
     
     var body: some View {
-        List {
-            // 口座情報
-            Section {
-                VStack(spacing: 8) {
-                    Text("¥\(totalValue.formatted())")
-                        .font(.system(size: 36, weight: .bold))
-                        .foregroundColor(.blue)
+        ScrollView {
+            VStack(spacing: 0) {
+                // 口座情報セクション
+                accountInfoSection
+                
+                // コンテンツカード
+                VStack(spacing: 0) {
+                    // ヘッダー
+                    HStack {
+                        Text("入金履歴")
+                            .font(.footnote)
+                            .foregroundColor(.secondary)
+                        
+                        Spacer()
+                    }
+                    .padding(.horizontal)
+                    .padding(.top, 28)
+                    .padding(.bottom, 12)
                     
-                    Text("登録書籍: \(bookCount)冊")
-                        .font(.subheadline)
+                    // 書籍リスト
+                    listContent
+                }
+                .background(Color(UIColor.systemBackground))
+                .clipShape(
+                    UnevenRoundedRectangle(
+                        topLeadingRadius: 40,
+                        bottomLeadingRadius: 0,
+                        bottomTrailingRadius: 0,
+                        topTrailingRadius: 40
+                    )
+                )
+            }
+        }
+        .id(passbook.persistentModelID) // 口座が変わったら強制的にViewを再生成
+        .background(themeColor.opacity(0.1).ignoresSafeArea())
+        .navigationTitle("通帳")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+    
+    // MARK: - Account Info Section
+    
+    private var accountInfoSection: some View {
+        VStack(spacing: 8) {
+            Text("\(todayString) 時点")
+                .font(.footnote)
+                .foregroundColor(.secondary)
+                .frame(maxWidth: .infinity, alignment: .trailing)
+                .padding(.horizontal)
+                .padding(.bottom, 32)
+
+            HStack(alignment: .lastTextBaseline, spacing: 2) {
+                Text("\(totalValue.formatted())")
+                    .font(.system(size: 32, weight: .bold))
+                Text("円")
+                    .font(.system(size: 18, weight: .bold))
+            }
+            .foregroundColor(themeColor)
+
+            Text("登録書籍: \(bookCount)冊")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, 8)
+        .padding(.bottom, 60)
+    }
+    
+    // MARK: - List Content
+    
+    private var listContent: some View {
+        LazyVStack(spacing: 0) {
+            if userBooks.isEmpty {
+                VStack(spacing: 30) {
+                    Image(systemName: "books.vertical")
+                        .font(.system(size: 60))
+                        .foregroundColor(.gray)
+
+                    Text("まだ本が登録されていません")
+                        .font(.headline)
                         .foregroundColor(.secondary)
                 }
                 .frame(maxWidth: .infinity)
-            }
-            
-            // 書籍リスト
-            Section {
-                if userBooks.isEmpty {
-                    VStack(spacing: 16) {
-                        Image(systemName: "books.vertical")
-                            .font(.system(size: 60))
-                            .foregroundColor(.gray)
-                        
-                        Text("まだ本が登録されていません")
-                            .font(.headline)
-                            .foregroundColor(.secondary)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                } else {
-                    ForEach(userBooks) { book in
-                        NavigationLink(destination: UserBookDetailView(book: book)) {
-                            HStack(alignment: .center, spacing: 12) {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(formatDate(book.registeredAt))
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                    
-                                    Text(book.title)
-                                        .font(.subheadline)
-                                        .lineLimit(2)
-                                    
-                                    if !book.displayAuthor.isEmpty {
-                                        Text(book.displayAuthor)
-                                            .font(.caption2)
+                .padding()
+            } else {
+                ForEach(userBooks) { book in
+                    NavigationLink(destination: UserBookDetailView(book: book)) {
+                        HStack(alignment: .center, spacing: 12) {
+                            // サムネイル
+                            if let imageURL = book.imageURL,
+                               let url = URL(string: imageURL) {
+                                AsyncImage(url: url) { image in
+                                    image
+                                        .resizable()
+                                        .aspectRatio(contentMode: .fill)
+                                        .frame(width: 50, height: 70)
+                                        .clipShape(RoundedRectangle(cornerRadius: 2))
+                                } placeholder: {
+                                    RoundedRectangle(cornerRadius: 2)
+                                        .fill(Color.gray.opacity(0.2))
+                                        .frame(width: 50, height: 70)
+                                }
+                            } else {
+                                RoundedRectangle(cornerRadius: 2)
+                                    .fill(Color.gray.opacity(0.2))
+                                    .frame(width: 50, height: 70)
+                                    .overlay {
+                                        Image(systemName: "book.closed")
+                                            .font(.caption)
                                             .foregroundColor(.secondary)
                                     }
-                                }
-                                
-                                Spacer()
-                                
-                                if let priceText = book.displayPrice {
-                                    Text(priceText)
-                                        .font(.subheadline)
-                                        .fontWeight(.semibold)
-                                        .foregroundColor(.blue)
+                            }
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(formatDate(book.registeredAt))
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+
+                                Text(book.title)
+                                    .font(.subheadline)
+                                    .foregroundColor(.primary)
+                                    .lineLimit(2)
+
+                                if !book.displayAuthor.isEmpty {
+                                    Text(book.displayAuthor)
+                                        .font(.caption2)
+                                        .foregroundColor(.secondary)
                                 }
                             }
+
+                            Spacer()
+
+                            if let price = book.priceAtRegistration {
+                                HStack(alignment: .lastTextBaseline, spacing: 1) {
+                                    Text("\(price.formatted())")
+                                        .font(.subheadline)
+                                        .fontWeight(.semibold)
+                                    Text("円")
+                                        .font(.caption2)
+                                        .fontWeight(.semibold)
+                                }
+                                .foregroundColor(themeColor)
+                            }
+
+                            Image(systemName: "chevron.right")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
                         }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
                     }
+                    .buttonStyle(.plain)
                 }
             }
         }
-        .listStyle(.insetGrouped)
-        .navigationTitle("通帳")
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            // 総合口座以外は編集ボタンを表示
-            if !isOverall {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(action: {
-                        editingName = passbook?.name ?? ""
-                        showEditPassbook = true
-                    }) {
-                        Image(systemName: "gearshape")
-                    }
-                }
-            }
-        }
-        .sheet(isPresented: $showEditPassbook) {
-            EditPassbookSheet(
-                passbookName: $editingName,
-                passbook: passbook,
-                bookCount: bookCount,
-                onSave: {
-                    savePassbookName()
-                },
-                onDelete: {
-                    deletePassbook()
-                }
-            )
-        }
+        .padding(.bottom, 100)
     }
     
     // MARK: - Actions
-    
-    /// 口座名を保存
-    private func savePassbookName() {
-        guard let passbook = passbook else { return }
-        
-        // 空白のみの名前は許可しない
-        let trimmedName = editingName.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedName.isEmpty else { return }
-        
-        passbook.name = trimmedName
-        passbook.updatedAt = Date()
-        
-        do {
-            try context.save()
-            print("✅ 口座名を更新しました: \(trimmedName)")
-        } catch {
-            print("❌ 口座名の更新に失敗しました: \(error)")
-        }
-    }
-    
-    /// 口座を削除
-    private func deletePassbook() {
-        guard let passbook = passbook else { return }
-        
-        let passbookName = passbook.name
-        let booksCount = passbook.userBooks.count
-        
-        // 口座を削除（関連する本も cascade で削除される）
-        context.delete(passbook)
-        
-        do {
-            try context.save()
-            print("✅ 口座「\(passbookName)」を削除しました（\(booksCount)冊の本も削除）")
-            // 画面を閉じて口座一覧に戻る
-            dismiss()
-        } catch {
-            print("❌ 口座の削除に失敗しました: \(error)")
-        }
-    }
     
     /// 日付をYYYY.MM.DD形式でフォーマット
     private func formatDate(_ date: Date) -> String {
@@ -239,97 +245,18 @@ struct PassbookDetailView: View {
     }
 }
 
-// MARK: - EditPassbookSheet
-
-/// 口座名編集シート
-struct EditPassbookSheet: View {
-    @Environment(\.dismiss) private var dismiss
-    @Binding var passbookName: String
-    let passbook: Passbook?
-    let bookCount: Int
-    let onSave: () -> Void
-    let onDelete: () -> Void
-    
-    @State private var showDeleteAlert = false
-    
-    var body: some View {
-        NavigationStack {
-            Form {
-                Section {
-                    TextField("口座名", text: $passbookName)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                } header: {
-                    Text("口座名")
-                } footer: {
-                    Text("この口座の名前を変更できます")
-                }
-                
-                // 削除セクション
-                Section {
-                    Button(role: .destructive, action: {
-                        showDeleteAlert = true
-                    }) {
-                        HStack {
-                            Spacer()
-                            Text("この口座を削除")
-                            Spacer()
-                        }
-                    }
-                } footer: {
-                    if bookCount > 0 {
-                        Text("この口座に登録されている\(bookCount)冊の本も削除されます")
-                            .foregroundColor(.red)
-                    } else {
-                        Text("この口座は空です")
-                    }
-                }
-            }
-            .navigationTitle("口座を編集")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("キャンセル") {
-                        dismiss()
-                    }
-                }
-                
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("保存") {
-                        onSave()
-                        dismiss()
-                    }
-                    .disabled(passbookName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                }
-            }
-            .alert("口座を削除しますか？", isPresented: $showDeleteAlert) {
-                Button("キャンセル", role: .cancel) { }
-                Button("削除", role: .destructive) {
-                    onDelete()
-                    dismiss()
-                }
-            } message: {
-                if bookCount > 0 {
-                    Text("「\(passbookName)」を削除すると、この口座に登録されている\(bookCount)冊の本も削除されます。\n\nこの操作は取り消せません。")
-                } else {
-                    Text("「\(passbookName)」を削除してもよろしいですか？\n\nこの操作は取り消せません。")
-                }
-            }
-        }
-    }
-}
-
 // MARK: - Preview
 
 #Preview {
     let config = ModelConfiguration(isStoredInMemoryOnly: true)
     let container = try! ModelContainer(for: Passbook.self, UserBook.self, configurations: config)
     
-    let passbook = Passbook(name: "漫画口座", type: .custom, sortOrder: 1)
+    let passbook = Passbook(name: "漫画", type: .custom, sortOrder: 1)
     container.mainContext.insert(passbook)
     
     return NavigationStack {
-        PassbookDetailView(passbook: passbook, isOverall: false)
+        PassbookDetailView(passbook: passbook)
     }
     .modelContainer(container)
 }
+

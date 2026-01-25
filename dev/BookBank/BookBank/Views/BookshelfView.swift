@@ -2,27 +2,60 @@
 //  BookshelfView.swift
 //  BookBank
 //
-//  Created on 2026/01/17
+//  Created on 2026/01/25
 //
 
 import SwiftUI
 import SwiftData
-import UIKit
 
+/// 本棚画面
 struct BookshelfView: View {
-    @Environment(\.modelContext) private var context
     
-    // 表示対象の口座
+    // MARK: - Properties
+    
+    /// 表示対象の口座
     let passbook: Passbook
     
-    // すべての本を取得（登録日降順）
-    @Query(sort: \UserBook.registeredAt, order: .reverse) private var allBooks: [UserBook]
+    // MARK: - SwiftData Query
     
-    // この口座の本のみをフィルタリング
+    /// すべての口座を取得
+    @Query(sort: \Passbook.sortOrder) private var allPassbooks: [Passbook]
+    
+    /// この口座に紐づく書籍を取得
+    @Query private var allUserBooks: [UserBook]
+    
+    /// この口座に紐づく書籍のみをフィルタリング
     private var userBooks: [UserBook] {
-        allBooks.filter { book in
+        allUserBooks.filter { book in
             book.passbook?.persistentModelID == passbook.persistentModelID
         }
+    }
+    
+    /// 合計金額
+    private var totalValue: Int {
+        passbook.totalValue
+    }
+    
+    /// 今日の日付文字列
+    private var todayString: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy.MM.dd"
+        return formatter.string(from: Date())
+    }
+
+    /// 登録書籍数
+    private var bookCount: Int {
+        passbook.bookCount
+    }
+    
+    /// カスタム口座のリスト
+    private var customPassbooks: [Passbook] {
+        allPassbooks.filter { $0.type == .custom && $0.isActive }
+    }
+    
+    /// この口座のテーマカラー
+    private var themeColor: Color {
+        PassbookColor.color(for: passbook, in: customPassbooks)
     }
     
     // グリッドの列定義（4カラム）
@@ -33,206 +66,121 @@ struct BookshelfView: View {
         GridItem(.flexible(), spacing: 2)
     ]
     
+    // MARK: - Initialization
+    
+    init(passbook: Passbook) {
+        self.passbook = passbook
+        // registeredAt の降順でソート（新しい本が上に表示される）
+        _allUserBooks = Query(sort: \UserBook.registeredAt, order: .reverse)
+    }
+    
+    // MARK: - Body
+    
     var body: some View {
         ScrollView {
-            if userBooks.isEmpty {
-                    // 空状態
-                    VStack(spacing: 16) {
-                        Image(systemName: "books.vertical")
-                            .font(.system(size: 60))
-                            .foregroundColor(.gray)
-                        
-                        Text("本棚はまだ空です")
-                            .font(.headline)
+            VStack(spacing: 0) {
+                // 口座情報セクション
+                accountInfoSection
+                
+                // コンテンツカード
+                VStack(spacing: 0) {
+                    // ヘッダー
+                    HStack {
+                        Text("本棚")
+                            .font(.footnote)
                             .foregroundColor(.secondary)
                         
-                        Text("本を登録して本棚を埋めましょう")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
+                        Spacer()
                     }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .padding()
-            } else {
-                // 本棚グリッド
-                LazyVGrid(columns: columns, spacing: 2) {
-                    ForEach(userBooks) { book in
-                            NavigationLink(destination: UserBookDetailView(book: book)) {
-                                BookCoverView(book: book)
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                .padding(.horizontal, 2) // 左右の余白を2pxに
-                .padding(.bottom, 100) // タブバー分の余白を確実に確保
+                    .padding(.horizontal)
+                    .padding(.top, 28)
+                    .padding(.bottom, 12)
+                    
+                    // 本棚グリッド
+                    gridContent
+                }
+                .background(Color(UIColor.systemBackground))
+                .clipShape(
+                    UnevenRoundedRectangle(
+                        topLeadingRadius: 40,
+                        bottomLeadingRadius: 0,
+                        bottomTrailingRadius: 0,
+                        topTrailingRadius: 40
+                    )
+                )
             }
         }
-        .ignoresSafeArea(edges: .bottom) // タブバーの下まで表示
+        .id(passbook.persistentModelID) // 口座が変わったら強制的にViewを再生成
+        .background(themeColor.opacity(0.1).ignoresSafeArea())
         .navigationTitle("本棚")
         .navigationBarTitleDisplayMode(.inline)
     }
-}
-
-// 本の表紙ビュー
-struct BookCoverView: View {
-    let book: UserBook
     
-    var body: some View {
-        GeometryReader { geometry in
-            ZStack(alignment: .topTrailing) {
-                // 表紙画像（画面幅の25%、アスペクト比2:3）
-                if let imageURL = book.imageURL,
-                   let url = URL(string: imageURL) {
-                    CachedAsyncImage(url: url) { phase in
-                        switch phase {
-                        case .success(let image):
-                            image
-                                .resizable()
-                                .aspectRatio(contentMode: .fill) // object-fit: cover
-                                .frame(width: geometry.size.width, height: geometry.size.width * 1.5)
-                                .clipped()
-                        case .failure:
-                            // 読み込み失敗
-                            Rectangle()
-                                .fill(Color.gray.opacity(0.2))
-                                .frame(width: geometry.size.width, height: geometry.size.width * 1.5)
-                                .overlay {
-                                    Image(systemName: "exclamationmark.triangle")
-                                        .font(.system(size: 24))
-                                        .foregroundColor(.gray)
-                                }
-                        case .loading:
-                            // 読み込み中
-                            Rectangle()
-                                .fill(Color.gray.opacity(0.2))
-                                .frame(width: geometry.size.width, height: geometry.size.width * 1.5)
-                                .overlay {
-                                    ProgressView()
-                                }
+    // MARK: - Account Info Section
+    
+    private var accountInfoSection: some View {
+        VStack(spacing: 8) {
+            Text("\(todayString) 時点")
+                .font(.footnote)
+                .foregroundColor(.secondary)
+                .frame(maxWidth: .infinity, alignment: .trailing)
+                .padding(.horizontal)
+                .padding(.bottom, 32)
+
+            HStack(alignment: .lastTextBaseline, spacing: 2) {
+                Text("\(totalValue.formatted())")
+                    .font(.system(size: 32, weight: .bold))
+                Text("円")
+                    .font(.system(size: 18, weight: .bold))
+            }
+            .foregroundColor(themeColor)
+
+            Text("登録書籍: \(bookCount)冊")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, 8)
+        .padding(.bottom, 60)
+    }
+    
+    // MARK: - Grid Content
+    
+    private var gridContent: some View {
+        Group {
+            if userBooks.isEmpty {
+                VStack(spacing: 16) {
+                    Image(systemName: "books.vertical")
+                        .font(.system(size: 60))
+                        .foregroundColor(.gray)
+                    
+                    Text("本棚はまだ空です")
+                        .font(.headline)
+                        .foregroundColor(.secondary)
+                    
+                    Text("本を登録して本棚を埋めましょう")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+                .frame(maxWidth: .infinity)
+                .padding()
+            } else {
+                LazyVGrid(columns: columns, spacing: 2) {
+                    ForEach(userBooks) { book in
+                        NavigationLink(destination: UserBookDetailView(book: book)) {
+                            BookCoverView(book: book)
                         }
+                        .buttonStyle(.plain)
                     }
-                } else {
-                    // 画像がない場合
-                    Rectangle()
-                        .fill(Color.gray.opacity(0.2))
-                        .frame(width: geometry.size.width, height: geometry.size.width * 1.5)
-                        .overlay {
-                            Image(systemName: "book.closed")
-                                .font(.system(size: 24))
-                                .foregroundColor(.gray)
-                        }
                 }
-                
-                // お気に入りマーク（右上に配置）
-                if book.isFavorite {
-                    Image(systemName: "star.fill")
-                        .font(.caption2)
-                        .foregroundColor(.yellow)
-                        .padding(4)
-                        .background(Circle().fill(Color.black.opacity(0.3)))
-                }
+                .padding(.horizontal, 16)
             }
-            .shadow(color: Color.black.opacity(0.08), radius: 4, x: 0, y: 2)
         }
-        .aspectRatio(2/3, contentMode: .fit) // アスペクト比2:3（横:縦）
-        .cornerRadius(2) // 2pxの角丸
+        .padding(.bottom, 100)
     }
 }
 
-// MARK: - CachedAsyncImage
-
-/// 画像読み込みの状態
-enum CachedImagePhase {
-    case loading
-    case success(Image)
-    case failure
-}
-
-/// メモリキャッシュ付きの非同期画像ローダー
-struct CachedAsyncImage<Content: View>: View {
-    let url: URL
-    let content: (CachedImagePhase) -> Content
-    
-    @State private var phase: CachedImagePhase = .loading
-    
-    init(url: URL, @ViewBuilder content: @escaping (CachedImagePhase) -> Content) {
-        self.url = url
-        self.content = content
-    }
-    
-    var body: some View {
-        content(phase)
-            .task(id: url) {
-                await loadImage()
-            }
-    }
-    
-    private func loadImage() async {
-        // まずメモリキャッシュを確認
-        if let cachedImage = ImageCache.shared.get(forKey: url.absoluteString) {
-            phase = .success(Image(uiImage: cachedImage))
-            return
-        }
-        
-        // キャッシュになければダウンロード
-        do {
-            let (data, response) = try await URLSession.shared.data(from: url)
-            
-            // HTTPレスポンスの確認
-            guard let httpResponse = response as? HTTPURLResponse,
-                  (200...299).contains(httpResponse.statusCode) else {
-                phase = .failure
-                return
-            }
-            
-            // 画像データの変換
-            guard let uiImage = UIImage(data: data) else {
-                phase = .failure
-                return
-            }
-            
-            // メモリキャッシュに保存
-            ImageCache.shared.set(uiImage, forKey: url.absoluteString)
-            
-            // 成功
-            phase = .success(Image(uiImage: uiImage))
-        } catch {
-            phase = .failure
-        }
-    }
-}
-
-// MARK: - ImageCache
-
-/// 画像のメモリキャッシュ
-final class ImageCache {
-    static let shared = ImageCache()
-    
-    private let cache = NSCache<NSString, UIImage>()
-    
-    private init() {
-        // キャッシュの制限を設定
-        cache.countLimit = 100 // 最大100枚
-        cache.totalCostLimit = 50 * 1024 * 1024 // 最大50MB
-    }
-    
-    func get(forKey key: String) -> UIImage? {
-        cache.object(forKey: key as NSString)
-    }
-    
-    func set(_ image: UIImage, forKey key: String) {
-        // 画像のおおよそのメモリサイズを計算
-        let cost = Int(image.size.width * image.size.height * image.scale * 4)
-        cache.setObject(image, forKey: key as NSString, cost: cost)
-    }
-    
-    func remove(forKey key: String) {
-        cache.removeObject(forKey: key as NSString)
-    }
-    
-    func removeAll() {
-        cache.removeAllObjects()
-    }
-}
+// MARK: - Preview
 
 #Preview {
     let config = ModelConfiguration(isStoredInMemoryOnly: true)
@@ -241,20 +189,8 @@ final class ImageCache {
     let passbook = Passbook(name: "漫画", type: .custom, sortOrder: 1)
     container.mainContext.insert(passbook)
     
-    // サンプル本を追加
-    for i in 1...10 {
-        let book = UserBook(
-            title: "サンプル本 \(i)",
-            author: "著者\(i)",
-            price: 1500,
-            passbook: passbook
-        )
-        if i % 3 == 0 {
-            book.isFavorite = true
-        }
-        container.mainContext.insert(book)
+    return NavigationStack {
+        BookshelfView(passbook: passbook)
     }
-    
-    return BookshelfView(passbook: passbook)
-        .modelContainer(container)
+    .modelContainer(container)
 }

@@ -30,9 +30,9 @@ struct HomeView: View {
                         .foregroundColor(.secondary)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                // 総合口座（仮想）を表示
-                PassbookDetailView(passbook: nil, isOverall: true)
+            } else if let firstPassbook = customPassbooks.first {
+                // 最初のカスタム口座を表示
+                PassbookDetailView(passbook: firstPassbook)
             }
         }
     }

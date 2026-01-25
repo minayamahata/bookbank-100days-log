@@ -18,194 +18,174 @@ struct UserBookDetailView: View {
     @State private var showDeleteAlert = false
     
     var body: some View {
-        ZStack {
-            // 背景：表紙画像をぼかして表示（ignoresSafeAreaは背景だけ）
-            if let imageURL = book.imageURL,
-               let url = URL(string: imageURL) {
-                AsyncImage(url: url) { image in
-                    image
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .blur(radius: 80)
-                        .overlay(Color.black.opacity(0.3))
-                } placeholder: {
-                    Color(.systemGroupedBackground)
-                }
-                .ignoresSafeArea()
-            } else {
-                Color(.systemGroupedBackground)
-                    .ignoresSafeArea()
-            }
-
-            // コンテンツ
-            ScrollView {
-                VStack(spacing: 16) {
-                    // 表紙画像 + お気に入りボタン（カードの外）
-                    ZStack(alignment: .topTrailing) {
-                        if let imageURL = book.imageURL,
-                           let url = URL(string: imageURL) {
-                            AsyncImage(url: url) { image in
-                                image
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fit)
-                                    .frame(maxHeight: 160)
-                                    .clipShape(RoundedRectangle(cornerRadius: 2))
-                                    .shadow(color: Color.black.opacity(0.3), radius: 20, x: 0, y: 8)
-                            } placeholder: {
-                                RoundedRectangle(cornerRadius: 20)
-                                    .fill(.ultraThinMaterial)
-                                    .frame(height: 200)
-                                    .overlay {
-                                        ProgressView()
-                                    }
-                            }
-                            .frame(maxWidth: .infinity)
-                            .padding(.horizontal, 20)
-                        } else {
-                            // 画像がない場合
+        ScrollView {
+            VStack(spacing: 30) {
+                // 表紙画像 + お気に入りボタン（カードの外）
+                ZStack(alignment: .topTrailing) {
+                    if let imageURL = book.imageURL,
+                       let url = URL(string: imageURL) {
+                        AsyncImage(url: url) { image in
+                            image
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(maxHeight: 160)
+                                .clipShape(RoundedRectangle(cornerRadius: 2))
+                                .shadow(color: Color.black.opacity(0.3), radius: 20, x: 0, y: 8)
+                        } placeholder: {
                             RoundedRectangle(cornerRadius: 20)
                                 .fill(.ultraThinMaterial)
-                                .frame(height: 120)
+                                .frame(height: 200)
                                 .overlay {
-                                    VStack {
-                                        Image(systemName: "book.closed")
-                                            .font(.system(size: 30))
-                                            .foregroundColor(.secondary)
-                                        Text("画像なし")
-                                            .font(.caption)
-                                            .foregroundColor(.secondary)
-                                    }
+                                    ProgressView()
                                 }
-                                .shadow(color: Color.black.opacity(0.15), radius: 20, x: 0, y: 10)
-                                .padding(.horizontal, 20)
                         }
-
-                        // お気に入りボタン（画像の右上）
-                        Button(action: {
-                            book.isFavorite.toggle()
-                            try? context.save()
-                        }) {
-                            Image(systemName: book.isFavorite ? "star.fill" : "star")
-                                .font(.title3)
-                                .foregroundColor(book.isFavorite ? .yellow : .white)
-                                .padding(8)
-                                .background(Circle().fill(Color.black.opacity(0.5)))
-                        }
-                        .padding(12)
-                    }
-                    
-                    // 白いカード（情報部分のみ）
-                    VStack(alignment: .leading, spacing: 8) {
-                        // タイトル
-                        Text(book.title)
-                            .font(.title2)
-                            .fontWeight(.bold)
-
-                        // 著者
-                        if !book.displayAuthor.isEmpty {
-                            Text(book.displayAuthor)
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
-                        }
-
-                        // 価格 + 削除ボタン
-                        HStack {
-                            if let priceText = book.displayPrice {
-                                Text(priceText)
-                                    .font(.title3)
-                                    .fontWeight(.semibold)
-                                    .foregroundColor(.blue)
-                            }
-
-                            Spacer()
-
-                            // 削除ボタン（価格の右）
-                            Button(action: {
-                                showDeleteAlert = true
-                            }) {
-                                Image(systemName: "trash")
-                                    .font(.subheadline)
-                                    .foregroundColor(.secondary)
-                            }
-                        }
-
-                        Divider()
-                            .padding(.vertical, 16)
-
-                        // 詳細情報
-                        VStack(alignment: .leading, spacing: 8) {
-                            if let passbookName = book.passbook?.name {
-                                DetailInfoRow(label: "登録口座", value: passbookName)
-                            }
-
-                            DetailInfoRow(label: "登録日", value: formatDate(book.registeredAt))
-
-                            if let publisher = book.publisher {
-                                DetailInfoRow(label: "出版社", value: publisher)
-                            }
-
-                            if let publishedYear = book.publishedYear {
-                                DetailInfoRow(label: "出版年", value: "\(publishedYear)年")
-                            }
-
-                            if let bookFormat = book.bookFormat {
-                                DetailInfoRow(label: "発行形態", value: bookFormat)
-                            }
-
-                            if let pageCount = book.pageCount {
-                                DetailInfoRow(label: "ページ数", value: "\(pageCount)ページ")
-                            }
-                        }
-                        .font(.caption)
-
-                        Divider()
-                            .padding(.vertical, 16)
-
-                        // メモセクション（タップでモーダル表示）
-                        Button(action: {
-                            print("👆 [メモ] タップされました - モーダルを開く")
-                            showMemoEditor = true
-                        }) {
-                            ZStack(alignment: .topLeading) {
-                                // 背景
-                                RoundedRectangle(cornerRadius: 12)
-                                    .fill(.thinMaterial)
-                                    .frame(minHeight: 120)
-
-                                // メモ表示または プレースホルダー
-                                if let memo = book.memo, !memo.isEmpty {
-                                    Text(memo)
-                                        .font(.caption)
-                                        .foregroundColor(.primary)
-                                        .multilineTextAlignment(.leading)
-                                        .padding(12)
-                                        .frame(maxWidth: .infinity, minHeight: 120, alignment: .topLeading)
-                                } else {
-                                    Text("メモはまだありません")
+                        .frame(maxWidth: .infinity)
+                        .padding(.horizontal, 20)
+                    } else {
+                        // 画像がない場合
+                        RoundedRectangle(cornerRadius: 20)
+                            .fill(.ultraThinMaterial)
+                            .frame(height: 120)
+                            .overlay {
+                                VStack {
+                                    Image(systemName: "book.closed")
+                                        .font(.system(size: 30))
+                                        .foregroundColor(.secondary)
+                                    Text("画像なし")
                                         .font(.caption)
                                         .foregroundColor(.secondary)
-                                        .italic()
-                                        .padding(12)
-                                        .frame(maxWidth: .infinity, minHeight: 120, alignment: .topLeading)
                                 }
                             }
-                        }
-                        .buttonStyle(.plain)
+                            .shadow(color: Color.black.opacity(0.15), radius: 20, x: 0, y: 10)
+                            .padding(.horizontal, 20)
                     }
-                    .padding()
-                    .background(.ultraThinMaterial)
-                    .cornerRadius(20)
-                    .shadow(color: Color.black.opacity(0.15), radius: 20, x: 0, y: 10)
+
+                    // お気に入りボタン（画像の右上）
+                    Button(action: {
+                        book.isFavorite.toggle()
+                        try? context.save()
+                    }) {
+                        Image(systemName: book.isFavorite ? "star.fill" : "star")
+                            .font(.title3)
+                            .foregroundColor(book.isFavorite ? .yellow : .white)
+                            .padding(8)
+                            .background(Circle().fill(Color.black.opacity(0.5)))
+                    }
+                    .padding(12)
                 }
+                
+                // タイトル・著者・価格（カードの外、センタリング）
+                VStack(spacing: 6) {
+                    Text(book.title)
+                        .font(.title3)
+                        .fontWeight(.bold)
+                        .multilineTextAlignment(.center)
+
+                    if !book.displayAuthor.isEmpty {
+                        Text(book.displayAuthor)
+                            .font(.footnote)
+                            .foregroundColor(.secondary)
+                    }
+
+                    if let price = book.priceAtRegistration {
+                        HStack(alignment: .lastTextBaseline, spacing: 2) {
+                            Text("\(price.formatted())")
+                                .font(.title3)
+                                .fontWeight(.semibold)
+                            Text("円")
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
+                        }
+                        .foregroundColor(.blue)
+                    }
+                    
+                    Text(formatDate(book.registeredAt))
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                .frame(maxWidth: .infinity)
                 .padding(.horizontal, 20)
-                .padding(.vertical, 20)
+
+                // 白いカード（情報部分のみ）
+                VStack(alignment: .leading, spacing: 8) {
+                    // 詳細情報
+                    VStack(alignment: .leading, spacing: 8) {
+                        if let passbookName = book.passbook?.name {
+                            DetailInfoRow(label: "登録口座", value: passbookName)
+                        }
+
+                        if let publisher = book.publisher {
+                            DetailInfoRow(label: "出版社", value: publisher)
+                        }
+
+                        if let publishedYear = book.publishedYear {
+                            DetailInfoRow(label: "出版年", value: "\(publishedYear)年")
+                        }
+
+                        if let bookFormat = book.bookFormat {
+                            DetailInfoRow(label: "発行形態", value: bookFormat)
+                        }
+
+                        if let pageCount = book.pageCount {
+                            DetailInfoRow(label: "ページ数", value: "\(pageCount)ページ")
+                        }
+                    }
+                    .font(.caption)
+
+                    Divider()
+                        .padding(.vertical, 16)
+
+                    // メモセクション（タップでモーダル表示）
+                    Button(action: {
+                        print("👆 [メモ] タップされました - モーダルを開く")
+                        showMemoEditor = true
+                    }) {
+                        ZStack(alignment: .topLeading) {
+                            // 背景
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(.thinMaterial)
+                                .frame(minHeight: 120)
+
+                            // メモ表示または プレースホルダー
+                            if let memo = book.memo, !memo.isEmpty {
+                                Text(memo)
+                                    .font(.caption)
+                                    .foregroundColor(.primary)
+                                    .multilineTextAlignment(.leading)
+                                    .padding(12)
+                                    .frame(maxWidth: .infinity, minHeight: 120, alignment: .topLeading)
+                            } else {
+                                Text("メモはまだありません")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                    .italic()
+                                    .padding(12)
+                                    .frame(maxWidth: .infinity, minHeight: 120, alignment: .topLeading)
+                            }
+                        }
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding()
+                .background(.ultraThinMaterial)
+                .cornerRadius(20)
+                .shadow(color: Color.black.opacity(0.15), radius: 20, x: 0, y: 10)
             }
-            .safeAreaInset(edge: .top, spacing: 0) {
-                customHeader
+            .padding(.horizontal, 20)
+            .padding(.vertical, 20)
+        }
+        .background(Color(.systemGroupedBackground))
+        .navigationTitle("本の詳細")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button(action: {
+                    showDeleteAlert = true
+                }) {
+                    Image(systemName: "trash")
+                }
             }
         }
-        .navigationBarHidden(true)
         .alert("本を削除しますか？", isPresented: $showDeleteAlert) {
             Button("キャンセル", role: .cancel) { }
             Button("削除", role: .destructive) {
@@ -222,52 +202,6 @@ struct UserBookDetailView: View {
                 saveMemo(newMemo)
             }
         }
-    }
-    
-    // 自前ヘッダー
-    private var customHeader: some View {
-        VStack(spacing: 0) {
-            // SafeArea上部の余白（ノッチ対応）
-            Color.clear
-                .frame(height: 0)
-                .background(.ultraThinMaterial)
-            
-            // ヘッダー本体
-            HStack {
-                // 左：戻るボタン
-                Button(action: {
-                    dismiss()
-                }) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "chevron.left")
-                            .font(.system(size: 17, weight: .semibold))
-                        Text("戻る")
-                            .font(.body)
-                    }
-                    .foregroundColor(.primary)
-                }
-                
-                Spacer()
-                
-                // 中央：タイトル
-                Text("本の詳細")
-                    .font(.headline)
-                    .fontWeight(.semibold)
-                
-                Spacer()
-                
-                // 右：バランス用の透明View
-                HStack(spacing: 4) {
-                    Image(systemName: "chevron.left")
-                    Text("戻る")
-                }
-                .font(.body)
-                .foregroundColor(.clear)
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
-        }
-        .background(.ultraThinMaterial)
     }
     
     private func deleteBook() {

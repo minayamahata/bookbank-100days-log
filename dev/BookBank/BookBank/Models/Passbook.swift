@@ -19,6 +19,9 @@ final class Passbook {
 
     /// 有効フラグ（論理削除用）
     var isActive: Bool
+    
+    /// テーマカラーのインデックス（nilの場合は自動割り当て）
+    var colorIndex: Int?
 
     /// 作成日時
     var createdAt: Date

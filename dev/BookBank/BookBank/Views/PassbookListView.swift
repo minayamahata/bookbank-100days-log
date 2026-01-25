@@ -18,39 +18,17 @@ struct PassbookListView: View {
         passbooks.filter { $0.type == .custom && $0.isActive }
     }
     
-    // すべてのカスタム口座の合計値
-    private var totalBooks: Int {
-        customPassbooks.reduce(0) { $0 + $1.bookCount }
-    }
-    
-    private var totalValue: Int {
-        customPassbooks.reduce(0) { $0 + $1.totalValue }
-    }
-    
     var body: some View {
         NavigationStack {
             List {
-                // 総合口座（仮想）
-                Section {
-                    NavigationLink(destination: PassbookDetailView(passbook: nil, isOverall: true)) {
-                        PassbookRow(
-                            name: "総合口座",
-                            bookCount: totalBooks,
-                            totalValue: totalValue,
-                            isOverall: true
-                        )
-                    }
-                }
-                
                 // カスタム口座
                 Section {
                     ForEach(customPassbooks) { passbook in
-                        NavigationLink(destination: PassbookDetailView(passbook: passbook, isOverall: false)) {
+                        NavigationLink(destination: PassbookDetailView(passbook: passbook)) {
                             PassbookRow(
                                 name: passbook.name,
                                 bookCount: passbook.bookCount,
-                                totalValue: passbook.totalValue,
-                                isOverall: false
+                                totalValue: passbook.totalValue
                             )
                         }
                     }
@@ -84,9 +62,6 @@ struct PassbookListView: View {
     private func deletePassbooks(at offsets: IndexSet) {
         for index in offsets {
             let passbook = customPassbooks[index]
-            
-            // 本がある場合は削除できないようにアラートを出すべきだが、
-            // まずはシンプルに削除（本も一緒に削除される）
             context.delete(passbook)
         }
         
@@ -104,22 +79,12 @@ struct PassbookRow: View {
     let name: String
     let bookCount: Int
     let totalValue: Int
-    let isOverall: Bool
     
     var body: some View {
         HStack {
             VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 6) {
-                    Text(name)
-                        .font(isOverall ? .headline : .body)
-                        .fontWeight(isOverall ? .bold : .regular)
-                    
-                    if isOverall {
-                        Image(systemName: "star.fill")
-                            .font(.caption)
-                            .foregroundColor(.yellow)
-                    }
-                }
+                Text(name)
+                    .font(.body)
                 
                 Text("\(bookCount)冊")
                     .font(.caption)
@@ -129,16 +94,18 @@ struct PassbookRow: View {
             Spacer()
             
             VStack(alignment: .trailing, spacing: 4) {
-                Text("¥\(totalValue.formatted())")
-                    .font(isOverall ? .headline : .body)
-                    .fontWeight(isOverall ? .bold : .semibold)
-                    .foregroundColor(isOverall ? .blue : .primary)
-                
-                if !isOverall {
-                    Text("残高")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
+                HStack(alignment: .lastTextBaseline, spacing: 1) {
+                    Text("\(totalValue.formatted())")
+                        .font(.body)
+                        .fontWeight(.semibold)
+                    Text("円")
+                        .font(.caption)
+                        .fontWeight(.semibold)
                 }
+                
+                Text("残高")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
             }
         }
         .padding(.vertical, 4)

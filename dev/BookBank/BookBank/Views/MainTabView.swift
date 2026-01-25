@@ -14,38 +14,61 @@ struct MainTabView: View {
     @State private var showPassbookSelector = false
     
     /// 各タブのナビゲーションパス
+    @State private var accountListNavPath = NavigationPath()
     @State private var passbookNavPath = NavigationPath()
     @State private var bookshelfNavPath = NavigationPath()
     @State private var statisticsNavPath = NavigationPath()
     
     /// 現在選択中のタブ
-    @State private var selectedTab = 0
+    @State private var selectedTab = 1  // デフォルトは通帳タブ
     
     // カスタム口座を取得
     private var customPassbooks: [Passbook] {
         passbooks.filter { $0.type == .custom && $0.isActive }
     }
     
+    /// 現在表示対象の口座（selectedPassbookがnilの場合は最初のカスタム口座）
+    private var currentPassbook: Passbook? {
+        selectedPassbook ?? customPassbooks.first
+    }
+    
+    /// ナビゲーション中かどうか
+    private var isNavigating: Bool {
+        !accountListNavPath.isEmpty || !passbookNavPath.isEmpty || !bookshelfNavPath.isEmpty || !statisticsNavPath.isEmpty
+    }
+    
+    /// 現在の口座のテーマカラー
+    private var currentThemeColor: Color {
+        if let passbook = currentPassbook {
+            return PassbookColor.color(for: passbook, in: customPassbooks)
+        }
+        return .blue
+    }
+    
     var body: some View {
-        ZStack(alignment: .bottomTrailing) {
-            // 標準のTabView（通帳・本棚）
+        ZStack(alignment: .bottom) {
+            // 標準のTabView
             TabView(selection: $selectedTab) {
+                // 口座一覧タブ
+                NavigationStack(path: $accountListNavPath) {
+                    AccountListView { passbook in
+                        // 口座を選択して通帳タブに切り替え
+                        selectedPassbook = passbook
+                        selectedTab = 1
+                    }
+                }
+                .tabItem {
+                    Label("口座", systemImage: "building.columns")
+                }
+                .tag(0)
+                
                 // 通帳タブ
                 NavigationStack(path: $passbookNavPath) {
                     Group {
                         if customPassbooks.isEmpty {
                             emptyStateView
-                        } else if selectedPassbook == nil {
-                            // 総合口座（全体表示）
-                            PassbookDetailView(passbook: nil, isOverall: true)
-                                .toolbar {
-                                    ToolbarItem(placement: .topBarLeading) {
-                                        passbookSwitcherButton
-                                    }
-                                }
-                        } else {
-                            // カスタム口座
-                            PassbookDetailView(passbook: selectedPassbook, isOverall: false)
+                        } else if let passbook = currentPassbook {
+                            PassbookDetailView(passbook: passbook)
                                 .toolbar {
                                     ToolbarItem(placement: .topBarLeading) {
                                         passbookSwitcherButton
@@ -60,24 +83,15 @@ struct MainTabView: View {
                 .tabItem {
                     Label("通帳", systemImage: "list.bullet")
                 }
-                .tag(0)
+                .tag(1)
                 
                 // 本棚タブ
                 NavigationStack(path: $bookshelfNavPath) {
                     Group {
                         if customPassbooks.isEmpty {
                             emptyStateView
-                        } else if selectedPassbook == nil {
-                            // 総合口座（全体表示）
-                            OverallBookshelfView()
-                                .toolbar {
-                                    ToolbarItem(placement: .topBarLeading) {
-                                        passbookSwitcherButton
-                                    }
-                                }
-                        } else {
-                            // カスタム口座
-                            BookshelfView(passbook: selectedPassbook!)
+                        } else if let passbook = currentPassbook {
+                            BookshelfView(passbook: passbook)
                                 .toolbar {
                                     ToolbarItem(placement: .topBarLeading) {
                                         passbookSwitcherButton
@@ -92,7 +106,7 @@ struct MainTabView: View {
                 .tabItem {
                     Label("本棚", systemImage: "books.vertical.fill")
                 }
-                .tag(1)
+                .tag(2)
 
                 // 集計タブ
                 NavigationStack(path: $statisticsNavPath) {
@@ -100,7 +114,7 @@ struct MainTabView: View {
                         if customPassbooks.isEmpty {
                             emptyStateView
                         } else {
-                            StatisticsView(passbook: selectedPassbook)
+                            StatisticsView(passbook: currentPassbook)
                                 .toolbar {
                                     ToolbarItem(placement: .topBarLeading) {
                                         passbookSwitcherButton
@@ -115,51 +129,78 @@ struct MainTabView: View {
                 .tabItem {
                     Label("集計", systemImage: "chart.bar.fill")
                 }
-                .tag(2)
+                .tag(3)
             }
+            .tint(currentThemeColor)
             
-            // 独立した登録ボタン（右下に配置、タブバーと高さを揃える）
-            // ナビゲーション中は非表示
-            if passbookNavPath.isEmpty && bookshelfNavPath.isEmpty && statisticsNavPath.isEmpty {
-                Button(action: {
-                    // 総合口座の場合は最初のカスタム口座に登録
-                    if let targetPassbook = selectedPassbook ?? customPassbooks.first {
-                        let destination = BookSearchDestination(passbook: targetPassbook)
-                        // 現在のタブに応じてナビゲーション
-                        switch selectedTab {
-                        case 0:
-                            passbookNavPath.append(destination)
-                        case 1:
-                            bookshelfNavPath.append(destination)
-                        case 2:
-                            statisticsNavPath.append(destination)
-                        default:
-                            passbookNavPath.append(destination)
+            // プラスボタン（右下に配置、タブバーの上）- リキッドグラス風
+            if !isNavigating && selectedTab != 0 {
+                HStack {
+                    Spacer()
+                    Button(action: {
+                        if let targetPassbook = currentPassbook {
+                            let destination = BookSearchDestination(passbook: targetPassbook)
+                            switch selectedTab {
+                            case 1:
+                                passbookNavPath.append(destination)
+                            case 2:
+                                bookshelfNavPath.append(destination)
+                            case 3:
+                                statisticsNavPath.append(destination)
+                            default:
+                                passbookNavPath.append(destination)
+                            }
+                        }
+                    }) {
+                        LiquidGlassButton(color: currentThemeColor)
+                    }
+                    .padding(.trailing, 16)
+                    .padding(.bottom, 70)
+                }
+            }
+        }
+        .overlay {
+            // 背景の暗幕（フェード）
+            if showPassbookSelector {
+                Color.black.opacity(0.3)
+                    .ignoresSafeArea()
+                    .onTapGesture {
+                        withAnimation(.easeInOut(duration: 0.25)) {
+                            showPassbookSelector = false
                         }
                     }
-                }) {
-                    Image(systemName: "plus")
-                        .font(.system(size: 22, weight: .semibold))
-                        .foregroundColor(.white)
-                        .frame(width: 56, height: 56)
-                        .background(
-                            Circle()
-                                .fill(Color.blue)
-                                .shadow(color: Color.blue.opacity(0.4), radius: 8, x: 0, y: 4)
+                    .transition(.opacity)
+            }
+        }
+        .overlay(alignment: .leading) {
+            // 左からスライドするモーダル（天地全画面）
+            if showPassbookSelector {
+                GeometryReader { geometry in
+                    NavigationStack {
+                        PassbookSelectorView(selectedPassbook: $selectedPassbook) {
+                            withAnimation(.easeInOut(duration: 0.25)) {
+                                showPassbookSelector = false
+                            }
+                        }
+                    }
+                    .frame(width: geometry.size.width * 0.85)
+                    .frame(maxHeight: .infinity)
+                    .background(Color(UIColor.systemBackground))
+                    .clipShape(
+                        UnevenRoundedRectangle(
+                            topLeadingRadius: 0,
+                            bottomLeadingRadius: 0,
+                            bottomTrailingRadius: 40,
+                            topTrailingRadius: 40
                         )
+                    )
+                    .shadow(radius: 10)
                 }
-                .padding(.trailing, 20)
-                .padding(.bottom, 8) // タブバーの高さと揃える
+                .ignoresSafeArea()
+                .transition(.move(edge: .leading))
             }
         }
-        .fullScreenCover(isPresented: $showPassbookSelector) {
-            NavigationStack {
-                PassbookSelectorView(selectedPassbook: $selectedPassbook)
-            }
-        }
-        .onAppear {
-            // 初回表示時は総合口座を表示（selectedPassbook = nil）
-        }
+        .animation(.easeInOut(duration: 0.25), value: showPassbookSelector)
     }
     
     // MARK: - Subviews
@@ -169,7 +210,7 @@ struct MainTabView: View {
         Button(action: {
             showPassbookSelector = true
         }) {
-            Text(selectedPassbook?.name ?? "総合口座")
+            Text("\(currentPassbook?.name ?? "")口座")
                 .font(.caption)
                 .foregroundColor(.primary)
         }

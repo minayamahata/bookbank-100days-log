@@ -55,11 +55,12 @@ struct AddBookView: View {
     /// 価格（任意）
     @State private var priceText: String = ""
     
-    /// メモ（任意）
-    @State private var memo: String = ""
+    /// キーボードフォーカス
+    @FocusState private var focusedField: Field?
     
-    /// お気に入りフラグ
-    @State private var isFavorite: Bool = false
+    enum Field {
+        case title, author, price
+    }
     
     // MARK: - Initialization
     
@@ -86,18 +87,24 @@ struct AddBookView: View {
             Form {
                 // 口座選択セクション（allowPassbookChangeがtrueの場合のみ表示）
                 if allowPassbookChange {
-                    Section(header: Text("登録先の口座")) {
+                    Section {
                         Picker("口座", selection: $selectedPassbook) {
                             ForEach(customPassbooks) { passbook in
-                                Text(passbook.name).tag(passbook as Passbook?)
+                                Text(passbook.name)
+                                    .foregroundColor(.primary)
+                                    .tag(passbook as Passbook?)
                             }
                         }
                         .pickerStyle(.menu)
+                        .tint(.primary)
+                    } header: {
+                        Text("登録先の口座")
+                            .font(.footnote)
                     }
                 }
                 
                 // 基本情報セクション
-                Section(header: Text("基本情報")) {
+                Section {
                     // タイトル（必須）
                     VStack(alignment: .leading, spacing: 4) {
                         HStack {
@@ -110,11 +117,13 @@ struct AddBookView: View {
                         
                         TextField("タイトルを入力", text: $title)
                             .autocorrectionDisabled()
+                            .focused($focusedField, equals: .title)
                     }
                     
                     // 著者名（任意）
                     TextField("著者名", text: $author)
                         .autocorrectionDisabled()
+                        .focused($focusedField, equals: .author)
                     
                     // 価格（必須）
                     VStack(alignment: .leading, spacing: 4) {
@@ -131,20 +140,17 @@ struct AddBookView: View {
                                 .foregroundColor(.secondary)
                             TextField("価格を入力（半角数字）", text: $priceText)
                                 .keyboardType(.numberPad)
+                                .focused($focusedField, equals: .price)
                         }
                     }
+                } header: {
+                    Text("基本情報")
+                        .font(.footnote)
                 }
-                
-                // メモセクション
-                Section(header: Text("メモ")) {
-                    TextEditor(text: $memo)
-                        .frame(minHeight: 100)
-                }
-                
-                // その他セクション
-                Section(header: Text("その他")) {
-                    Toggle("お気に入り", isOn: $isFavorite)
-                }
+            }
+            .scrollDismissesKeyboard(.interactively)
+            .onTapGesture {
+                focusedField = nil
             }
             .navigationTitle("本の登録")
             .navigationBarTitleDisplayMode(.inline)
@@ -154,6 +160,7 @@ struct AddBookView: View {
                     Button("キャンセル") {
                         dismiss()
                     }
+                    .foregroundColor(.primary)
                 }
                 
                 // 保存ボタン
@@ -187,8 +194,8 @@ struct AddBookView: View {
             price: price,
             imageURL: nil,
             source: .manual,
-            memo: memo.isEmpty ? nil : memo.trimmingCharacters(in: .whitespaces),
-            isFavorite: isFavorite,
+            memo: nil,
+            isFavorite: false,
             passbook: targetPassbook
         )
         
