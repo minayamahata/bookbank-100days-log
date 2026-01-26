@@ -20,6 +20,18 @@ struct BookBankApp: App {
     // MARK: - Initialization
     
     init() {
+        // デバッグ: 利用可能なフォント名を出力
+        #if DEBUG
+        for family in UIFont.familyNames.sorted() {
+            if family.lowercased().contains("fearless") || family.lowercased().contains("inter") {
+                print("🔤 Font Family: \(family)")
+                for name in UIFont.fontNames(forFamilyName: family) {
+                    print("   - \(name)")
+                }
+            }
+        }
+        #endif
+        
         // ナビゲーションバーのタイトルフォントを設定
         Self.configureNavigationBarAppearance()
         
@@ -164,31 +176,49 @@ struct BookBankApp: App {
 // MARK: - RootView
 
 /// アプリのルートビュー
-/// カスタム口座の有無によってオンボーディングまたはメイン画面を表示
+/// スプラッシュスクリーン → カスタム口座の有無によってオンボーディングまたはメイン画面を表示
 struct RootView: View {
     @Query private var passbooks: [Passbook]
     @State private var showOnboarding = false
-    
+    @State private var showSplash = true
+
     // カスタム口座を取得
     private var customPassbooks: [Passbook] {
         passbooks.filter { $0.type == .custom }
     }
-    
+
     var body: some View {
-        Group {
-            if customPassbooks.isEmpty {
-                // カスタム口座がない場合はオンボーディングを表示
-                Color.clear
-                    .onAppear {
-                        showOnboarding = true
-                    }
-            } else {
-                // カスタム口座がある場合はメイン画面を表示
-                MainTabView()
+        ZStack {
+            Group {
+                if customPassbooks.isEmpty {
+                    // カスタム口座がない場合はオンボーディングを表示
+                    Color.clear
+                        .onAppear {
+                            showOnboarding = true
+                        }
+                } else {
+                    // カスタム口座がある場合はメイン画面を表示
+                    MainTabView()
+                }
+            }
+            .fullScreenCover(isPresented: $showOnboarding) {
+                OnboardingView()
+            }
+
+            // スプラッシュスクリーン
+            if showSplash {
+                SplashScreenView()
+                    .transition(.opacity)
+                    .zIndex(1)
             }
         }
-        .fullScreenCover(isPresented: $showOnboarding) {
-            OnboardingView()
+        .onAppear {
+            // 5秒後にスプラッシュを非表示（アニメーション完了後に余韻を持たせる）
+            DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) {
+                withAnimation(.easeOut(duration: 0.5)) {
+                    showSplash = false
+                }
+            }
         }
     }
 }

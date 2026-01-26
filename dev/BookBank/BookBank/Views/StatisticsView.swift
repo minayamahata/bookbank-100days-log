@@ -167,10 +167,6 @@ struct StatisticsView: View {
                         .padding(.horizontal)
                         .padding(.top, 16)
 
-                        // 読書レポートへの入口
-                        readingReportCard
-                            .padding(.horizontal)
-                            .padding(.top, 24)
                     }
                 }
             }
@@ -181,33 +177,6 @@ struct StatisticsView: View {
     }
     
     // MARK: - Subviews
-    
-    /// 読書レポートカード
-    private var readingReportCard: some View {
-        NavigationLink(destination: ReadingReportView(passbook: passbook)) {
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("資産ポートフォリオ")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    
-                    Text("あなたの読書レポートを見る")
-                        .font(.headline)
-                        .foregroundColor(.primary)
-                }
-                
-                Spacer()
-                
-                Image(systemName: "arrow.right")
-                    .foregroundColor(.secondary)
-            }
-            .padding()
-            .background(Color(.systemBackground))
-            .cornerRadius(12)
-            .shadow(color: Color.black.opacity(0.05), radius: 8, x: 0, y: 2)
-        }
-        .buttonStyle(.plain)
-    }
     
     /// 空状態
     private var emptyState: some View {

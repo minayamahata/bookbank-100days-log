@@ -73,7 +73,7 @@ struct AccountListView: View {
                         Chart(chartData) { data in
                             SectorMark(
                                 angle: .value("金額", data.amount),
-                                innerRadius: .ratio(0.75),
+                                innerRadius: .ratio(0.6),
                                 angularInset: 1.5
                             )
                             .foregroundStyle(data.color)
