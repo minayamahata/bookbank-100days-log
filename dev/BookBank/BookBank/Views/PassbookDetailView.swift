@@ -100,7 +100,7 @@ struct PassbookDetailView: View {
                     // 書籍リスト
                     listContent
                 }
-                .background(Color(UIColor.systemBackground))
+                .background(Color.appCardBackground)
                 .clipShape(
                     UnevenRoundedRectangle(
                         topLeadingRadius: 40,
@@ -192,7 +192,7 @@ struct PassbookDetailView: View {
 
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(formatDate(book.registeredAt))
-                                    .font(.caption)
+                                    .font(.system(size: 10))
                                     .foregroundColor(.secondary)
 
                                 Text(book.title)

@@ -64,7 +64,7 @@ struct LiquidGlassButton: View {
             
             // プラスアイコン
             Image(systemName: "plus")
-                .font(.system(size: 18, weight: .semibold))
+                .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(.white)
                 .shadow(color: Color.black.opacity(0.15), radius: 0.5, x: 0, y: 0.5)
         }

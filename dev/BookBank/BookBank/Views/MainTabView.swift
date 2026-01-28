@@ -58,7 +58,7 @@ struct MainTabView: View {
                     }
                 }
                 .tabItem {
-                    Label("口座", systemImage: "building.columns")
+                    Label("口座", image: "icon-tab-account")
                 }
                 .tag(0)
                 
@@ -73,6 +73,9 @@ struct MainTabView: View {
                                     ToolbarItem(placement: .topBarLeading) {
                                         passbookSwitcherButton
                                     }
+                                    ToolbarItem(placement: .topBarTrailing) {
+                                        ThemeToggleButton()
+                                    }
                                 }
                         }
                     }
@@ -81,7 +84,7 @@ struct MainTabView: View {
                     }
                 }
                 .tabItem {
-                    Label("通帳", systemImage: "list.bullet")
+                    Label("通帳", image: "icon-tab-passbook")
                 }
                 .tag(1)
                 
@@ -96,6 +99,9 @@ struct MainTabView: View {
                                     ToolbarItem(placement: .topBarLeading) {
                                         passbookSwitcherButton
                                     }
+                                    ToolbarItem(placement: .topBarTrailing) {
+                                        ThemeToggleButton()
+                                    }
                                 }
                         }
                     }
@@ -104,7 +110,7 @@ struct MainTabView: View {
                     }
                 }
                 .tabItem {
-                    Label("本棚", systemImage: "books.vertical.fill")
+                    Label("本棚", image: "icon-tab-bookshelf")
                 }
                 .tag(2)
 
@@ -119,6 +125,9 @@ struct MainTabView: View {
                                     ToolbarItem(placement: .topBarLeading) {
                                         passbookSwitcherButton
                                     }
+                                    ToolbarItem(placement: .topBarTrailing) {
+                                        ThemeToggleButton()
+                                    }
                                 }
                         }
                     }
@@ -127,7 +136,7 @@ struct MainTabView: View {
                     }
                 }
                 .tabItem {
-                    Label("集計", systemImage: "chart.bar.fill")
+                    Label("集計", image: "icon-tab-statistics")
                 }
                 .tag(3)
             }
@@ -185,7 +194,7 @@ struct MainTabView: View {
                     }
                     .frame(width: geometry.size.width * 0.85)
                     .frame(maxHeight: .infinity)
-                    .background(Color(UIColor.systemBackground))
+                    .background(Color.appCardBackground)
                     .clipShape(
                         UnevenRoundedRectangle(
                             topLeadingRadius: 0,
@@ -248,5 +257,6 @@ struct BookSearchDestination: Hashable {
 
 #Preview {
     MainTabView()
+        .environment(ThemeManager())
         .modelContainer(for: [Passbook.self, UserBook.self, Subscription.self])
 }

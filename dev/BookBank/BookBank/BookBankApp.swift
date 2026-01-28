@@ -11,11 +11,14 @@ import UIKit
 
 @main
 struct BookBankApp: App {
-    
+
     // MARK: - Properties
-    
+
     /// SwiftDataのModelContainer
     let modelContainer: ModelContainer
+
+    /// テーマ管理
+    @State private var themeManager = ThemeManager()
     
     // MARK: - Initialization
     
@@ -80,6 +83,8 @@ struct BookBankApp: App {
     var body: some Scene {
         WindowGroup {
             RootView()
+                .environment(themeManager)
+                .preferredColorScheme(themeManager.currentTheme.colorScheme)
         }
         .modelContainer(modelContainer)
     }
@@ -178,6 +183,7 @@ struct BookBankApp: App {
 /// アプリのルートビュー
 /// スプラッシュスクリーン → カスタム口座の有無によってオンボーディングまたはメイン画面を表示
 struct RootView: View {
+    @Environment(ThemeManager.self) private var themeManager
     @Query private var passbooks: [Passbook]
     @State private var showOnboarding = false
     @State private var showSplash = true
@@ -203,6 +209,7 @@ struct RootView: View {
             }
             .fullScreenCover(isPresented: $showOnboarding) {
                 OnboardingView()
+                    .environment(themeManager)
             }
 
             // スプラッシュスクリーン

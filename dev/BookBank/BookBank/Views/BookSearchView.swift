@@ -46,6 +46,14 @@ struct BookSearchView: View {
     private var customPassbooks: [Passbook] {
         allPassbooks.filter { $0.type == .custom && $0.isActive }
     }
+
+    /// 選択中の口座のテーマカラー
+    private var themeColor: Color {
+        if let passbook = selectedPassbook {
+            return PassbookColor.color(for: passbook, in: customPassbooks)
+        }
+        return .blue
+    }
     
     // MARK: - State
     
@@ -253,6 +261,7 @@ struct BookSearchView: View {
                         }
                     }
                     .pickerStyle(.menu)
+                    .tint(themeColor)
                 }
                 .padding(.horizontal)
                 .padding(.vertical, 12)
@@ -281,11 +290,12 @@ struct BookSearchView: View {
                         }
                     }
                     .pickerStyle(.menu)
+                    .tint(.primary)
                     .font(.subheadline)
                 }
                 .padding(.horizontal)
                 .padding(.vertical, 8)
-                .background(Color(.systemGroupedBackground))
+                .background(Color.appGroupedBackground)
             }
             
             // 検索結果リスト or 空状態
@@ -343,7 +353,7 @@ struct BookSearchView: View {
                                 saveBook(from: result)
                             }
                         }) {
-                            BookSearchResultRow(result: result, isRegistered: isAlreadyRegistered)
+                            BookSearchResultRow(result: result, isRegistered: isAlreadyRegistered, themeColor: themeColor)
                         }
                         .disabled(isAlreadyRegistered)
                         .onAppear {
@@ -433,7 +443,7 @@ struct BookSearchView: View {
         .overlay(alignment: .top) {
             // トースト通知
             if showToast {
-                ToastView(amount: toastAmount)
+                ToastView(amount: toastAmount, themeColor: themeColor)
                     .padding(.top, 8)
                     .transition(.move(edge: .top).combined(with: .opacity))
             }
@@ -622,23 +632,19 @@ struct BookSearchView: View {
 /// トースト通知ビュー
 struct ToastView: View {
     let amount: Int
-    
+    var themeColor: Color = .blue
+
     var body: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "yensign.circle.fill")
-                .foregroundColor(.white)
-                .font(.title3)
-            
-            Text("\(amount.formatted())円 入金しました！")
-                .foregroundColor(.white)
-                .fontWeight(.semibold)
-        }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 12)
-        .background(
-            Capsule()
-                .fill(Color.green)
-                .shadow(color: .black.opacity(0.2), radius: 8, x: 0, y: 4)
+        Text("\(amount.formatted())円 入金しました！")
+            .font(.subheadline)
+            .foregroundColor(.white)
+            .fontWeight(.semibold)
+            .padding(.horizontal, 20)
+            .padding(.vertical, 10)
+            .background(
+                Capsule()
+                    .fill(themeColor)
+                    .shadow(color: .black.opacity(0.2), radius: 8, x: 0, y: 4)
         )
     }
 }
@@ -649,6 +655,7 @@ struct ToastView: View {
 struct BookSearchResultRow: View {
     let result: RakutenBook
     let isRegistered: Bool
+    var themeColor: Color = .blue
     
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
@@ -720,7 +727,7 @@ struct BookSearchResultRow: View {
                     .font(.caption2)
                     .fontWeight(.semibold)
             }
-            .foregroundColor(isRegistered ? .secondary : .blue)
+            .foregroundColor(isRegistered ? .secondary : themeColor)
         }
         .opacity(isRegistered ? 0.6 : 1.0)
     }

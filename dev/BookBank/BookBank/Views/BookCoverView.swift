@@ -39,6 +39,7 @@ struct BookCoverView: View {
             }
         }
         .aspectRatio(2/3, contentMode: .fit)
+        .clipShape(RoundedRectangle(cornerRadius: 2))
     }
     
     private func placeholderView(width: CGFloat) -> some View {

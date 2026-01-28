@@ -1,6 +1,6 @@
 # BookBank 開発ログ
 
-最終更新: 2026年01月26日
+最終更新: 2026年01月29日
 
 ---
 
@@ -414,6 +414,45 @@ git push origin main
 ---
 
 ## 開発履歴
+
+### 2026-01-29（DAY69）
+- ✅ **ダークモード対応（ThemeManager）**
+  - ThemeManager（@Observable）を新規作成、UserDefaultsで設定を永続化
+  - AppTheme enum（system/light/dark）でテーマ状態を管理
+  - カスタム背景色（Color.appGroupedBackground, Color.appCardBackground）を定義
+  - ダークモード時はダークグレー系カラー（#1C1C1E, #2C2C2E）を使用
+  - BookBankApp.swiftで`.preferredColorScheme`を適用
+  - 全画面のColor(UIColor.systemBackground)等をカスタムカラーに置き換え
+
+- ✅ **テーマ切替ボタン（ThemeToggleButton）**
+  - ナビゲーションバー右上にテーマ切替メニューを配置
+  - 通帳・本棚・集計・口座一覧の全タブに追加
+  - SF Symbolsアニメーション付きアイコン切替（sun/moon/circle）
+
+- ✅ **タブバーアイコンをオリジナルSVGに変更**
+  - icon-tab-account、icon-tab-passbook、icon-tab-bookshelf、icon-tab-statisticsを追加
+  - SF Symbolsから独自アセットに差し替え
+
+- ✅ **削除アイコンをオリジナルSVGに変更**
+  - icon-deleteアセットを追加（imageset + Contents.json）
+  - UserBookDetailViewの削除ボタンをカスタムアイコンに差し替え
+
+- ✅ **口座テーマカラーの適用範囲拡大**
+  - 本検索画面：口座セレクタ・入金トースト・価格表示に口座カラーを反映
+  - 手動登録画面：口座セレクタ・保存ボタンに口座カラーを反映
+  - 本の詳細画面：口座テーマカラーを取得する仕組みを追加
+
+- ✅ **UIの細かい調整**
+  - LiquidGlassButtonのプラスアイコンを18pt→12ptに縮小
+  - 通帳画面の日付フォントを.caption→.system(size: 10)に変更
+  - 口座一覧・口座選択の三点リーダーを.system(size: 10)に変更
+  - 口座行のpadding調整（trailing: 16→8）
+  - 集計画面の背景をテーマカラーの薄い色に変更
+  - 折れ線グラフの線幅を2→1に変更
+  - 棒グラフにchartYScale(includesZero: true)を追加
+  - 本棚グリッドに角丸2pxのclipShapeを追加
+  - 手動登録フォームのセクション構成を変更（各項目を独立セクションに）
+  - トースト通知のデザインを簡素化（アイコン削除、フォント縮小）
 
 ### 2026-01-26（DAY68）
 - ✅ **スプラッシュスクリーン（SplashScreenView）の実装**

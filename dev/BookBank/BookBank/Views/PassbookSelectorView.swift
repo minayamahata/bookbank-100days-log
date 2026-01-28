@@ -70,9 +70,9 @@ struct PassbookSelectorView: View {
                     .padding(.vertical, 16)
                 }
             }
-            .background(Color(UIColor.systemBackground))
+            .background(Color.appCardBackground)
         }
-        .background(Color(UIColor.systemGroupedBackground))
+        .background(Color.appGroupedBackground)
         .navigationTitle("口座を選択")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $passbookToEdit) { passbook in
@@ -127,18 +127,19 @@ struct PassbookSelectorView: View {
                     onMenuTap?()
                 }) {
                     Image(systemName: "ellipsis")
-                        .font(.body)
+                        .font(.system(size: 10))
                         .foregroundColor(.secondary)
                         .frame(width: 32, height: 32)
                 }
                 .buttonStyle(.plain)
             }
         }
-        .padding(.horizontal, 16)
+        .padding(.leading, 16)
+        .padding(.trailing, 8)
         .padding(.vertical, 14)
         .background(
             RoundedRectangle(cornerRadius: 12)
-                .fill(isSelected ? Color.blue.opacity(0.1) : Color(UIColor.systemBackground))
+                .fill(isSelected ? Color.blue.opacity(0.1) : Color.appCardBackground)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 12)
@@ -251,7 +252,7 @@ struct EditPassbookView: View {
                                 .padding(.bottom, 8)
                         }
                     }
-                    .background(Color(UIColor.systemGroupedBackground))
+                    .background(Color.appGroupedBackground)
                 }
             }
             .navigationTitle("口座を編集")

@@ -99,7 +99,7 @@ struct BookshelfView: View {
                     // 本棚グリッド
                     gridContent
                 }
-                .background(Color(UIColor.systemBackground))
+                .background(Color.appCardBackground)
                 .clipShape(
                     UnevenRoundedRectangle(
                         topLeadingRadius: 40,

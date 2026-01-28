@@ -161,7 +161,7 @@ struct StatisticsView: View {
                             }
                         }
                         .padding()
-                        .background(Color(.systemBackground))
+                        .background(Color.appCardBackground)
                         .cornerRadius(12)
                         .shadow(color: Color.black.opacity(0.05), radius: 8, x: 0, y: 2)
                         .padding(.horizontal)
@@ -173,7 +173,7 @@ struct StatisticsView: View {
         }
         .navigationTitle("集計")
         .navigationBarTitleDisplayMode(.inline)
-        .background(Color(.systemGroupedBackground))
+        .background(themeColor.opacity(0.1).ignoresSafeArea())
     }
     
     // MARK: - Subviews
@@ -287,7 +287,7 @@ struct YearlyChartContent: View {
                         )
                         .foregroundStyle(themeColor)
                         .interpolationMethod(.linear)
-                        .lineStyle(StrokeStyle(lineWidth: 2))
+                        .lineStyle(StrokeStyle(lineWidth: 1))
                         
                         PointMark(
                             x: .value("Month", dataPoint.label),
@@ -315,6 +315,7 @@ struct YearlyChartContent: View {
                     }
                 }
                 .frame(height: 120)
+                .chartYScale(domain: .automatic(includesZero: true))
                 .chartYAxis {
                     AxisMarks(position: .trailing) {
                         AxisGridLine()
@@ -382,7 +383,7 @@ struct YearlyChartContent: View {
             }
         }
         .padding()
-        .background(Color(.systemBackground))
+        .background(Color.appCardBackground)
         .cornerRadius(12)
         .shadow(color: Color.black.opacity(0.05), radius: 8, x: 0, y: 2)
     }

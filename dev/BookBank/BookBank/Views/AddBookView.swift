@@ -40,6 +40,14 @@ struct AddBookView: View {
     private var customPassbooks: [Passbook] {
         allPassbooks.filter { $0.type == .custom && $0.isActive }
     }
+
+    /// 選択中の口座のテーマカラー
+    private var themeColor: Color {
+        if let passbook = selectedPassbook {
+            return PassbookColor.color(for: passbook, in: customPassbooks)
+        }
+        return .blue
+    }
     
     // MARK: - Form State
     
@@ -85,7 +93,52 @@ struct AddBookView: View {
     var body: some View {
         NavigationStack {
             Form {
-                // 口座選択セクション（allowPassbookChangeがtrueの場合のみ表示）
+                // タイトル（必須）
+                Section {
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text("本のタイトル")
+                            Text("*")
+                                .foregroundColor(.red)
+                        }
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+
+                        TextField("タイトルを入力", text: $title)
+                            .autocorrectionDisabled()
+                            .focused($focusedField, equals: .title)
+                    }
+                }
+
+                // 著者名（任意）
+                Section {
+                    TextField("著者名", text: $author)
+                        .autocorrectionDisabled()
+                        .focused($focusedField, equals: .author)
+                }
+
+                // 価格（必須）
+                Section {
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text("価格")
+                            Text("*")
+                                .foregroundColor(.red)
+                        }
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+
+                        HStack {
+                            Text("¥")
+                                .foregroundColor(.secondary)
+                            TextField("価格を入力（半角数字）", text: $priceText)
+                                .keyboardType(.numberPad)
+                                .focused($focusedField, equals: .price)
+                        }
+                    }
+                }
+
+                // 口座選択（allowPassbookChangeがtrueの場合のみ表示）
                 if allowPassbookChange {
                     Section {
                         Picker("口座", selection: $selectedPassbook) {
@@ -96,56 +149,8 @@ struct AddBookView: View {
                             }
                         }
                         .pickerStyle(.menu)
-                        .tint(.primary)
-                    } header: {
-                        Text("登録先の口座")
-                            .font(.footnote)
+                        .tint(themeColor)
                     }
-                }
-                
-                // 基本情報セクション
-                Section {
-                    // タイトル（必須）
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack {
-                            Text("タイトル")
-                            Text("*")
-                                .foregroundColor(.red)
-                        }
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                        
-                        TextField("タイトルを入力", text: $title)
-                            .autocorrectionDisabled()
-                            .focused($focusedField, equals: .title)
-                    }
-                    
-                    // 著者名（任意）
-                    TextField("著者名", text: $author)
-                        .autocorrectionDisabled()
-                        .focused($focusedField, equals: .author)
-                    
-                    // 価格（必須）
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack {
-                            Text("価格")
-                            Text("*")
-                                .foregroundColor(.red)
-                        }
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                        
-                        HStack {
-                            Text("¥")
-                                .foregroundColor(.secondary)
-                            TextField("価格を入力（半角数字）", text: $priceText)
-                                .keyboardType(.numberPad)
-                                .focused($focusedField, equals: .price)
-                        }
-                    }
-                } header: {
-                    Text("基本情報")
-                        .font(.footnote)
                 }
             }
             .scrollDismissesKeyboard(.interactively)
@@ -169,6 +174,7 @@ struct AddBookView: View {
                         saveBook()
                     }
                     .disabled(!canSave)
+                    .foregroundColor(canSave ? themeColor : .gray)
                 }
             }
         }

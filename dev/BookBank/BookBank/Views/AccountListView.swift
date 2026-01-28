@@ -95,7 +95,7 @@ struct AccountListView: View {
                                     .padding(.vertical, 4)
                                     .background(
                                         Capsule()
-                                            .fill(Color(UIColor.systemBackground))
+                                            .fill(Color.appCardBackground)
                                             .shadow(color: Color.black.opacity(0.1), radius: 2, x: 0, y: 1)
                                     )
                                 }
@@ -182,9 +182,14 @@ struct AccountListView: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 20)
         }
-        .background(Color(UIColor.systemGroupedBackground))
+        .background(Color.appGroupedBackground)
         .navigationTitle("口座一覧")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                ThemeToggleButton()
+            }
+        }
         .sheet(item: $passbookToEdit) { passbook in
             EditPassbookView(passbook: passbook)
         }
@@ -231,17 +236,18 @@ struct AccountListView: View {
                 passbookToEdit = passbook
             }) {
                 Image(systemName: "ellipsis")
-                    .font(.caption)
+                    .font(.system(size: 10))
                     .foregroundColor(.secondary)
                     .frame(width: 32, height: 32)
             }
             .buttonStyle(.plain)
         }
-        .padding(.horizontal, 16)
+        .padding(.leading, 16)
+        .padding(.trailing, 8)
         .padding(.vertical, 14)
         .background(
             RoundedRectangle(cornerRadius: 12)
-                .fill(Color(UIColor.systemBackground))
+                .fill(Color.appCardBackground)
         )
     }
 }
@@ -258,5 +264,6 @@ struct AccountChartData: Identifiable {
     NavigationStack {
         AccountListView()
     }
+    .environment(ThemeManager())
     .modelContainer(for: [Passbook.self, UserBook.self])
 }
