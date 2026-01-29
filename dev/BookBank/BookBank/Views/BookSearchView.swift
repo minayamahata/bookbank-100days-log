@@ -629,23 +629,19 @@ struct BookSearchView: View {
 
 // MARK: - ToastView
 
-/// トースト通知ビュー
+/// トースト通知ビュー（リキッドガラス）
 struct ToastView: View {
     let amount: Int
     var themeColor: Color = .blue
 
     var body: some View {
         Text("\(amount.formatted())円 入金しました！")
-            .font(.subheadline)
+            .font(.system(size: 13))
             .foregroundColor(.white)
-            .fontWeight(.semibold)
             .padding(.horizontal, 20)
-            .padding(.vertical, 10)
-            .background(
-                Capsule()
-                    .fill(themeColor)
-                    .shadow(color: .black.opacity(0.2), radius: 8, x: 0, y: 4)
-        )
+            .padding(.vertical, 12)
+            .glassEffect(.regular.tint(themeColor))
+            .clipShape(Capsule())
     }
 }
 
@@ -707,7 +703,6 @@ struct BookSearchResultRow: View {
                 if isRegistered {
                     Text("登録済み")
                         .font(.caption2)
-                        .fontWeight(.semibold)
                         .foregroundColor(.white)
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
@@ -722,10 +717,8 @@ struct BookSearchResultRow: View {
             HStack(alignment: .lastTextBaseline, spacing: 1) {
                 Text("\(result.itemPrice.formatted())")
                     .font(.subheadline)
-                    .fontWeight(.semibold)
                 Text("円")
                     .font(.caption2)
-                    .fontWeight(.semibold)
             }
             .foregroundColor(isRegistered ? .secondary : themeColor)
         }

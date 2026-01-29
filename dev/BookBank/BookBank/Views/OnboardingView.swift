@@ -29,7 +29,6 @@ struct OnboardingView: View {
                     
                     Text("BookBankへようこそ！")
                         .font(.title)
-                        .fontWeight(.bold)
                     
                     Text("最初の口座を開設しましょう")
                         .font(.body)

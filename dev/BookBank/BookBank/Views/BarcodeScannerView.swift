@@ -63,7 +63,7 @@ struct BarcodeScannerView: View {
                             dismiss()
                         }) {
                             Image(systemName: "xmark")
-                                .font(.system(size: 18, weight: .semibold))
+                                .font(.system(size: 18))
                                 .foregroundColor(.white)
                                 .frame(width: 36, height: 36)
                                 .background(Circle().fill(Color.black.opacity(0.5)))
@@ -99,7 +99,7 @@ struct BarcodeScannerView: View {
                             dismiss()
                         }) {
                             Image(systemName: "xmark")
-                                .font(.system(size: 18, weight: .semibold))
+                                .font(.system(size: 18))
                                 .foregroundColor(.white)
                                 .frame(width: 36, height: 36)
                                 .background(Circle().fill(Color.black.opacity(0.5)))

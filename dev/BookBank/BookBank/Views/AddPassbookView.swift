@@ -14,6 +14,7 @@ struct AddPassbookView: View {
     @Query(sort: \Passbook.sortOrder) private var passbooks: [Passbook]
     
     @State private var accountName: String = ""
+    @State private var selectedColorIndex: Int = 0
     @State private var showError: Bool = false
     
     // おすすめ口座名
@@ -70,6 +71,34 @@ struct AddPassbookView: View {
                 }
                 .padding(.horizontal)
                 
+                // テーマカラー選択
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("テーマカラー")
+                        .font(.headline)
+                    
+                    HStack(spacing: 0) {
+                        ForEach(0..<PassbookColor.count, id: \.self) { index in
+                            Button {
+                                selectedColorIndex = index
+                            } label: {
+                                Circle()
+                                    .fill(PassbookColor.color(for: index))
+                                    .frame(width: 24, height: 24)
+                                    .overlay {
+                                        if selectedColorIndex == index {
+                                            Circle()
+                                                .stroke(Color.primary, lineWidth: 2)
+                                                .frame(width: 30, height: 30)
+                                        }
+                                    }
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+                .padding(.horizontal)
+                
                 Spacer()
             }
             .navigationTitle("新しい口座")
@@ -104,6 +133,7 @@ struct AddPassbookView: View {
             sortOrder: maxSortOrder + 1,
             isActive: true
         )
+        newPassbook.colorIndex = selectedColorIndex
         
         context.insert(newPassbook)
         

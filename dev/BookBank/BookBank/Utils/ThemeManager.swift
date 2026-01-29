@@ -8,20 +8,20 @@
 import SwiftUI
 import UIKit
 
-// MARK: - カスタム背景色（ダークモード時にダークグレーを使用）
+// MARK: - カスタム背景色（ダークモード時に純粋な黒を使用）
 
 extension Color {
-    /// ページ背景色（ライト: #F2F2F7, ダーク: #1C1C1E）
+    /// ページ背景色（ライト: #F2F2F7, ダーク: #000000）
     static let appGroupedBackground = Color(UIColor { traits in
         traits.userInterfaceStyle == .dark
-            ? UIColor(red: 28/255, green: 28/255, blue: 30/255, alpha: 1)  // #1C1C1E
+            ? UIColor(red: 0, green: 0, blue: 0, alpha: 1)  // #000000
             : .systemGroupedBackground
     })
 
-    /// カード・セクション背景色（ライト: #FFFFFF, ダーク: #2C2C2E）
+    /// カード・セクション背景色（ライト: #FFFFFF, ダーク: #1C1C1E）
     static let appCardBackground = Color(UIColor { traits in
         traits.userInterfaceStyle == .dark
-            ? UIColor(red: 44/255, green: 44/255, blue: 46/255, alpha: 1)  // #2C2C2E
+            ? UIColor(red: 28/255.0, green: 28/255.0, blue: 30/255.0, alpha: 1)  // #1C1C1E
             : .systemBackground
     })
 }

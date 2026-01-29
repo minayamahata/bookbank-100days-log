@@ -88,7 +88,6 @@ struct AccountListView: View {
                                             .frame(width: 6, height: 6)
                                         Text("\(Int(percentage.rounded()))%")
                                             .font(.caption2)
-                                            .fontWeight(.medium)
                                             .foregroundColor(.primary)
                                     }
                                     .padding(.horizontal, 8)
@@ -111,9 +110,9 @@ struct AccountListView: View {
                             
                             HStack(alignment: .lastTextBaseline, spacing: 1) {
                                 Text("\(totalAmount.formatted())")
-                                    .font(.system(size: 22, weight: .bold))
+                                    .font(.system(size: 22))
                                 Text("円")
-                                    .font(.system(size: 14, weight: .bold))
+                                    .font(.system(size: 14))
                             }
                             .foregroundColor(.primary)
                             
@@ -132,9 +131,9 @@ struct AccountListView: View {
                         
                         HStack(alignment: .lastTextBaseline, spacing: 2) {
                             Text("\(totalAmount.formatted())")
-                                .font(.system(size: 32, weight: .bold))
+                                .font(.system(size: 32))
                             Text("円")
-                                .font(.system(size: 18, weight: .bold))
+                                .font(.system(size: 18))
                         }
                         .foregroundColor(.primary)
                         
@@ -166,15 +165,15 @@ struct AccountListView: View {
                         Text("新しい口座を追加")
                             .font(.body)
                     }
-                    .foregroundColor(.blue)
+                    .foregroundColor(.primary)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 16)
                     .background(
                         RoundedRectangle(cornerRadius: 12)
-                            .stroke(Color.blue.opacity(0.3), lineWidth: 1)
+                            .stroke(Color.primary.opacity(0.3), lineWidth: 1)
                             .background(
                                 RoundedRectangle(cornerRadius: 12)
-                                    .fill(Color.blue.opacity(0.05))
+                                    .fill(Color.primary.opacity(0.05))
                             )
                     )
                 }
@@ -201,16 +200,26 @@ struct AccountListView: View {
     // 口座行のビュー
     private func accountRow(passbook: Passbook) -> some View {
         HStack(spacing: 12) {
-            // 色インジケーター
-            Circle()
-                .fill(colorForPassbook(passbook))
-                .frame(width: 8, height: 8)
+            // 口座アイコン（fillとstrokeを重ねる）
+            ZStack {
+                Image("icon-tab-account-fill")
+                    .renderingMode(.template)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .foregroundColor(colorForPassbook(passbook).opacity(0.1))
+                
+                Image("icon-tab-account")
+                    .renderingMode(.template)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .foregroundColor(colorForPassbook(passbook))
+            }
+            .frame(width: 20, height: 20)
             
             // 口座情報
             VStack(alignment: .leading, spacing: 4) {
                 Text(passbook.name)
                     .font(.subheadline)
-                    .fontWeight(.medium)
                     .foregroundColor(.primary)
                 
                 Text("\(bookCountForPassbook(passbook))冊")
@@ -224,10 +233,8 @@ struct AccountListView: View {
             HStack(alignment: .lastTextBaseline, spacing: 1) {
                 Text("\(amountForPassbook(passbook).formatted())")
                     .font(.body)
-                    .fontWeight(.semibold)
                 Text("円")
                     .font(.caption)
-                    .fontWeight(.semibold)
             }
             .foregroundColor(.primary)
             
@@ -238,7 +245,8 @@ struct AccountListView: View {
                 Image(systemName: "ellipsis")
                     .font(.system(size: 10))
                     .foregroundColor(.secondary)
-                    .frame(width: 32, height: 32)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
         }

@@ -65,12 +65,12 @@ struct BookBankApp: App {
         
         // インラインタイトル用のフォント（.subheadline相当 = 15pt）
         appearance.titleTextAttributes = [
-            .font: UIFont.systemFont(ofSize: 15, weight: .semibold)
+            .font: UIFont.systemFont(ofSize: 15, weight: .regular)
         ]
         
         // ラージタイトル用のフォント
         appearance.largeTitleTextAttributes = [
-            .font: UIFont.systemFont(ofSize: 15, weight: .semibold)
+            .font: UIFont.systemFont(ofSize: 15, weight: .regular)
         ]
         
         UINavigationBar.appearance().standardAppearance = appearance

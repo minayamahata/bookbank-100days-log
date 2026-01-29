@@ -42,9 +42,9 @@ struct PassbookListView: View {
                     }) {
                         HStack {
                             Image(systemName: "plus.circle.fill")
-                                .foregroundColor(.blue)
+                                .foregroundColor(.primary)
                             Text("新しい口座を追加")
-                                .foregroundColor(.blue)
+                                .foregroundColor(.primary)
                         }
                     }
                 }
@@ -97,10 +97,8 @@ struct PassbookRow: View {
                 HStack(alignment: .lastTextBaseline, spacing: 1) {
                     Text("\(totalValue.formatted())")
                         .font(.body)
-                        .fontWeight(.semibold)
                     Text("円")
                         .font(.caption)
-                        .fontWeight(.semibold)
                 }
                 
                 Text("残高")

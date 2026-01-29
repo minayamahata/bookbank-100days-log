@@ -59,7 +59,6 @@ struct MemoEditorView: View {
                     Button("完了") {
                         saveAndDismiss()
                     }
-                    .fontWeight(.semibold)
                 }
             }
             .alert("変更を破棄しますか？", isPresented: $showCancelAlert) {

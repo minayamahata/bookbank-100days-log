@@ -60,14 +60,14 @@ struct PassbookSelectorView: View {
                 }) {
                     HStack {
                         Image(systemName: "plus")
-                            .font(.body)
+                            .font(.subheadline)
                         Text("新しい口座を追加")
-                            .font(.body)
+                            .font(.subheadline)
                         Spacer()
                     }
                     .foregroundColor(.primary)
                     .padding(.horizontal, 20)
-                    .padding(.vertical, 16)
+                    .padding(.vertical, 14)
                 }
             }
             .background(Color.appCardBackground)
@@ -97,15 +97,25 @@ struct PassbookSelectorView: View {
             // 口座情報（タップで選択）
             Button(action: onTap) {
                 HStack(spacing: 12) {
-                    // 色のマーク
-                    Circle()
-                        .fill(color)
-                        .frame(width: 8, height: 8)
+                    // 口座アイコン（fillとstrokeを重ねる）
+                    ZStack {
+                        Image("icon-tab-account-fill")
+                            .renderingMode(.template)
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .foregroundColor(color.opacity(0.1))
+                        
+                        Image("icon-tab-account")
+                            .renderingMode(.template)
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .foregroundColor(color)
+                    }
+                    .frame(width: 20, height: 20)
                     
                     VStack(alignment: .leading, spacing: 4) {
                         Text(name)
                             .font(.subheadline)
-                            .fontWeight(.medium)
                             .foregroundColor(.primary)
                         
                         if let subtitle = subtitle {
@@ -129,7 +139,8 @@ struct PassbookSelectorView: View {
                     Image(systemName: "ellipsis")
                         .font(.system(size: 10))
                         .foregroundColor(.secondary)
-                        .frame(width: 32, height: 32)
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
             }
@@ -194,28 +205,27 @@ struct EditPassbookView: View {
                     } 
                     
                     Section {
-                        LazyVGrid(columns: [
-                            GridItem(.adaptive(minimum: 44))
-                        ], spacing: 12) {
+                        HStack(spacing: 0) {
                             ForEach(0..<PassbookColor.count, id: \.self) { index in
                                 Button {
                                     selectedColorIndex = index
                                 } label: {
                                     Circle()
                                         .fill(PassbookColor.color(for: index))
-                                        .frame(width: 36, height: 36)
+                                        .frame(width: 24, height: 24)
                                         .overlay {
                                             if selectedColorIndex == index {
                                                 Circle()
                                                     .stroke(Color.primary, lineWidth: 2)
-                                                    .frame(width: 44, height: 44)
+                                                    .frame(width: 30, height: 30)
                                             }
                                         }
+                                        .frame(maxWidth: .infinity)
                                 }
                                 .buttonStyle(.plain)
                             }
                         }
-                        .padding(.vertical, 8)
+                        .padding(.vertical, 12)
                     } header: {
                         Text("テーマカラー")
                     }

@@ -159,7 +159,6 @@ struct UserBookDetailView: View {
         VStack(alignment: .leading, spacing: 6) {
             Text(book.title)
                 .font(.title3)
-                .fontWeight(.bold)
                 .multilineTextAlignment(.leading)
 
             if !book.displayAuthor.isEmpty {
@@ -172,10 +171,8 @@ struct UserBookDetailView: View {
                 HStack(alignment: .lastTextBaseline, spacing: 2) {
                     Text("\(price.formatted())")
                         .font(.title3)
-                        .fontWeight(.semibold)
                     Text("円")
                         .font(.subheadline)
-                        .fontWeight(.semibold)
                 }
                 .foregroundColor(themeColor)
             }

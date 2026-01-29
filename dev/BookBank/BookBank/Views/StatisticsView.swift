@@ -108,7 +108,6 @@ struct StatisticsView: View {
                         // 年表示（固定）
                         Text(String(selectedYear))
                             .font(.title2)
-                            .fontWeight(.bold)
                             .foregroundColor(themeColor)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.horizontal)
@@ -135,10 +134,8 @@ struct StatisticsView: View {
                                 HStack(alignment: .lastTextBaseline, spacing: 1) {
                                     Text("\(totalAmount.formatted())")
                                         .font(.subheadline)
-                                        .fontWeight(.medium)
                                     Text("円")
                                         .font(.caption2)
-                                        .fontWeight(.medium)
                                 }
                             }
                             HStack {
@@ -148,7 +145,6 @@ struct StatisticsView: View {
                                 Spacer()
                                 Text("\(totalBookCount)冊")
                                     .font(.subheadline)
-                                    .fontWeight(.medium)
                             }
                             HStack {
                                 Text("メモ文字数")
@@ -157,7 +153,6 @@ struct StatisticsView: View {
                                 Spacer()
                                 Text("\(totalMemoCharacterCount.formatted())文字")
                                     .font(.subheadline)
-                                    .fontWeight(.medium)
                             }
                         }
                         .padding()
@@ -416,7 +411,6 @@ struct ReadingReportView: View {
             
             Text("読書レポート")
                 .font(.title2)
-                .fontWeight(.bold)
             
             Text("資産ポートフォリオの詳細を表示します")
                 .font(.subheadline)

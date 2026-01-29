@@ -77,41 +77,50 @@ struct BookshelfView: View {
     // MARK: - Body
     
     var body: some View {
-        ScrollView {
-            VStack(spacing: 0) {
-                // 口座情報セクション
-                accountInfoSection
-                
-                // コンテンツカード
+        GeometryReader { geometry in
+            ScrollView {
                 VStack(spacing: 0) {
-                    // ヘッダー
-                    HStack {
-                        Text("本棚")
-                            .font(.footnote)
-                            .foregroundColor(.secondary)
-                        
-                        Spacer()
-                    }
-                    .padding(.horizontal)
-                    .padding(.top, 28)
-                    .padding(.bottom, 12)
+                    // 口座情報セクション
+                    accountInfoSection
                     
-                    // 本棚グリッド
-                    gridContent
-                }
-                .background(Color.appCardBackground)
-                .clipShape(
-                    UnevenRoundedRectangle(
-                        topLeadingRadius: 40,
-                        bottomLeadingRadius: 0,
-                        bottomTrailingRadius: 0,
-                        topTrailingRadius: 40
+                    // コンテンツカード
+                    VStack(spacing: 0) {
+                        // ヘッダー
+                        HStack {
+                            Text("本棚")
+                                .font(.footnote)
+                                .foregroundColor(.secondary)
+                            
+                            Spacer()
+                        }
+                        .padding(.horizontal)
+                        .padding(.top, 28)
+                        .padding(.bottom, 12)
+                        
+                        // 本棚グリッド
+                        gridContent
+                    }
+                    .frame(minHeight: geometry.size.height)
+                    .background(Color(.systemBackground))
+                    .clipShape(
+                        UnevenRoundedRectangle(
+                            topLeadingRadius: 40,
+                            bottomLeadingRadius: 0,
+                            bottomTrailingRadius: 0,
+                            topTrailingRadius: 40
+                        )
                     )
-                )
+                }
             }
         }
         .id(passbook.persistentModelID) // 口座が変わったら強制的にViewを再生成
-        .background(themeColor.opacity(0.1).ignoresSafeArea())
+        .background(
+            VStack(spacing: 0) {
+                themeColor.opacity(0.1)
+                Color(.systemBackground)
+            }
+            .ignoresSafeArea()
+        )
         .navigationTitle("本棚")
         .navigationBarTitleDisplayMode(.inline)
     }
@@ -129,9 +138,9 @@ struct BookshelfView: View {
 
             HStack(alignment: .lastTextBaseline, spacing: 2) {
                 Text("\(totalValue.formatted())")
-                    .font(.system(size: 32, weight: .bold))
+                    .font(.system(size: 32))
                 Text("円")
-                    .font(.system(size: 18, weight: .bold))
+                    .font(.system(size: 18))
             }
             .foregroundColor(themeColor)
 

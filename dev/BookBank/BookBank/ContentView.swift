@@ -41,10 +41,8 @@ struct ContentView: View {
                         HStack(alignment: .lastTextBaseline, spacing: 1) {
                             Text("\(passbook.totalValue.formatted())")
                                 .font(.title3)
-                                .fontWeight(.semibold)
                             Text("円")
                                 .font(.caption)
-                                .fontWeight(.semibold)
                         }
                         .foregroundColor(.blue)
                     }
