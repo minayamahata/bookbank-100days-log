@@ -66,6 +66,10 @@ final class UserBook {
 
     /// 所属口座（nil = 総合口座に自動割当）
     var passbook: Passbook?
+    
+    /// 所属する読了リスト（逆参照）
+    @Relationship(inverse: \ReadingList.books)
+    var readingLists: [ReadingList]?
 
     // MARK: - Initialization
 

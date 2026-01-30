@@ -214,6 +214,7 @@ struct BookSearchView: View {
                     .foregroundColor(.secondary)
                 
                 TextField("タイトルまたは著者名", text: $searchText)
+                    .font(.system(size: 14))
                     .textFieldStyle(.plain)
                     .focused($isSearchFocused)
                     .submitLabel(.search)
@@ -245,58 +246,6 @@ struct BookSearchView: View {
             .cornerRadius(10)
             .padding(.horizontal)
             .padding(.vertical, 8)
-            
-            // 口座選択プルダウン（allowPassbookChangeがtrueの場合のみ表示）
-            if allowPassbookChange {
-                HStack {
-                    Text("登録先の口座")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                    
-                    Spacer()
-                    
-                    Picker("口座", selection: $selectedPassbook) {
-                        ForEach(customPassbooks) { passbook in
-                            Text(passbook.name).tag(passbook as Passbook?)
-                        }
-                    }
-                    .pickerStyle(.menu)
-                    .tint(themeColor)
-                }
-                .padding(.horizontal)
-                .padding(.vertical, 12)
-                .background(Color(.systemGray6))
-            }
-            
-            // フィルター・並べ替えオプション
-            if hasSearched && !searchResults.isEmpty {
-                HStack {
-                    Toggle(isOn: $showUnregisteredOnly) {
-                        HStack(spacing: 4) {
-                            Image(systemName: showUnregisteredOnly ? "checkmark.square.fill" : "square")
-                                .foregroundColor(showUnregisteredOnly ? .blue : .secondary)
-                            Text("未登録のみ")
-                                .font(.subheadline)
-                        }
-                    }
-                    .toggleStyle(.button)
-                    .buttonStyle(.plain)
-
-                    Spacer()
-
-                    Picker("並べ替え", selection: $selectedSortOption) {
-                        ForEach(SortOption.allCases, id: \.self) { option in
-                            Text(option.rawValue).tag(option)
-                        }
-                    }
-                    .pickerStyle(.menu)
-                    .tint(.primary)
-                    .font(.subheadline)
-                }
-                .padding(.horizontal)
-                .padding(.vertical, 8)
-                .background(Color.appGroupedBackground)
-            }
             
             // 検索結果リスト or 空状態
             if isSearching {
@@ -345,6 +294,93 @@ struct BookSearchView: View {
             } else if !filteredSearchResults.isEmpty {
                 // 検索結果の表示
                 List {
+                    // フィルター・口座選択・並べ替えオプション（1列）
+                    HStack {
+                        // 未登録のみ
+                        Toggle(isOn: $showUnregisteredOnly) {
+                            HStack(spacing: 4) {
+                                Image(systemName: showUnregisteredOnly ? "checkmark.square.fill" : "square")
+                                    .foregroundColor(showUnregisteredOnly ? .blue : .secondary)
+                                Text("未登録のみ")
+                                    .font(.system(size: 13))
+                            }
+                        }
+                        .toggleStyle(.button)
+                        .buttonStyle(.plain)
+
+                        Spacer()
+                        
+                        // 口座選択（allowPassbookChangeがtrueの場合のみ表示）
+                        if allowPassbookChange {
+                            Menu {
+                                ForEach(customPassbooks) { passbook in
+                                    Button(action: {
+                                        selectedPassbook = passbook
+                                    }) {
+                                        if selectedPassbook?.persistentModelID == passbook.persistentModelID {
+                                            Label(passbook.name, systemImage: "checkmark")
+                                        } else {
+                                            Text(passbook.name)
+                                        }
+                                    }
+                                }
+                            } label: {
+                                HStack(spacing: 4) {
+                                    ZStack {
+                                        Image("icon-tab-account-fill")
+                                            .renderingMode(.template)
+                                            .resizable()
+                                            .aspectRatio(contentMode: .fit)
+                                            .foregroundColor(themeColor.opacity(0.1))
+                                        
+                                        Image("icon-tab-account")
+                                            .renderingMode(.template)
+                                            .resizable()
+                                            .aspectRatio(contentMode: .fit)
+                                            .foregroundColor(themeColor)
+                                    }
+                                    .frame(width: 16, height: 16)
+                                    
+                                    Text(selectedPassbook?.name ?? "口座")
+                                        .font(.system(size: 13))
+                                        .foregroundColor(themeColor)
+                                }
+                                .fixedSize()
+                            }
+                        }
+
+                        // 並べ替え
+                        Menu {
+                            ForEach(SortOption.allCases, id: \.self) { option in
+                                Button(action: {
+                                    selectedSortOption = option
+                                }) {
+                                    if selectedSortOption == option {
+                                        Label(option.rawValue, systemImage: "checkmark")
+                                    } else {
+                                        Text(option.rawValue)
+                                    }
+                                }
+                            }
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image("icon-sort")
+                                    .renderingMode(.template)
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fit)
+                                    .frame(width: 14, height: 14)
+                                    .foregroundColor(.primary)
+                                
+                                Text(selectedSortOption.rawValue)
+                                    .font(.system(size: 13))
+                                    .foregroundColor(.primary)
+                            }
+                            .fixedSize()
+                        }
+                    }
+                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                    .listRowBackground(Color.appGroupedBackground)
+                    
                     ForEach(filteredSearchResults) { result in
                         let isAlreadyRegistered = isBookRegistered(result)
                         

@@ -42,7 +42,8 @@ struct BookBankApp: App {
         let schema = Schema([
             Passbook.self,
             UserBook.self,
-            Subscription.self
+            Subscription.self,
+            ReadingList.self
         ])
         
         // ModelContainerの設定

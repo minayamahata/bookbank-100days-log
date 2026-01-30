@@ -122,7 +122,7 @@ struct UserBookDetailView: View {
             }
 
         }
-        .frame(height: 350)
+        .frame(height: 330)
         .frame(maxWidth: .infinity)
         .clipShape(
             UnevenRoundedRectangle(
@@ -143,15 +143,15 @@ struct UserBookDetailView: View {
                     .resizable()
                     .scaledToFit()
                     .frame(width: 16, height: 16)
-                    .foregroundColor(book.isFavorite ? themeColor : .white)
-                    .padding(8)
+                    .foregroundColor(book.isFavorite ? themeColor : .black)
+                    .padding(14)
                     .background(
                         RoundedRectangle(cornerRadius: 4)
-                            .fill(Color.black.opacity(0.5))
+                            .fill(Color.white)
                     )
             }
-            .padding(.bottom, 16)
-            .padding(.trailing, 16)
+            .padding(.bottom, 30)
+            .padding(.trailing, 30)
         }
     }
 

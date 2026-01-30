@@ -17,6 +17,7 @@ struct MainTabView: View {
     @State private var accountListNavPath = NavigationPath()
     @State private var passbookNavPath = NavigationPath()
     @State private var bookshelfNavPath = NavigationPath()
+    @State private var readingListNavPath = NavigationPath()
     @State private var statisticsNavPath = NavigationPath()
     
     /// 現在選択中のタブ
@@ -34,7 +35,7 @@ struct MainTabView: View {
     
     /// ナビゲーション中かどうか
     private var isNavigating: Bool {
-        !accountListNavPath.isEmpty || !passbookNavPath.isEmpty || !bookshelfNavPath.isEmpty || !statisticsNavPath.isEmpty
+        !accountListNavPath.isEmpty || !passbookNavPath.isEmpty || !bookshelfNavPath.isEmpty || !readingListNavPath.isEmpty || !statisticsNavPath.isEmpty
     }
     
     /// 現在の口座のテーマカラー
@@ -113,7 +114,7 @@ struct MainTabView: View {
                     Label("本棚", image: "icon-tab-bookshelf")
                 }
                 .tag(2)
-
+                
                 // 集計タブ
                 NavigationStack(path: $statisticsNavPath) {
                     Group {
@@ -139,11 +140,21 @@ struct MainTabView: View {
                     Label("集計", image: "icon-tab-statistics")
                 }
                 .tag(3)
+                
+                // Myリストタブ
+                NavigationStack(path: $readingListNavPath) {
+                    ReadingListView()
+                }
+                .tabItem {
+                    Label("読了リスト", systemImage: "list.bullet.rectangle")
+                }
+                .tag(4)
             }
             .tint(currentThemeColor)
             
             // プラスボタン（右下に配置、タブバーの上）- リキッドグラス風
-            if !isNavigating && selectedTab != 0 {
+            // 口座タブ(0)とMyリストタブ(4)では非表示
+            if !isNavigating && selectedTab != 0 && selectedTab != 4 {
                 HStack {
                     Spacer()
                     Button(action: {
