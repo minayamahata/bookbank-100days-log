@@ -149,6 +149,44 @@ allUserBooks.filter {
 }
 ```
 
+## BookBank デザインシステム
+
+### リストビュー
+- **境界線（Divider）**: 不要。`.listRowSeparator(.hidden)`を使用
+- **リスト間のSpace**: 狭め。vertical padding 6〜8px
+- **タップエリア**: `.contentShape(Rectangle())`で行全体をタップ可能に
+
+### 本の表紙
+- **角丸**: 2px（`.clipShape(RoundedRectangle(cornerRadius: 2))`）
+- **サイズ**: 50x75px（リスト用）、画面幅の25%（グリッド用）
+- **アスペクト比**: 2:3
+
+### 日付フォーマット
+- **形式**: YYYY.MM.DD
+- **実装例**:
+```swift
+private func formatDate(_ date: Date) -> String {
+    let formatter = DateFormatter()
+    formatter.dateFormat = "yyyy.MM.dd"
+    return formatter.string(from: date)
+}
+```
+
+### ボタン
+- **キャンセルボタン**: `.foregroundColor(.primary)`（色なし）
+- **保存/確定ボタン**: 変更がある時のみアクティブ
+- **アクションボタン**: カプセル型、`Color.primary.opacity(0.1)`背景
+
+### カード/ウィジェット
+- **背景**: `Color.appCardBackground`
+- **境界線**: `Color.primary.opacity(0.1)`, lineWidth 0.5
+- **角丸**: 8〜16px
+
+### アイコンサイズ
+- **チェックボタン**: 20px
+- **削除ボタン**: 18px
+- **リスト行の境界線**: lineWidth 1
+
 ## 実装時のチェックリスト
 
 - [ ] DEV_LOG.mdで現在の状態を確認したか
@@ -157,6 +195,8 @@ allUserBooks.filter {
 - [ ] 空状態の表示は考慮されているか
 - [ ] コミットメッセージは非エンジニアにも分かりやすいか
 - [ ] lintエラーはないか
+- [ ] リストビューに境界線がないか
+- [ ] 本の表紙の角丸は2pxか
 
 ## 参考リンク
 

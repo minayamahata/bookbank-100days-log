@@ -29,6 +29,7 @@ struct ReadingListDetailView: View {
     @State private var showRemoveAlert = false
     @State private var selectedBookIndex: Int?
     @State private var showBookCarousel = false
+    @State private var isReorderMode = false
     
     // グリッドの列定義（4カラム）
     private let columns = [
@@ -51,34 +52,15 @@ struct ReadingListDetailView: View {
                         
                         // コンテンツカード
                         VStack(spacing: 0) {
-                            // ヘッダー
-                            HStack {
-                                Text("\(readingList.bookCount)冊")
-                                    .font(.footnote)
-                                    .foregroundColor(.secondary)
-                                
-                                Spacer()
-                                
-                                // 本を追加ボタン
-                                Button(action: {
-                                    showBookSelector = true
-                                }) {
-                                    HStack(spacing: 4) {
-                                        Image(systemName: "plus")
-                                        Text("本を追加")
-                                    }
-                                    .font(.footnote)
-                                }
-                            }
-                            .padding(.horizontal)
-                            .padding(.top, 28)
-                            .padding(.bottom, 12)
+                            // 本のリスト
+                            listContent
                             
-                            // 本棚グリッド
-                            gridContent
+                            // スクロール最下部の余白（背景色を継続）
+                            Color.appCardBackground
+                                .frame(height: 100)
                         }
-                        .frame(minHeight: geometry.size.height)
-                        .background(Color(.systemBackground))
+                        .frame(minHeight: geometry.size.height + 100)
+                        .background(Color.appCardBackground)
                         .clipShape(
                             UnevenRoundedRectangle(
                                 topLeadingRadius: 40,
@@ -90,7 +72,8 @@ struct ReadingListDetailView: View {
                     }
                 }
             }
-            .background(Color(.systemBackground).ignoresSafeArea())
+            .background(Color.appGroupedBackground.ignoresSafeArea())
+            .animation(nil, value: showBookCarousel)
             
             // カルーセルオーバーレイ
             if showBookCarousel, let index = selectedBookIndex {
@@ -108,18 +91,7 @@ struct ReadingListDetailView: View {
                 .zIndex(1)
             }
         }
-        .navigationTitle(readingList.title)
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button(action: {
-                    showEditSheet = true
-                }) {
-                    Text("編集")
-                        .font(.footnote)
-                }
-            }
-        }
         .sheet(isPresented: $showBookSelector) {
             BookSelectorView(readingList: readingList)
         }
@@ -138,74 +110,307 @@ struct ReadingListDetailView: View {
                 Text("「\(book.title)」をリストから削除しますか？\n本棚からは削除されません。")
             }
         }
+        .fullScreenCover(isPresented: $isReorderMode) {
+            ReorderBooksView(readingList: readingList)
+        }
     }
     
     // MARK: - List Info Section
     
     private var listInfoSection: some View {
-        VStack(spacing: 8) {
+        VStack(alignment: .leading, spacing: 12) {
+            // サムネイルグリッド（5カラム2列、最大10冊）
+            if !readingList.books.isEmpty {
+                thumbnailGrid
+            }
+            
+            // タイトル
+            Text(readingList.title)
+                .font(.title2)
+                .fontWeight(.bold)
+                .foregroundColor(.primary)
+            
             // 説明文
             if let description = readingList.listDescription, !description.isEmpty {
                 Text(description)
-                    .font(.subheadline)
+                    .font(.footnote)
                     .foregroundColor(.secondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal)
-                    .padding(.bottom, 16)
             }
             
-            // 合計金額
-            HStack(alignment: .lastTextBaseline, spacing: 2) {
-                Text("\(readingList.totalValue.formatted())")
-                    .font(.system(size: 32))
-                Text("円")
-                    .font(.system(size: 18))
+            // 金額と冊数
+            HStack(alignment: .lastTextBaseline, spacing: 12) {
+                HStack(alignment: .lastTextBaseline, spacing: 2) {
+                    Text("\(readingList.totalValue.formatted())")
+                        .font(.system(size: 20))
+                    Text("円")
+                        .font(.system(size: 13))
+                }
+                .foregroundColor(.blue)
+                
+                Text("\(readingList.bookCount)冊")
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
             }
-            .foregroundColor(.blue)
+            .padding(.top, 4)
             
-            Text("\(readingList.bookCount)冊")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
+            // アクションボタン
+            HStack(spacing: 8) {
+                // 追加ボタン
+                Button(action: {
+                    showBookSelector = true
+                }) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "plus")
+                            .font(.system(size: 14, weight: .medium))
+                        Text("追加")
+                            .font(.system(size: 14, weight: .medium))
+                    }
+                    .foregroundColor(.primary)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(
+                        Capsule()
+                            .fill(Color.primary.opacity(0.1))
+                    )
+                }
+                
+                // 編集ボタン（並べ替え用）
+                Button(action: {
+                    isReorderMode = true
+                }) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "line.3.horizontal")
+                            .font(.system(size: 14, weight: .medium))
+                        Text("編集")
+                            .font(.system(size: 14, weight: .medium))
+                    }
+                    .foregroundColor(.primary)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(
+                        Capsule()
+                            .fill(Color.primary.opacity(0.1))
+                    )
+                }
+                
+                // 名前＆詳細ボタン
+                Button(action: {
+                    showEditSheet = true
+                }) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "pencil")
+                            .font(.system(size: 14, weight: .medium))
+                        Text("名前＆詳細")
+                            .font(.system(size: 14, weight: .medium))
+                    }
+                    .foregroundColor(.primary)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(
+                        Capsule()
+                            .fill(Color.primary.opacity(0.1))
+                    )
+                }
+            }
+            .padding(.top, 16)
         }
-        .frame(maxWidth: .infinity)
-        .padding(.top, 8)
-        .padding(.bottom, 60)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 16)
+        .padding(.top, 16)
+        .padding(.bottom, 24)
     }
     
-    // MARK: - Grid Content
+    // MARK: - Thumbnail Grid
     
-    private var gridContent: some View {
-        Group {
-            if readingList.books.isEmpty {
-                VStack(spacing: 16) {
-                    Image(systemName: "books.vertical")
-                        .font(.system(size: 60))
-                        .foregroundColor(.gray)
+    private var thumbnailGrid: some View {
+        let books = Array(readingList.books.prefix(10))
+        let spacing: CGFloat = 4
+        let sideMargin: CGFloat = 12
+        let totalRows = 2
+        
+        return GeometryReader { geometry in
+            let availableWidth = geometry.size.width - sideMargin * 2
+            let cellWidth = (availableWidth - spacing * 4) / 5
+            let cellHeight = cellWidth * 1.5
+            
+            VStack(spacing: 8) {
+                ForEach(0..<totalRows, id: \.self) { row in
+                    // 奥行き係数: 0.0（最上段）〜 1.0（最下段）
+                    let depth = CGFloat(row) / CGFloat(max(totalRows - 1, 1))
                     
-                    Text("まだ本がありません")
-                        .font(.headline)
-                        .foregroundColor(.secondary)
+                    // 棚板の高さと色の濃さを行によって変える
+                    let shelfHeight: CGFloat = 6 + (4 * depth)  // 6pt 〜 10pt
+                    let shelfThickness: CGFloat = 2 + (2 * depth)  // 2pt 〜 4pt
+                    let shadowOpacity = 0.08 + (0.08 * depth)  // 0.08 〜 0.16
+                    let shadowY: CGFloat = 4 + (6 * depth)  // 4pt 〜 10pt
                     
-                    Button(action: {
-                        showBookSelector = true
-                    }) {
-                        Text("本を追加する")
-                            .font(.subheadline)
-                            .foregroundColor(.blue)
+                    VStack(spacing: 0) {
+                        // 本の行
+                        HStack(spacing: spacing) {
+                            ForEach(0..<5, id: \.self) { col in
+                                let index = row * 5 + col
+                                if index < books.count, let imageURL = books[index].imageURL {
+                                    AsyncImage(url: URL(string: imageURL)) { phase in
+                                        switch phase {
+                                        case .success(let image):
+                                            image
+                                                .resizable()
+                                                .aspectRatio(contentMode: .fill)
+                                        default:
+                                            Rectangle()
+                                                .fill(Color.secondary.opacity(0.15))
+                                        }
+                                    }
+                                    .frame(width: cellWidth, height: cellHeight)
+                                    .clipShape(RoundedRectangle(cornerRadius: 2))
+                                    .shadow(color: .black.opacity(0.1), radius: 1, x: 0, y: 1)
+                                } else {
+                                    Color.clear
+                                        .frame(width: cellWidth, height: cellHeight)
+                                }
+                            }
+                        }
+                        .padding(.horizontal, sideMargin)
+                        
+                        // 棚板（奥行き表現）
+                        VStack(spacing: 0) {
+                            // 棚板の上面
+                            Rectangle()
+                                .fill(Color(UIColor { traits in
+                                    traits.userInterfaceStyle == .dark
+                                        ? UIColor.white  // ダーク: 白
+                                        : UIColor.white  // ライト: 白
+                                }))
+                                .frame(height: shelfHeight)
+                            
+                            // 棚板の側面（厚み）- 奥行きで変化
+                            Rectangle()
+                                .fill(Color(UIColor { traits in
+                                    traits.userInterfaceStyle == .dark
+                                        ? UIColor(white: 0.85, alpha: 1)  // ダーク: 薄いグレー
+                                        : UIColor(white: 0.92, alpha: 1)  // ライト: 薄いグレー
+                                }))
+                                .frame(height: shelfThickness)
+                        }
+                        .shadow(
+                            color: Color(UIColor { traits in
+                                traits.userInterfaceStyle == .dark
+                                    ? UIColor.white.withAlphaComponent(0.15)  // ダーク: 白いシャドウ
+                                    : UIColor.black.withAlphaComponent(shadowOpacity)  // ライト: 黒いシャドウ
+                            }),
+                            radius: 6,
+                            x: 3,
+                            y: shadowY
+                        )
                     }
                 }
-                .frame(maxWidth: .infinity)
-                .padding()
-            } else {
-                LazyVGrid(columns: columns, spacing: 2) {
-                    ForEach(readingList.books) { book in
-                        bookCover(book: book)
-                    }
-                }
-                .padding(.horizontal, 16)
             }
         }
-        .padding(.bottom, 100)
+        // アスペクト比を調整（棚板の高さと余白を考慮）
+        .aspectRatio(5.0 / 3.6, contentMode: .fit)
+    }
+    
+    // MARK: - List Content
+    
+    private var listContent: some View {
+        Group {
+            if readingList.books.isEmpty {
+                VStack(spacing: 12) {
+                    Text("まだ本がありません")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                    
+                    Button("本を追加する") {
+                        showBookSelector = true
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.blue)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 40)
+            } else {
+                LazyVStack(spacing: 0) {
+                    ForEach(readingList.books) { book in
+                        bookRow(book: book)
+                    }
+                }
+            }
+        }
+        .padding(.top, 16)
+    }
+    
+    // MARK: - Book Row
+    
+    private func bookRow(book: UserBook) -> some View {
+        HStack(spacing: 12) {
+            // 本の表紙
+            if let imageURL = book.imageURL,
+               let url = URL(string: imageURL) {
+                AsyncImage(url: url) { image in
+                    image
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                } placeholder: {
+                    Rectangle()
+                        .fill(Color.gray.opacity(0.2))
+                }
+                .frame(width: 50, height: 75)
+                .clipShape(RoundedRectangle(cornerRadius: 4))
+                .id(imageURL)
+            } else {
+                Rectangle()
+                    .fill(Color.gray.opacity(0.2))
+                    .frame(width: 50, height: 75)
+                    .clipShape(RoundedRectangle(cornerRadius: 4))
+                    .overlay {
+                        Image(systemName: "book.closed")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+            }
+            
+            // 本の情報
+            VStack(alignment: .leading, spacing: 4) {
+                Text(book.title)
+                    .font(.subheadline)
+                    .foregroundColor(.primary)
+                    .lineLimit(2)
+                
+                if !book.displayAuthor.isEmpty {
+                    Text(book.displayAuthor)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                }
+                
+                if let price = book.priceAtRegistration {
+                    Text("¥\(price.formatted())")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+            
+            Spacer()
+        }
+        .padding(.horizontal, 24)
+        .padding(.vertical, 8)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            if let index = readingList.books.firstIndex(where: { $0.id == book.id }) {
+                selectedBookIndex = index
+                withAnimation(.easeIn(duration: 0.2)) {
+                    showBookCarousel = true
+                }
+            }
+        }
+        .contextMenu {
+            Button(role: .destructive) {
+                bookToRemove = book
+                showRemoveAlert = true
+            } label: {
+                Label("リストから削除", systemImage: "minus.circle")
+            }
+        }
     }
     
     // MARK: - Book Cover
@@ -573,6 +778,202 @@ struct BookCarouselView: View {
                     .font(.largeTitle)
                     .foregroundColor(.secondary)
             }
+    }
+}
+
+// MARK: - Reorder Books View
+
+struct ReorderBooksView: View {
+    @Bindable var readingList: ReadingList
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var context
+    
+    @State private var books: [UserBook] = []
+    @State private var originalBooks: [UserBook] = []
+    @State private var showDiscardAlert = false
+    
+    /// 変更があるかどうか
+    private var hasChanges: Bool {
+        guard books.count == originalBooks.count else { return true }
+        for (index, book) in books.enumerated() {
+            if book.id != originalBooks[index].id {
+                return true
+            }
+        }
+        return false
+    }
+    
+    var body: some View {
+        NavigationStack {
+            List {
+                ForEach(books) { book in
+                    HStack(spacing: 12) {
+                        // 削除ボタン
+                        Button(action: {
+                            withAnimation {
+                                if let index = books.firstIndex(where: { $0.id == book.id }) {
+                                    books.remove(at: index)
+                                }
+                            }
+                        }) {
+                            Image(systemName: "minus.circle.fill")
+                                .font(.system(size: 18))
+                                .foregroundColor(.red)
+                        }
+                        .buttonStyle(.plain)
+                        
+                        // 本の表紙
+                        if let imageURL = book.imageURL,
+                           let url = URL(string: imageURL) {
+                            AsyncImage(url: url) { image in
+                                image
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fill)
+                            } placeholder: {
+                                Rectangle()
+                                    .fill(Color.gray.opacity(0.2))
+                            }
+                            .frame(width: 50, height: 75)
+                            .clipShape(RoundedRectangle(cornerRadius: 2))
+                        } else {
+                            Rectangle()
+                                .fill(Color.gray.opacity(0.2))
+                                .frame(width: 50, height: 75)
+                                .clipShape(RoundedRectangle(cornerRadius: 2))
+                        }
+                        
+                        // 本の情報
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(book.title)
+                                .font(.subheadline)
+                                .foregroundColor(.primary)
+                                .lineLimit(1)
+                            
+                            if !book.displayAuthor.isEmpty {
+                                Text(book.displayAuthor)
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                    .lineLimit(1)
+                            }
+                        }
+                        
+                        Spacer()
+                    }
+                    .listRowBackground(Color.appCardBackground)
+                    .listRowSeparator(.hidden)
+                    .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
+                }
+                .onMove(perform: moveBooks)
+            }
+            .listStyle(.plain)
+            .environment(\.editMode, .constant(.active))
+            .background(Color.appCardBackground)
+            .scrollContentBackground(.hidden)
+            .contentMargins(.top, 16, for: .scrollContent)
+            .contentMargins(.bottom, 100, for: .scrollContent)
+            .navigationTitle("リストを編集")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("キャンセル") {
+                        if hasChanges {
+                            showDiscardAlert = true
+                        } else {
+                            dismiss()
+                        }
+                    }
+                    .foregroundColor(.primary)
+                }
+                
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("保存") {
+                        saveChanges()
+                    }
+                    .fontWeight(.semibold)
+                    .disabled(!hasChanges)
+                }
+            }
+        }
+        .onAppear {
+            books = readingList.books
+            originalBooks = readingList.books
+        }
+        .overlay {
+            if showDiscardAlert {
+                // カスタムダイアログ
+                ZStack {
+                    // 背景の暗いオーバーレイ
+                    Color.black.opacity(0.4)
+                        .ignoresSafeArea()
+                    
+                    // ダイアログ本体
+                    VStack(spacing: 20) {
+                        // タイトルとメッセージ
+                        VStack(spacing: 8) {
+                            Text("変更を取り消しますか？")
+                                .font(.headline)
+                                .foregroundColor(.primary)
+                            
+                            Text("いま終了すると、変更した内容は保存されません。")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                                .multilineTextAlignment(.center)
+                        }
+                        
+                        // ボタン
+                        VStack(spacing: 12) {
+                            // 編集を続けるボタン（Tint色、白文字）
+                            Button(action: {
+                                showDiscardAlert = false
+                            }) {
+                                Text("編集を続ける")
+                                    .font(.headline)
+                                    .foregroundColor(.white)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 14)
+                                    .background(
+                                        Capsule()
+                                            .fill(Color.blue)
+                                    )
+                            }
+                            
+                            // やめるボタン
+                            Button(action: {
+                                showDiscardAlert = false
+                                dismiss()
+                            }) {
+                                Text("やめる")
+                                    .font(.subheadline)
+                                    .foregroundColor(.primary)
+                            }
+                        }
+                    }
+                    .padding(24)
+                    .background(
+                        RoundedRectangle(cornerRadius: 16)
+                            .fill(Color.appCardBackground)
+                    )
+                    .padding(.horizontal, 40)
+                }
+            }
+        }
+    }
+    
+    private func moveBooks(from source: IndexSet, to destination: Int) {
+        books.move(fromOffsets: source, toOffset: destination)
+    }
+    
+    private func saveChanges() {
+        // 本の順序を更新
+        readingList.books = books
+        readingList.updatedAt = Date()
+        
+        do {
+            try context.save()
+            dismiss()
+        } catch {
+            print("❌ Failed to save reordered books: \(error)")
+        }
     }
 }
 

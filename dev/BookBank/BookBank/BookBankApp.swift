@@ -114,6 +114,12 @@ struct BookBankApp: App {
         let existingPassbooks = (try? context.fetch(descriptor)) ?? []
         
         if !existingPassbooks.isEmpty {
+            // 読了リストのテストデータがない場合は追加
+            let readingListDescriptor = FetchDescriptor<ReadingList>()
+            let existingReadingLists = (try? context.fetch(readingListDescriptor)) ?? []
+            if existingReadingLists.isEmpty {
+                generateReadingListTestData(context: context)
+            }
             print("✅ BookBank initialized (existing data found)")
             return
         }
@@ -171,9 +177,60 @@ struct BookBankApp: App {
         // データを保存
         do {
             try context.save()
+            
+            // 読了リストのテストデータを作成
+            generateReadingListTestData(context: context)
+            
             print("✅ DEBUG: Test data generated successfully")
         } catch {
             print("❌ DEBUG: Failed to save test data: \(error)")
+        }
+    }
+    
+    /// 読了リストのテストデータを生成
+    private func generateReadingListTestData(context: ModelContext) {
+        // 既存の本を取得
+        let bookDescriptor = FetchDescriptor<UserBook>()
+        guard let allBooks = try? context.fetch(bookDescriptor), !allBooks.isEmpty else {
+            print("⚠️ DEBUG: No books found for reading list")
+            return
+        }
+        
+        // 読了リスト1: 2024年ベスト
+        let readingList1 = ReadingList(
+            title: "2024年ベスト",
+            listDescription: "2024年に読んだ本の中から厳選した5冊"
+        )
+        // ランダムに5冊選択
+        let selectedBooks1 = Array(allBooks.shuffled().prefix(5))
+        readingList1.books = selectedBooks1
+        context.insert(readingList1)
+        
+        // 読了リスト2: 技術書まとめ
+        let readingList2 = ReadingList(
+            title: "技術書まとめ",
+            listDescription: "エンジニアリングに関する本"
+        )
+        // ランダムに3冊選択
+        let selectedBooks2 = Array(allBooks.shuffled().prefix(3))
+        readingList2.books = selectedBooks2
+        context.insert(readingList2)
+        
+        // 読了リスト3: おすすめ小説
+        let readingList3 = ReadingList(
+            title: "おすすめ小説",
+            listDescription: nil
+        )
+        // ランダムに7冊選択
+        let selectedBooks3 = Array(allBooks.shuffled().prefix(7))
+        readingList3.books = selectedBooks3
+        context.insert(readingList3)
+        
+        do {
+            try context.save()
+            print("✅ DEBUG: Reading list test data generated")
+        } catch {
+            print("❌ DEBUG: Failed to save reading list: \(error)")
         }
     }
     #endif
