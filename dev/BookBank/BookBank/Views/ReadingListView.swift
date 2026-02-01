@@ -60,11 +60,7 @@ struct ReadingListView: View {
         }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button(action: {
-                    showAddList = true
-                }) {
-                    Image(systemName: "plus")
-                }
+                ThemeToggleButton()
             }
         }
         .sheet(isPresented: $showAddList) {
@@ -100,16 +96,16 @@ struct ReadingListView: View {
     
     /// カード形式のリストビュー
     private func readingListCard(list: ReadingList) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            // 3x3グリッドサムネイル（正方形）
+        VStack(alignment: .leading, spacing: 16) {
+            // 3x3グリッドサムネイル（本の比率 2:3）
             GeometryReader { geometry in
                 gridThumbnail(for: list, size: geometry.size.width)
             }
-            .aspectRatio(1, contentMode: .fit)
-            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .aspectRatio(2/3, contentMode: .fit)
+            .clipShape(RoundedRectangle(cornerRadius: 6))
             
             // リスト情報
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 4) {
                 Text(list.title)
                     .font(.subheadline)
                     .foregroundColor(.primary)
@@ -132,18 +128,23 @@ struct ReadingListView: View {
             }
             .padding(.horizontal, 4)
         }
-        .padding(8)
+        .padding(16)
         .background(
-            RoundedRectangle(cornerRadius: 12)
+            RoundedRectangle(cornerRadius: 16)
                 .fill(Color.appCardBackground)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(Color.primary.opacity(0.2), lineWidth: 0.5)
         )
     }
     
-    /// 3x3グリッドサムネイル
+    /// 3x3グリッドサムネイル（本の比率 2:3）
     private func gridThumbnail(for list: ReadingList, size: CGFloat) -> some View {
         let books = Array(list.books.prefix(9))
         let spacing: CGFloat = 2
-        let cellSize: CGFloat = (size - spacing * 2) / 3
+        let cellWidth: CGFloat = (size - spacing * 2) / 3
+        let cellHeight: CGFloat = cellWidth * 1.5  // 本の比率 2:3
         
         return VStack(spacing: spacing) {
             ForEach(0..<3, id: \.self) { row in
@@ -162,12 +163,12 @@ struct ReadingListView: View {
                                         .fill(Color.secondary.opacity(0.15))
                                 }
                             }
-                            .frame(width: cellSize, height: cellSize)
+                            .frame(width: cellWidth, height: cellHeight)
                             .clipped()
                         } else {
                             Rectangle()
                                 .fill(Color.secondary.opacity(0.15))
-                                .frame(width: cellSize, height: cellSize)
+                                .frame(width: cellWidth, height: cellHeight)
                         }
                     }
                 }

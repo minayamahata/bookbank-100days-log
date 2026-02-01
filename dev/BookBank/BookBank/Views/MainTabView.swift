@@ -12,6 +12,7 @@ struct MainTabView: View {
     @Query(sort: \Passbook.sortOrder) private var passbooks: [Passbook]
     @State private var selectedPassbook: Passbook?
     @State private var showPassbookSelector = false
+    @State private var showAddReadingList = false
     
     /// 各タブのナビゲーションパス
     @State private var accountListNavPath = NavigationPath()
@@ -144,40 +145,80 @@ struct MainTabView: View {
                 // Myリストタブ
                 NavigationStack(path: $readingListNavPath) {
                     ReadingListView()
+                        .navigationDestination(for: BookSearchDestination.self) { destination in
+                            BookSearchView(passbook: destination.passbook, allowPassbookChange: true)
+                        }
                 }
                 .tabItem {
-                    Label("読了リスト", systemImage: "list.bullet.rectangle")
+                    Label("Myリスト", image: "icon-tab-mylist")
                 }
                 .tag(4)
             }
             .tint(currentThemeColor)
             
             // プラスボタン（右下に配置、タブバーの上）- リキッドグラス風
-            // 口座タブ(0)とMyリストタブ(4)では非表示
-            if !isNavigating && selectedTab != 0 && selectedTab != 4 {
+            // 口座タブ(0)では非表示
+            if !isNavigating && selectedTab != 0 {
                 HStack {
                     Spacer()
-                    Button(action: {
-                        if let targetPassbook = currentPassbook {
-                            let destination = BookSearchDestination(passbook: targetPassbook)
-                            switch selectedTab {
-                            case 1:
-                                passbookNavPath.append(destination)
-                            case 2:
-                                bookshelfNavPath.append(destination)
-                            case 3:
-                                statisticsNavPath.append(destination)
-                            default:
-                                passbookNavPath.append(destination)
+                    
+                    if selectedTab == 4 {
+                        // Myリストタブの場合はMenu表示
+                        Menu {
+                            Button(action: {
+                                showAddReadingList = true
+                            }) {
+                                Label {
+                                    Text("読了リストを作成する")
+                                } icon: {
+                                    Image("icon-tab-mylist")
+                                }
                             }
+                            
+                            Button(action: {
+                                if let targetPassbook = currentPassbook {
+                                    let destination = BookSearchDestination(passbook: targetPassbook)
+                                    readingListNavPath.append(destination)
+                                }
+                            }) {
+                                Label {
+                                    Text("本を登録する")
+                                } icon: {
+                                    Image("icon-tab-bookshelf")
+                                }
+                            }
+                        } label: {
+                            LiquidGlassButton(color: currentThemeColor)
                         }
-                    }) {
-                        LiquidGlassButton(color: currentThemeColor)
+                        .padding(.trailing, 16)
+                        .padding(.bottom, 70)
+                    } else {
+                        // 他のタブでは従来通りの動作
+                        Button(action: {
+                            if let targetPassbook = currentPassbook {
+                                let destination = BookSearchDestination(passbook: targetPassbook)
+                                switch selectedTab {
+                                case 1:
+                                    passbookNavPath.append(destination)
+                                case 2:
+                                    bookshelfNavPath.append(destination)
+                                case 3:
+                                    statisticsNavPath.append(destination)
+                                default:
+                                    passbookNavPath.append(destination)
+                                }
+                            }
+                        }) {
+                            LiquidGlassButton(color: currentThemeColor)
+                        }
+                        .padding(.trailing, 16)
+                        .padding(.bottom, 70)
                     }
-                    .padding(.trailing, 16)
-                    .padding(.bottom, 70)
                 }
             }
+        }
+        .sheet(isPresented: $showAddReadingList) {
+            AddReadingListView()
         }
         .overlay {
             // 背景の暗幕（フェード）
