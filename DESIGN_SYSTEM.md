@@ -464,7 +464,19 @@ Menu {
 | テキストボタン | `.plain` + `.foregroundColor(.primary)` |
 | 破壊的アクション | `.destructive` role |
 
-### ツールバーボタン
+### ツールバーボタン（重要ルール）
+
+モーダル/編集画面のキャンセル・保存ボタンは以下のルールに従う：
+
+| ボタン | テキストカラー | 状態 |
+|-------|--------------|------|
+| キャンセル | `.primary`（色なし） | 常にアクティブ |
+| 保存 | 変更あり: `.blue` / 変更なし: `.primary.opacity(0.4)` | 変更時のみアクティブ |
+
+**適用画面:**
+- 口座編集（EditPassbookView）
+- 読了リスト編集（EditReadingListView）
+- その他すべての編集モーダル
 
 ```swift
 // キャンセルボタン（色なし）
@@ -476,8 +488,27 @@ ToolbarItem(placement: .cancellationAction) {
 // 保存ボタン（変更時のみアクティブ）
 ToolbarItem(placement: .confirmationAction) {
     Button("保存") { save() }
-        .disabled(!hasChanges)
-        .foregroundColor(hasChanges ? .blue : .primary.opacity(0.4))
+        .disabled(!hasChanges || title.isEmpty)
+        .foregroundColor(hasChanges && !title.isEmpty ? .blue : .primary.opacity(0.4))
+}
+```
+
+**変更検知の実装パターン:**
+
+```swift
+// 元の値を保存
+@State private var originalName: String = ""
+@State private var originalColorIndex: Int = 0
+
+// 変更があるかどうか
+private var hasChanges: Bool {
+    name != originalName || colorIndex != originalColorIndex
+}
+
+// initで初期化
+init(item: Item) {
+    _name = State(initialValue: item.name)
+    _originalName = State(initialValue: item.name)
 }
 ```
 
@@ -640,6 +671,36 @@ struct LiquidGlassButton: View {
             .clipShape(Circle())
     }
 }
+```
+
+---
+
+## 17. キーボード（重要ルール）
+
+### 入力エリア外タップでキーボードを閉じる
+
+テキスト入力がある画面では、**入力エリア以外をタップしたらキーボードを閉じる**ようにする。
+
+```swift
+// View全体に適用
+.onTapGesture {
+    UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+}
+```
+
+**適用画面:**
+- 口座編集（EditPassbookView）
+- 読了リスト編集（EditReadingListView）
+- 手動登録（AddBookView）
+- 口座追加（AddPassbookView）
+- その他すべてのテキスト入力画面
+
+### キーボードによるレイアウト崩れを防ぐ
+
+画面下部に固定要素（削除ボタンなど）がある場合、キーボード表示時にせり上がらないようにする。
+
+```swift
+.ignoresSafeArea(.keyboard, edges: .bottom)
 ```
 
 ---
