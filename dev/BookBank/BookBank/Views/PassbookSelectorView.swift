@@ -7,6 +7,7 @@
 
 import SwiftUI
 import SwiftData
+import UniformTypeIdentifiers
 
 /// 口座選択画面
 struct PassbookSelectorView: View {
@@ -170,100 +171,166 @@ struct EditPassbookView: View {
     @State private var editingName: String = ""
     @State private var selectedColorIndex: Int = 0
     @State private var showDeleteAlert = false
+    @State private var showExportSheet = false
+    @State private var showExporter = false
+    @State private var exportDocument: MarkdownDocument = MarkdownDocument(text: "")
+    @State private var exportFileName: String = ""
+    
+    // 変更検知用の元の値
+    @State private var originalName: String = ""
+    @State private var originalColorIndex: Int = 0
     
     // この口座の本の数を取得
     @Query private var allBooks: [UserBook]
     @Query(sort: \Passbook.sortOrder) private var allPassbooks: [Passbook]
     
+    private var passbookBooks: [UserBook] {
+        allBooks.filter { $0.passbook?.persistentModelID == passbook.persistentModelID }
+    }
+    
     private var bookCount: Int {
-        allBooks.filter { $0.passbook?.persistentModelID == passbook.persistentModelID }.count
+        passbookBooks.count
     }
     
     private var customPassbooks: [Passbook] {
         allPassbooks.filter { $0.type == .custom && $0.isActive }
     }
     
+    private var hasChanges: Bool {
+        editingName != originalName || selectedColorIndex != originalColorIndex
+    }
+    
     init(passbook: Passbook) {
         self.passbook = passbook
         _editingName = State(initialValue: passbook.name)
+        _originalName = State(initialValue: passbook.name)
         // colorIndexがあればそれを、なければリスト内の位置を使う
         if let colorIndex = passbook.colorIndex {
             _selectedColorIndex = State(initialValue: colorIndex)
+            _originalColorIndex = State(initialValue: colorIndex)
         }
     }
     
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                Form {
-                    Section {
-                        TextField("口座名", text: $editingName)
-                            .textInputAutocapitalization(.never)
-                            .autocorrectionDisabled()
-                    } header: {
-                        Text("口座名")
-                    } 
-                    
-                    Section {
-                        HStack(spacing: 0) {
-                            ForEach(0..<PassbookColor.count, id: \.self) { index in
-                                Button {
-                                    selectedColorIndex = index
-                                } label: {
-                                    Circle()
-                                        .fill(PassbookColor.color(for: index))
-                                        .frame(width: 24, height: 24)
-                                        .overlay {
-                                            if selectedColorIndex == index {
-                                                Circle()
-                                                    .stroke(Color.primary, lineWidth: 2)
-                                                    .frame(width: 30, height: 30)
-                                            }
-                                        }
-                                        .frame(maxWidth: .infinity)
-                                }
-                                .buttonStyle(.plain)
-                            }
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 24) {
+                        // 口座名セクション
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("口座名")
+                                .font(.system(size: 13))
+                                .foregroundColor(.secondary)
+                            
+                            TextField("口座名", text: $editingName)
+                                .textInputAutocapitalization(.never)
+                                .autocorrectionDisabled()
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 12)
+                                .background(Color(.secondarySystemGroupedBackground))
+                                .clipShape(RoundedRectangle(cornerRadius: 16))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 16)
+                                        .stroke(Color.primary.opacity(0.1), lineWidth: 1)
+                                )
                         }
-                        .padding(.vertical, 12)
-                    } header: {
-                        Text("テーマカラー")
+                        
+                        // テーマカラーセクション
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("テーマカラー")
+                                .font(.system(size: 13))
+                                .foregroundColor(.secondary)
+                            
+                            HStack(spacing: 0) {
+                                ForEach(0..<PassbookColor.count, id: \.self) { index in
+                                    Button {
+                                        selectedColorIndex = index
+                                    } label: {
+                                        Circle()
+                                            .fill(PassbookColor.color(for: index))
+                                            .frame(width: 24, height: 24)
+                                            .overlay {
+                                                if selectedColorIndex == index {
+                                                    Circle()
+                                                        .stroke(Color.primary, lineWidth: 2)
+                                                        .frame(width: 30, height: 30)
+                                                }
+                                            }
+                                            .frame(maxWidth: .infinity)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                            .padding(.vertical, 12)
+                        }
                     }
+                    .padding(.horizontal, 16)
+                    .padding(.top, 16)
                 }
                 .onAppear {
                     // colorIndexが未設定の場合、リスト内の位置に基づいた色をデフォルトにする
                     if passbook.colorIndex == nil {
                         if let index = customPassbooks.firstIndex(where: { $0.persistentModelID == passbook.persistentModelID }) {
                             selectedColorIndex = index % PassbookColor.count
+                            originalColorIndex = selectedColorIndex
                         }
                     }
                 }
                 
-                // 削除ボタン（画面下固定）
-                VStack(spacing: 0) {
-                    Divider()
+                // アクションボタン（画面下固定）
+                VStack(spacing: 12) {
+                    // ダウンロードボタン
+                    Button(action: {
+                        showExportSheet = true
+                    }) {
+                        HStack(spacing: 8) {
+                            Spacer()
+                            Image("icon-download")
+                                .renderingMode(.template)
+                            Text("口座データをダウンロードする")
+                            Spacer()
+                        }
+                        .font(.system(size: 15))
+                        .padding(.vertical, 18)
+                        .background(
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(Color.primary.opacity(0.3), lineWidth: 1)
+                        )
+                    }
+                    .buttonStyle(.plain)
                     
-                    VStack(spacing: 4) {
-                        Button(role: .destructive, action: {
+                    // 削除ボタン
+                    VStack(spacing: 8) {
+                        Button(action: {
                             showDeleteAlert = true
                         }) {
                             HStack {
                                 Spacer()
                                 Text("この口座を削除")
+                                    .foregroundColor(.red)
                                 Spacer()
                             }
-                            .padding(.vertical, 12)
+                            .padding(.vertical, 14)
+                            .background(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(Color.red, lineWidth: 1)
+                            )
                         }
+                        .buttonStyle(.plain)
                         
                         if bookCount > 0 {
                             Text("この口座に登録されている\(bookCount)冊の本も削除されます")
                                 .font(.caption)
                                 .foregroundColor(.red)
-                                .padding(.bottom, 8)
                         }
                     }
-                    .background(Color.appGroupedBackground)
                 }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 16)
+            }
+            .ignoresSafeArea(.keyboard, edges: .bottom)
+            .onTapGesture {
+                UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
             }
             .navigationTitle("口座を編集")
             .navigationBarTitleDisplayMode(.inline)
@@ -272,13 +339,15 @@ struct EditPassbookView: View {
                     Button("キャンセル") {
                         dismiss()
                     }
+                    .foregroundColor(.primary)
                 }
                 
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("保存") {
                         savePassbook()
                     }
-                    .disabled(editingName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .disabled(editingName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !hasChanges)
+                    .foregroundColor(hasChanges && !editingName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? .blue : .primary.opacity(0.4))
                 }
             }
             .alert("口座を削除しますか？", isPresented: $showDeleteAlert) {
@@ -293,7 +362,64 @@ struct EditPassbookView: View {
                     Text("「\(editingName)」を削除してもよろしいですか？\n\nこの操作は取り消せません。")
                 }
             }
+            .sheet(isPresented: $showExportSheet) {
+                ExportSheetView(
+                    title: passbook.name,
+                    bookCount: passbookBooks.count,
+                    totalValue: passbookBooks.reduce(0) { $0 + ($1.priceAtRegistration ?? 0) },
+                    sampleBooks: passbookBooks.prefix(4).map { book in
+                        if let author = book.author, !author.isEmpty {
+                            return "\(book.title) / \(author)"
+                        } else {
+                            return book.title
+                        }
+                    },
+                    sampleDetailedBook: passbookBooks.first.map { book in
+                        (
+                            title: book.title,
+                            author: book.author,
+                            price: book.priceAtRegistration,
+                            publisher: book.publisher,
+                            date: formatExportDate(book.registeredAt),
+                            isbn: book.isbn
+                        )
+                    },
+                    onExportTitleOnly: {
+                        showExportSheet = false
+                        prepareExport()
+                    },
+                    onExportDetailed: {
+                        // Pro機能（将来実装）
+                    }
+                )
+            }
+            .fileExporter(
+                isPresented: $showExporter,
+                document: exportDocument,
+                contentType: .plainText,
+                defaultFilename: exportFileName
+            ) { result in
+                switch result {
+                case .success:
+                    print("✅ Export succeeded")
+                case .failure(let error):
+                    print("❌ Export failed: \(error)")
+                }
+            }
         }
+    }
+    
+    private func prepareExport() {
+        let markdown = generatePassbookMarkdown(passbook: passbook, books: passbookBooks, exportType: .titleOnly)
+        exportDocument = MarkdownDocument(text: markdown)
+        exportFileName = "\(passbook.name).md"
+        showExporter = true
+    }
+    
+    private func formatExportDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy.MM.dd"
+        return formatter.string(from: date)
     }
     
     private func savePassbook() {

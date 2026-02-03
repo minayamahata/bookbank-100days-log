@@ -7,6 +7,7 @@
 
 import SwiftUI
 import SwiftData
+import UniformTypeIdentifiers
 
 /// 読了リスト詳細画面
 struct ReadingListDetailView: View {
@@ -30,6 +31,11 @@ struct ReadingListDetailView: View {
     @State private var selectedBookIndex: Int?
     @State private var showBookCarousel = false
     @State private var isReorderMode = false
+    @State private var showMoreSheet = false
+    @State private var showExportSheet = false
+    @State private var showExporter = false
+    @State private var exportDocument: MarkdownDocument = MarkdownDocument(text: "")
+    @State private var exportFileName: String = ""
     
     // グリッドの列定義（4カラム）
     private let columns = [
@@ -126,6 +132,29 @@ struct ReadingListDetailView: View {
         .sheet(isPresented: $showEditSheet) {
             EditReadingListView(readingList: readingList)
         }
+        .sheet(isPresented: $showMoreSheet) {
+            MoreActionsSheet(
+                title: readingList.title,
+                onShare: {
+                    // TODO: シェア機能を実装
+                    showMoreSheet = false
+                },
+                onDownload: {
+                    showMoreSheet = false
+                    showExportSheet = true
+                },
+                onReorder: {
+                    showMoreSheet = false
+                    isReorderMode = true
+                },
+                onEdit: {
+                    showMoreSheet = false
+                    showEditSheet = true
+                }
+            )
+            .presentationDetents([.height(280)])
+            .presentationDragIndicator(.visible)
+        }
         .alert("リストから削除", isPresented: $showRemoveAlert) {
             Button("キャンセル", role: .cancel) {}
             Button("削除", role: .destructive) {
@@ -141,6 +170,65 @@ struct ReadingListDetailView: View {
         .fullScreenCover(isPresented: $isReorderMode) {
             ReorderBooksView(readingList: readingList)
         }
+        .sheet(isPresented: $showExportSheet) {
+            ExportSheetView(
+                title: readingList.title,
+                bookCount: readingList.books.count,
+                totalValue: readingList.books.reduce(0) { $0 + ($1.priceAtRegistration ?? 0) },
+                sampleBooks: readingList.books.prefix(4).map { book in
+                    if let author = book.author, !author.isEmpty {
+                        return "\(book.title) / \(author)"
+                    } else {
+                        return book.title
+                    }
+                },
+                sampleDetailedBook: readingList.books.first.map { book in
+                    (
+                        title: book.title,
+                        author: book.author,
+                        price: book.priceAtRegistration,
+                        publisher: book.publisher,
+                        date: formatExportDate(book.registeredAt),
+                        isbn: book.isbn
+                    )
+                },
+                onExportTitleOnly: {
+                    showExportSheet = false
+                    prepareExport()
+                },
+                onExportDetailed: {
+                    // Pro機能（将来実装）
+                }
+            )
+        }
+        .fileExporter(
+            isPresented: $showExporter,
+            document: exportDocument,
+            contentType: .plainText,
+            defaultFilename: exportFileName
+        ) { result in
+            switch result {
+            case .success:
+                print("✅ Export succeeded")
+            case .failure(let error):
+                print("❌ Export failed: \(error)")
+            }
+        }
+    }
+    
+    // MARK: - Export Helper
+    
+    private func prepareExport() {
+        let markdown = generateReadingListMarkdown(readingList: readingList, exportType: .titleOnly)
+        exportDocument = MarkdownDocument(text: markdown)
+        exportFileName = "\(readingList.title).md"
+        showExporter = true
+    }
+    
+    private func formatExportDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy.MM.dd"
+        return formatter.string(from: date)
     }
     
     // MARK: - List Info Section
@@ -189,9 +277,9 @@ struct ReadingListDetailView: View {
                 }) {
                     HStack(spacing: 6) {
                         Image(systemName: "plus")
-                            .font(.system(size: 14, weight: .medium))
+                            .font(.system(size: 13, weight: .medium))
                         Text("追加")
-                            .font(.system(size: 14, weight: .medium))
+                            .font(.system(size: 13, weight: .medium))
                     }
                     .foregroundColor(.primary)
                     .padding(.horizontal, 16)
@@ -202,42 +290,19 @@ struct ReadingListDetailView: View {
                     )
                 }
                 
-                // 編集ボタン（並べ替え用）
+                // その他ボタン（ボトムシート）
                 Button(action: {
-                    isReorderMode = true
+                    showMoreSheet = true
                 }) {
-                    HStack(spacing: 6) {
-                        Image(systemName: "line.3.horizontal")
-                            .font(.system(size: 14, weight: .medium))
-                        Text("編集")
-                            .font(.system(size: 14, weight: .medium))
-                    }
-                    .foregroundColor(.primary)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-                    .background(
-                        Capsule()
-                            .fill(Color.primary.opacity(0.1))
-                    )
-                }
-                
-                // 名前＆詳細ボタン
-                Button(action: {
-                    showEditSheet = true
-                }) {
-                    HStack(spacing: 6) {
-                        Image(systemName: "pencil")
-                            .font(.system(size: 14, weight: .medium))
-                        Text("名前＆詳細")
-                            .font(.system(size: 14, weight: .medium))
-                    }
-                    .foregroundColor(.primary)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-                    .background(
-                        Capsule()
-                            .fill(Color.primary.opacity(0.1))
-                    )
+                    Image("icon-more")
+                        .renderingMode(.template)
+                        .frame(width: 10, height: 10)
+                        .foregroundColor(.primary)
+                        .frame(width: 33, height: 33)
+                        .background(
+                            Circle()
+                                .fill(Color.primary.opacity(0.1))
+                        )
                 }
             }
             .padding(.top, 16)
@@ -541,6 +606,10 @@ struct EditReadingListView: View {
     @State private var title: String = ""
     @State private var listDescription: String = ""
     @State private var showDeleteAlert = false
+    @State private var showExportSheet = false
+    @State private var showExporter = false
+    @State private var exportDocument: MarkdownDocument = MarkdownDocument(text: "")
+    @State private var exportFileName: String = ""
     
     // 元の値を保存（変更検知用）
     @State private var originalTitle: String = ""
@@ -561,6 +630,22 @@ struct EditReadingListView: View {
                 Section {
                     TextField("説明（任意）", text: $listDescription, axis: .vertical)
                         .lineLimit(3...6)
+                }
+                
+                Section {
+                    Button(action: {
+                        showExportSheet = true
+                    }) {
+                        HStack(spacing: 8) {
+                            Spacer()
+                            Image("icon-download")
+                                .renderingMode(.template)
+                            Text("リストデータをダウンロードする")
+                            Spacer()
+                        }
+                        .font(.system(size: 15))
+                        .foregroundColor(.primary)
+                    }
                 }
                 
                 Section {
@@ -607,7 +692,64 @@ struct EditReadingListView: View {
             } message: {
                 Text("「\(readingList.title)」を削除しますか？\nリストに含まれる本は削除されません。")
             }
+            .sheet(isPresented: $showExportSheet) {
+                ExportSheetView(
+                    title: readingList.title,
+                    bookCount: readingList.books.count,
+                    totalValue: readingList.books.reduce(0) { $0 + ($1.priceAtRegistration ?? 0) },
+                    sampleBooks: readingList.books.prefix(4).map { book in
+                        if let author = book.author, !author.isEmpty {
+                            return "\(book.title) / \(author)"
+                        } else {
+                            return book.title
+                        }
+                    },
+                    sampleDetailedBook: readingList.books.first.map { book in
+                        (
+                            title: book.title,
+                            author: book.author,
+                            price: book.priceAtRegistration,
+                            publisher: book.publisher,
+                            date: formatExportDate(book.registeredAt),
+                            isbn: book.isbn
+                        )
+                    },
+                    onExportTitleOnly: {
+                        showExportSheet = false
+                        prepareExport()
+                    },
+                    onExportDetailed: {
+                        // Pro機能（将来実装）
+                    }
+                )
+            }
+            .fileExporter(
+                isPresented: $showExporter,
+                document: exportDocument,
+                contentType: .plainText,
+                defaultFilename: exportFileName
+            ) { result in
+                switch result {
+                case .success:
+                    print("✅ Export succeeded")
+                case .failure(let error):
+                    print("❌ Export failed: \(error)")
+                }
+            }
         }
+    }
+    
+    private func prepareExport() {
+        let markdown = generateReadingListMarkdown(readingList: readingList, exportType: .titleOnly)
+        exportDocument = MarkdownDocument(text: markdown)
+        exportFileName = "\(readingList.title).md"
+        showExporter = true
+    }
+    
+    private func formatExportDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy.MM.dd"
+        return formatter.string(from: date)
     }
     
     private func saveChanges() {
@@ -1055,4 +1197,91 @@ struct ReorderBooksView: View {
         ReadingListDetailView(readingList: list)
     }
     .modelContainer(container)
+}
+
+// MARK: - More Actions Sheet
+
+/// その他アクションのボトムシート
+struct MoreActionsSheet: View {
+    let title: String
+    let onShare: () -> Void
+    let onDownload: () -> Void
+    let onReorder: () -> Void
+    let onEdit: () -> Void
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            // シェア
+            Button(action: onShare) {
+                HStack(spacing: 12) {
+                    Image(systemName: "square.and.arrow.up")
+                        .font(.system(size: 18))
+                        .frame(width: 24)
+                    Text("「\(title)」をシェア")
+                        .font(.system(size: 16))
+                    Spacer()
+                }
+                .foregroundColor(.primary)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 16)
+            }
+            
+            Divider()
+                .padding(.leading, 56)
+            
+            // ダウンロード
+            Button(action: onDownload) {
+                HStack(spacing: 12) {
+                    Image("icon-download")
+                        .renderingMode(.template)
+                        .frame(width: 24)
+                    Text("ダウンロード")
+                        .font(.system(size: 16))
+                    Spacer()
+                }
+                .foregroundColor(.primary)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 16)
+            }
+            
+            Divider()
+                .padding(.leading, 56)
+            
+            // 並べ替え
+            Button(action: onReorder) {
+                HStack(spacing: 12) {
+                    Image(systemName: "line.3.horizontal")
+                        .font(.system(size: 18))
+                        .frame(width: 24)
+                    Text("並べ替え")
+                        .font(.system(size: 16))
+                    Spacer()
+                }
+                .foregroundColor(.primary)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 16)
+            }
+            
+            Divider()
+                .padding(.leading, 56)
+            
+            // 名前と詳細の編集
+            Button(action: onEdit) {
+                HStack(spacing: 12) {
+                    Image(systemName: "pencil")
+                        .font(.system(size: 18))
+                        .frame(width: 24)
+                    Text("名前と詳細の編集")
+                        .font(.system(size: 16))
+                    Spacer()
+                }
+                .foregroundColor(.primary)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 16)
+            }
+            
+            Spacer()
+        }
+        .padding(.top, 20)
+    }
 }
