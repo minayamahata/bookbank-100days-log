@@ -12,30 +12,67 @@ import SwiftData
 struct BookCoverView: View {
     let book: UserBook
     
+    /// メモがあるかどうか
+    private var hasMemo: Bool {
+        if let memo = book.memo, !memo.isEmpty {
+            return true
+        }
+        return false
+    }
+    
     var body: some View {
         GeometryReader { geometry in
-            if let imageURL = book.imageURL,
-               let url = URL(string: imageURL) {
-                AsyncImage(url: url) { phase in
-                    switch phase {
-                    case .success(let image):
-                        image
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                            .frame(width: geometry.size.width, height: geometry.size.width * 1.5)
-                            .clipped()
-                    case .failure(_):
-                        placeholderView(width: geometry.size.width)
-                    case .empty:
-                        ProgressView()
-                            .frame(width: geometry.size.width, height: geometry.size.width * 1.5)
-                            .background(Color.gray.opacity(0.1))
-                    @unknown default:
-                        placeholderView(width: geometry.size.width)
+            ZStack(alignment: .bottomTrailing) {
+                // 本の表紙
+                if let imageURL = book.imageURL,
+                   let url = URL(string: imageURL) {
+                    AsyncImage(url: url) { phase in
+                        switch phase {
+                        case .success(let image):
+                            image
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                                .frame(width: geometry.size.width, height: geometry.size.width * 1.5)
+                                .clipped()
+                        case .failure(_):
+                            placeholderView(width: geometry.size.width)
+                        case .empty:
+                            ProgressView()
+                                .frame(width: geometry.size.width, height: geometry.size.width * 1.5)
+                                .background(Color.gray.opacity(0.1))
+                        @unknown default:
+                            placeholderView(width: geometry.size.width)
+                        }
                     }
+                } else {
+                    placeholderView(width: geometry.size.width)
                 }
-            } else {
-                placeholderView(width: geometry.size.width)
+                
+                // アイコンバッジ（お気に入り・メモ）
+                if book.isFavorite || hasMemo {
+                    HStack(spacing: 2) {
+                        if hasMemo {
+                            Image(systemName: "note.text")
+                                .font(.system(size: 10))
+                                .foregroundColor(.white)
+                        }
+                        if book.isFavorite {
+                            Image("icon-favorite")
+                                .renderingMode(.template)
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 10, height: 10)
+                                .foregroundColor(.white)
+                        }
+                    }
+                    .padding(.horizontal, 4)
+                    .padding(.vertical, 3)
+                    .background(
+                        Capsule()
+                            .fill(Color.black.opacity(0.6))
+                    )
+                    .padding(4)
+                }
             }
         }
         .aspectRatio(2/3, contentMode: .fit)

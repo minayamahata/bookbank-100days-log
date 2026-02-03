@@ -181,17 +181,17 @@ struct PassbookDetailView: View {
                                     image
                                         .resizable()
                                         .aspectRatio(contentMode: .fill)
-                                        .frame(width: 50, height: 70)
+                                        .frame(width: 50, height: 75)
                                         .clipShape(RoundedRectangle(cornerRadius: 2))
                                 } placeholder: {
                                     RoundedRectangle(cornerRadius: 2)
                                         .fill(Color.gray.opacity(0.2))
-                                        .frame(width: 50, height: 70)
+                                        .frame(width: 50, height: 75)
                                 }
                             } else {
                                 RoundedRectangle(cornerRadius: 2)
                                     .fill(Color.gray.opacity(0.2))
-                                    .frame(width: 50, height: 70)
+                                    .frame(width: 50, height: 75)
                                     .overlay {
                                         Image(systemName: "book.closed")
                                             .font(.caption)
@@ -232,7 +232,7 @@ struct PassbookDetailView: View {
                                 .font(.caption2)
                                 .foregroundColor(.secondary)
                         }
-                        .padding(.horizontal, 16)
+                        .padding(.horizontal, 24)
                         .padding(.vertical, 8)
                     }
                     .buttonStyle(.plain)

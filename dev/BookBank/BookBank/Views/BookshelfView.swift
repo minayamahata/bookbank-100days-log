@@ -24,28 +24,31 @@ struct BookshelfView: View {
     /// この口座に紐づく書籍を取得
     @Query private var allUserBooks: [UserBook]
     
+    // MARK: - State
+    
+    /// お気に入りフィルター
+    @State private var showFavoritesOnly = false
+    
+    /// メモありフィルター
+    @State private var showWithMemoOnly = false
+    
     /// この口座に紐づく書籍のみをフィルタリング
     private var userBooks: [UserBook] {
-        allUserBooks.filter { book in
+        var books = allUserBooks.filter { book in
             book.passbook?.persistentModelID == passbook.persistentModelID
         }
-    }
-    
-    /// 合計金額
-    private var totalValue: Int {
-        passbook.totalValue
-    }
-    
-    /// 今日の日付文字列
-    private var todayString: String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy.MM.dd"
-        return formatter.string(from: Date())
-    }
-
-    /// 登録書籍数
-    private var bookCount: Int {
-        passbook.bookCount
+        
+        // お気に入りフィルター
+        if showFavoritesOnly {
+            books = books.filter { $0.isFavorite }
+        }
+        
+        // メモありフィルター
+        if showWithMemoOnly {
+            books = books.filter { $0.memo != nil && !($0.memo?.isEmpty ?? true) }
+        }
+        
+        return books
     }
     
     /// カスタム口座のリスト
@@ -80,77 +83,70 @@ struct BookshelfView: View {
         GeometryReader { geometry in
             ScrollView {
                 VStack(spacing: 0) {
-                    // 口座情報セクション
-                    accountInfoSection
+                    // フィルターセクション
+                    filterSection
                     
-                    // コンテンツカード
-                    VStack(spacing: 0) {
-                        // ヘッダー
-                        HStack {
-                            Text("本棚")
-                                .font(.footnote)
-                                .foregroundColor(.secondary)
-                            
-                            Spacer()
-                        }
-                        .padding(.horizontal)
-                        .padding(.top, 28)
-                        .padding(.bottom, 12)
-                        
-                        // 本棚グリッド
-                        gridContent
-                    }
-                    .frame(minHeight: geometry.size.height)
-                    .background(Color(.systemBackground))
-                    .clipShape(
-                        UnevenRoundedRectangle(
-                            topLeadingRadius: 40,
-                            bottomLeadingRadius: 0,
-                            bottomTrailingRadius: 0,
-                            topTrailingRadius: 40
-                        )
-                    )
+                    // 本棚グリッド
+                    gridContent
                 }
             }
         }
         .id(passbook.persistentModelID) // 口座が変わったら強制的にViewを再生成
-        .background(
-            VStack(spacing: 0) {
-                themeColor.opacity(0.1)
-                Color(.systemBackground)
-            }
-            .ignoresSafeArea()
-        )
+        .background(themeColor.opacity(0.1).ignoresSafeArea())
         .navigationTitle("本棚")
         .navigationBarTitleDisplayMode(.inline)
     }
     
-    // MARK: - Account Info Section
+    // MARK: - Filter Section
     
-    private var accountInfoSection: some View {
-        VStack(spacing: 8) {
-            Text("\(todayString) 時点")
-                .font(.footnote)
-                .foregroundColor(.secondary)
-                .frame(maxWidth: .infinity, alignment: .trailing)
-                .padding(.horizontal)
-                .padding(.bottom, 32)
-
-            HStack(alignment: .lastTextBaseline, spacing: 2) {
-                Text("\(totalValue.formatted())")
-                    .font(.system(size: 32))
-                Text("円")
-                    .font(.system(size: 18))
+    private var filterSection: some View {
+        HStack(spacing: 8) {
+            // お気に入りフィルター
+            Button(action: {
+                showFavoritesOnly.toggle()
+            }) {
+                HStack(spacing: 6) {
+                    Image("icon-favorite")
+                        .renderingMode(.template)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 14, height: 14)
+                    Text("お気に入り")
+                        .font(.system(size: 14, weight: .medium))
+                }
+                .foregroundColor(showFavoritesOnly ? .white : .primary)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background(
+                    Capsule()
+                        .fill(showFavoritesOnly ? themeColor : Color.primary.opacity(0.1))
+                )
             }
-            .foregroundColor(themeColor)
-
-            Text("登録書籍: \(bookCount)冊")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
+            
+            // メモありフィルター
+            Button(action: {
+                showWithMemoOnly.toggle()
+            }) {
+                HStack(spacing: 6) {
+                    Image(systemName: showWithMemoOnly ? "note.text" : "note.text")
+                        .font(.system(size: 14, weight: .medium))
+                    Text("メモあり")
+                        .font(.system(size: 14, weight: .medium))
+                }
+                .foregroundColor(showWithMemoOnly ? .white : .primary)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background(
+                    Capsule()
+                        .fill(showWithMemoOnly ? themeColor : Color.primary.opacity(0.1))
+                )
+            }
+            
+            Spacer()
         }
-        .frame(maxWidth: .infinity)
-        .padding(.top, 8)
-        .padding(.bottom, 60)
+        .padding(.horizontal, 24)
+        .padding(.top, 16)
+        .padding(.bottom, 16)
     }
     
     // MARK: - Grid Content
@@ -182,7 +178,7 @@ struct BookshelfView: View {
                         .buttonStyle(.plain)
                     }
                 }
-                .padding(.horizontal, 16)
+                .padding(.horizontal, 24)
             }
         }
         .padding(.bottom, 100)

@@ -248,13 +248,13 @@ struct BookSelectorView: View {
                             .fill(Color.gray.opacity(0.2))
                     }
                     .frame(width: 50, height: 75)
-                    .clipShape(RoundedRectangle(cornerRadius: 4))
+                    .clipShape(RoundedRectangle(cornerRadius: 2))
                     .id(imageURL)
                 } else {
                     Rectangle()
                         .fill(Color.gray.opacity(0.2))
                         .frame(width: 50, height: 75)
-                        .clipShape(RoundedRectangle(cornerRadius: 4))
+                        .clipShape(RoundedRectangle(cornerRadius: 2))
                         .overlay {
                             Image(systemName: "book.closed")
                                 .font(.caption)
@@ -299,7 +299,7 @@ struct BookSelectorView: View {
                         .frame(width: 20, height: 20)
                 }
             }
-            .padding(.horizontal, 16)
+            .padding(.horizontal, 24)
             .padding(.vertical, 8)
             .contentShape(Rectangle())
             .opacity(isAlreadyInList ? 0.5 : 1.0)

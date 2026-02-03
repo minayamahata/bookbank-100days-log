@@ -56,11 +56,21 @@ struct ReadingListDetailView: View {
                             listContent
                             
                             // スクロール最下部の余白（背景色を継続）
-                            Color.appCardBackground
+                            Color(UIColor { traits in
+                                traits.userInterfaceStyle == .dark
+                                    ? UIColor.black  // ダーク: 黒
+                                    : .systemBackground  // ライト: 白
+                            })
                                 .frame(height: 100)
                         }
                         .frame(minHeight: geometry.size.height + 100)
-                        .background(Color.appCardBackground)
+                        .background(
+                            Color(UIColor { traits in
+                                traits.userInterfaceStyle == .dark
+                                    ? UIColor.black  // ダーク: 黒
+                                    : .systemBackground  // ライト: 白
+                            })
+                        )
                         .clipShape(
                             UnevenRoundedRectangle(
                                 topLeadingRadius: 40,
@@ -72,7 +82,25 @@ struct ReadingListDetailView: View {
                     }
                 }
             }
-            .background(Color.appGroupedBackground.ignoresSafeArea())
+            .background(
+                VStack(spacing: 0) {
+                    // 上部: ダークグレー（棚板エリア）- 高さを制限
+                    Color(UIColor { traits in
+                        traits.userInterfaceStyle == .dark
+                            ? UIColor(red: 26/255.0, green: 26/255.0, blue: 26/255.0, alpha: 1)  // #1A1A1A ダークグレー（棚板のシャドウ用）
+                            : .systemGroupedBackground
+                    })
+                    .frame(height: 600)  // 棚板エリアの高さに合わせる
+                    
+                    // 下部: リストビューと同じ色（スクロール時に浮いて見えないように）
+                    Color(UIColor { traits in
+                        traits.userInterfaceStyle == .dark
+                            ? UIColor.black  // ダーク: 黒
+                            : .systemBackground  // ライト: 白
+                    })
+                }
+                .ignoresSafeArea()
+            )
             .animation(nil, value: showBookCarousel)
             
             // カルーセルオーバーレイ
@@ -233,7 +261,7 @@ struct ReadingListDetailView: View {
             let cellWidth = (availableWidth - spacing * 4) / 5
             let cellHeight = cellWidth * 1.5
             
-            VStack(spacing: 8) {
+            VStack(spacing: 16) {
                 ForEach(0..<totalRows, id: \.self) { row in
                     // 奥行き係数: 0.0（最上段）〜 1.0（最下段）
                     let depth = CGFloat(row) / CGFloat(max(totalRows - 1, 1))
@@ -246,31 +274,57 @@ struct ReadingListDetailView: View {
                     
                     VStack(spacing: 0) {
                         // 本の行
-                        HStack(spacing: spacing) {
-                            ForEach(0..<5, id: \.self) { col in
-                                let index = row * 5 + col
-                                if index < books.count, let imageURL = books[index].imageURL {
-                                    AsyncImage(url: URL(string: imageURL)) { phase in
-                                        switch phase {
-                                        case .success(let image):
-                                            image
-                                                .resizable()
-                                                .aspectRatio(contentMode: .fill)
-                                        default:
-                                            Rectangle()
-                                                .fill(Color.secondary.opacity(0.15))
+                        // 下段（row == 1）はセンタリング
+                        if row == 1 {
+                            HStack(spacing: spacing) {
+                                ForEach(5..<min(10, books.count), id: \.self) { index in
+                                    if let imageURL = books[index].imageURL {
+                                        AsyncImage(url: URL(string: imageURL)) { phase in
+                                            switch phase {
+                                            case .success(let image):
+                                                image
+                                                    .resizable()
+                                                    .aspectRatio(contentMode: .fill)
+                                            default:
+                                                Rectangle()
+                                                    .fill(Color.secondary.opacity(0.15))
+                                            }
                                         }
-                                    }
-                                    .frame(width: cellWidth, height: cellHeight)
-                                    .clipShape(RoundedRectangle(cornerRadius: 2))
-                                    .shadow(color: .black.opacity(0.1), radius: 1, x: 0, y: 1)
-                                } else {
-                                    Color.clear
                                         .frame(width: cellWidth, height: cellHeight)
+                                        .clipShape(RoundedRectangle(cornerRadius: 2))
+                                        .shadow(color: .black.opacity(0.1), radius: 1, x: 0, y: 1)
+                                    }
                                 }
                             }
+                            .frame(maxWidth: .infinity)
+                        } else {
+                            // 上段は従来通り
+                            HStack(spacing: spacing) {
+                                ForEach(0..<5, id: \.self) { col in
+                                    let index = col
+                                    if index < books.count, let imageURL = books[index].imageURL {
+                                        AsyncImage(url: URL(string: imageURL)) { phase in
+                                            switch phase {
+                                            case .success(let image):
+                                                image
+                                                    .resizable()
+                                                    .aspectRatio(contentMode: .fill)
+                                            default:
+                                                Rectangle()
+                                                    .fill(Color.secondary.opacity(0.15))
+                                            }
+                                        }
+                                        .frame(width: cellWidth, height: cellHeight)
+                                        .clipShape(RoundedRectangle(cornerRadius: 2))
+                                        .shadow(color: .black.opacity(0.1), radius: 1, x: 0, y: 1)
+                                    } else {
+                                        Color.clear
+                                            .frame(width: cellWidth, height: cellHeight)
+                                    }
+                                }
+                            }
+                            .padding(.horizontal, sideMargin)
                         }
-                        .padding(.horizontal, sideMargin)
                         
                         // 棚板（奥行き表現）
                         VStack(spacing: 0) {
@@ -278,7 +332,7 @@ struct ReadingListDetailView: View {
                             Rectangle()
                                 .fill(Color(UIColor { traits in
                                     traits.userInterfaceStyle == .dark
-                                        ? UIColor.white  // ダーク: 白
+                                        ? UIColor.black  // ダーク: 黒
                                         : UIColor.white  // ライト: 白
                                 }))
                                 .frame(height: shelfHeight)
@@ -287,7 +341,7 @@ struct ReadingListDetailView: View {
                             Rectangle()
                                 .fill(Color(UIColor { traits in
                                     traits.userInterfaceStyle == .dark
-                                        ? UIColor(white: 0.85, alpha: 1)  // ダーク: 薄いグレー
+                                        ? UIColor(white: 0.15, alpha: 1)  // ダーク: 濃いグレー（黒に近い）
                                         : UIColor(white: 0.92, alpha: 1)  // ライト: 薄いグレー
                                 }))
                                 .frame(height: shelfThickness)
@@ -295,7 +349,7 @@ struct ReadingListDetailView: View {
                         .shadow(
                             color: Color(UIColor { traits in
                                 traits.userInterfaceStyle == .dark
-                                    ? UIColor.white.withAlphaComponent(0.15)  // ダーク: 白いシャドウ
+                                    ? UIColor.black.withAlphaComponent(0.3)  // ダーク: 黒いシャドウ
                                     : UIColor.black.withAlphaComponent(shadowOpacity)  // ライト: 黒いシャドウ
                             }),
                             radius: 6,
@@ -355,13 +409,13 @@ struct ReadingListDetailView: View {
                         .fill(Color.gray.opacity(0.2))
                 }
                 .frame(width: 50, height: 75)
-                .clipShape(RoundedRectangle(cornerRadius: 4))
+                .clipShape(RoundedRectangle(cornerRadius: 2))
                 .id(imageURL)
             } else {
                 Rectangle()
                     .fill(Color.gray.opacity(0.2))
                     .frame(width: 50, height: 75)
-                    .clipShape(RoundedRectangle(cornerRadius: 4))
+                    .clipShape(RoundedRectangle(cornerRadius: 2))
                     .overlay {
                         Image(systemName: "book.closed")
                             .font(.caption)
@@ -488,6 +542,15 @@ struct EditReadingListView: View {
     @State private var listDescription: String = ""
     @State private var showDeleteAlert = false
     
+    // 元の値を保存（変更検知用）
+    @State private var originalTitle: String = ""
+    @State private var originalDescription: String = ""
+    
+    /// 変更があるかどうか
+    private var hasChanges: Bool {
+        title != originalTitle || listDescription != originalDescription
+    }
+    
     var body: some View {
         NavigationStack {
             Form {
@@ -519,18 +582,22 @@ struct EditReadingListView: View {
                     Button("キャンセル") {
                         dismiss()
                     }
+                    .foregroundColor(.primary)
                 }
                 
                 ToolbarItem(placement: .confirmationAction) {
                     Button("保存") {
                         saveChanges()
                     }
-                    .disabled(title.isEmpty)
+                    .disabled(title.isEmpty || !hasChanges)
+                    .foregroundColor(hasChanges && !title.isEmpty ? .blue : .primary.opacity(0.4))
                 }
             }
             .onAppear {
                 title = readingList.title
                 listDescription = readingList.listDescription ?? ""
+                originalTitle = readingList.title
+                originalDescription = readingList.listDescription ?? ""
             }
             .alert("リストを削除", isPresented: $showDeleteAlert) {
                 Button("キャンセル", role: .cancel) {}
@@ -711,8 +778,8 @@ struct BookCarouselView: View {
                         bookPlaceholder
                     }
                 }
-                .frame(width: 140, height: 200)
-                .clipShape(RoundedRectangle(cornerRadius: 4))
+                .frame(width: 140, height: 210)
+                .clipShape(RoundedRectangle(cornerRadius: 2))
                 .shadow(color: Color.primary.opacity(0.2), radius: 20, x: 0, y: 10)
             } else {
                 bookPlaceholder
@@ -772,7 +839,7 @@ struct BookCarouselView: View {
         Rectangle()
             .fill(Color.secondary.opacity(0.2))
             .frame(width: 200, height: 300)
-            .clipShape(RoundedRectangle(cornerRadius: 4))
+            .clipShape(RoundedRectangle(cornerRadius: 2))
             .overlay {
                 Image(systemName: "book.closed")
                     .font(.largeTitle)

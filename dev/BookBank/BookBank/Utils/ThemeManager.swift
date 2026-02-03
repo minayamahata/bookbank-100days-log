@@ -11,10 +11,10 @@ import UIKit
 // MARK: - カスタム背景色（ダークモード時に純粋な黒を使用）
 
 extension Color {
-    /// ページ背景色（ライト: #F2F2F7, ダーク: #000000）
+    /// ページ背景色（ライト: #F2F2F7, ダーク: #000000 黒）
     static let appGroupedBackground = Color(UIColor { traits in
         traits.userInterfaceStyle == .dark
-            ? UIColor(red: 0, green: 0, blue: 0, alpha: 1)  // #000000
+            ? UIColor(red: 0, green: 0, blue: 0, alpha: 1)  // #000000 黒
             : .systemGroupedBackground
     })
 

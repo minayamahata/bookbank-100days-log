@@ -110,15 +110,10 @@ struct UserBookDetailView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .offset(y: 20)
             } else {
-                VStack {
-                    Image(systemName: "book.closed")
-                        .font(.system(size: 30))
-                        .foregroundColor(.secondary)
-                    Text("画像なし")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                Text("画像なし")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
 
         }

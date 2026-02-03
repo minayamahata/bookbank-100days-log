@@ -699,20 +699,20 @@ struct BookSearchResultRow: View {
                         .resizable()
                         .aspectRatio(contentMode: .fit)
                 } placeholder: {
-                    RoundedRectangle(cornerRadius: 4)
+                    RoundedRectangle(cornerRadius: 2)
                         .fill(Color.gray.opacity(0.2))
                         .overlay {
                             ProgressView()
                         }
                 }
-                .frame(width: 50, height: 70)
-                .cornerRadius(4)
+                .frame(width: 50, height: 75)
+                .cornerRadius(2)
                 .opacity(isRegistered ? 0.4 : 1.0)
             } else {
                 // 画像がない場合
-                RoundedRectangle(cornerRadius: 4)
+                RoundedRectangle(cornerRadius: 2)
                     .fill(Color.gray.opacity(0.2))
-                    .frame(width: 50, height: 70)
+                    .frame(width: 50, height: 75)
                     .overlay {
                         Image(systemName: "book")
                             .foregroundColor(.gray)
