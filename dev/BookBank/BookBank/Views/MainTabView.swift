@@ -24,6 +24,9 @@ struct MainTabView: View {
     /// 現在選択中のタブ
     @State private var selectedTab = 1  // デフォルトは通帳タブ
     
+    /// ビュー更新用のトリガー（タブ切り替え時に更新）
+    @State private var refreshTrigger = UUID()
+    
     // カスタム口座を取得
     private var customPassbooks: [Passbook] {
         passbooks.filter { $0.type == .custom && $0.isActive }
@@ -71,6 +74,7 @@ struct MainTabView: View {
                             emptyStateView
                         } else if let passbook = currentPassbook {
                             PassbookDetailView(passbook: passbook)
+                                .id("passbook-\(passbook.persistentModelID)-\(refreshTrigger)")
                                 .toolbar {
                                     ToolbarItem(placement: .topBarLeading) {
                                         passbookSwitcherButton
@@ -97,6 +101,7 @@ struct MainTabView: View {
                             emptyStateView
                         } else if let passbook = currentPassbook {
                             BookshelfView(passbook: passbook)
+                                .id("bookshelf-\(passbook.persistentModelID)-\(refreshTrigger)")
                                 .toolbar {
                                     ToolbarItem(placement: .topBarLeading) {
                                         passbookSwitcherButton
@@ -123,6 +128,7 @@ struct MainTabView: View {
                             emptyStateView
                         } else {
                             StatisticsView(passbook: currentPassbook)
+                                .id("statistics-\(currentPassbook?.persistentModelID.hashValue ?? 0)-\(refreshTrigger)")
                                 .toolbar {
                                     ToolbarItem(placement: .topBarLeading) {
                                         passbookSwitcherButton
@@ -262,6 +268,10 @@ struct MainTabView: View {
             }
         }
         .animation(.easeInOut(duration: 0.25), value: showPassbookSelector)
+        .onChange(of: selectedTab) { _, _ in
+            // タブ切り替え時にビューを強制更新
+            refreshTrigger = UUID()
+        }
     }
     
     // MARK: - Subviews

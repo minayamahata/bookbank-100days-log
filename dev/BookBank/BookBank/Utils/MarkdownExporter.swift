@@ -30,7 +30,7 @@ struct MarkdownDocument: FileDocument {
 
 // MARK: - Export Type
 
-/// エクスポートの種類
+/// ダウンロードの種類
 enum ExportType {
     case titleOnly
     case detailed
@@ -40,7 +40,7 @@ enum ExportType {
 
 /// 口座のマークダウンを生成
 func generatePassbookMarkdown(passbook: Passbook, books: [UserBook], exportType: ExportType) -> String {
-    var markdown = "# 本棚エクスポート\n\n"
+    var markdown = "# 本棚ダウンロード\n\n"
     
     // 口座情報
     let totalValue = books.reduce(0) { $0 + ($1.priceAtRegistration ?? 0) }
@@ -49,7 +49,11 @@ func generatePassbookMarkdown(passbook: Passbook, books: [UserBook], exportType:
     // 本のリスト
     for book in books {
         if exportType == .detailed {
-            markdown += "### \(book.title)\n"
+            markdown += "### \(book.title)"
+            if book.isFavorite {
+                markdown += " ⭐️"
+            }
+            markdown += "\n"
             if let author = book.author, !author.isEmpty {
                 markdown += "- 著者: \(author)\n"
             }
@@ -62,6 +66,17 @@ func generatePassbookMarkdown(passbook: Passbook, books: [UserBook], exportType:
             markdown += "- 登録日: \(formatDate(book.registeredAt))\n"
             if let isbn = book.isbn, !isbn.isEmpty {
                 markdown += "- ISBN: \(isbn)\n"
+            }
+            if let imageURL = book.imageURL, !imageURL.isEmpty {
+                markdown += "- 表紙画像: \(imageURL)\n"
+            }
+            if let memo = book.memo, !memo.isEmpty {
+                markdown += "- メモ:\n"
+                // メモを引用ブロックとして整形
+                let memoLines = memo.components(separatedBy: .newlines)
+                for line in memoLines {
+                    markdown += "  > \(line)\n"
+                }
             }
             markdown += "\n"
         } else {
@@ -81,7 +96,7 @@ func generatePassbookMarkdown(passbook: Passbook, books: [UserBook], exportType:
 
 /// 読了リストのマークダウンを生成
 func generateReadingListMarkdown(readingList: ReadingList, exportType: ExportType) -> String {
-    var markdown = "# 読了リストエクスポート\n\n"
+    var markdown = "# 読了リストダウンロード\n\n"
     
     // リスト情報
     let books = readingList.books
@@ -95,7 +110,11 @@ func generateReadingListMarkdown(readingList: ReadingList, exportType: ExportTyp
     // 本のリスト
     for book in books {
         if exportType == .detailed {
-            markdown += "### \(book.title)\n"
+            markdown += "### \(book.title)"
+            if book.isFavorite {
+                markdown += " ⭐️"
+            }
+            markdown += "\n"
             if let author = book.author, !author.isEmpty {
                 markdown += "- 著者: \(author)\n"
             }
@@ -108,6 +127,17 @@ func generateReadingListMarkdown(readingList: ReadingList, exportType: ExportTyp
             markdown += "- 登録日: \(formatDate(book.registeredAt))\n"
             if let isbn = book.isbn, !isbn.isEmpty {
                 markdown += "- ISBN: \(isbn)\n"
+            }
+            if let imageURL = book.imageURL, !imageURL.isEmpty {
+                markdown += "- 表紙画像: \(imageURL)\n"
+            }
+            if let memo = book.memo, !memo.isEmpty {
+                markdown += "- メモ:\n"
+                // メモを引用ブロックとして整形
+                let memoLines = memo.components(separatedBy: .newlines)
+                for line in memoLines {
+                    markdown += "  > \(line)\n"
+                }
             }
             markdown += "\n"
         } else {
@@ -133,13 +163,13 @@ private func formatDate(_ date: Date) -> String {
 
 // MARK: - Export Sheet View
 
-/// エクスポート形式選択シート
+/// ダウンロード形式選択シート
 struct ExportSheetView: View {
     let title: String
     let bookCount: Int
     let totalValue: Int
     let sampleBooks: [String]  // 最初の数冊のタイトル
-    let sampleDetailedBook: (title: String, author: String?, price: Int?, publisher: String?, date: String, isbn: String?)?
+    let sampleDetailedBook: (title: String, author: String?, price: Int?, publisher: String?, date: String, isbn: String?, imageURL: String?, memo: String?, isFavorite: Bool)?
     let onExportTitleOnly: () -> Void
     let onExportDetailed: () -> Void
     
@@ -175,9 +205,9 @@ struct ExportSheetView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 40) {
-                    // タイトルのみプレビュー
+                    // タイトルと著者名のみプレビュー
                     VStack(alignment: .leading, spacing: 12) {
-                        Text("タイトルのみ")
+                        Text("タイトルと著者名のみ")
                             .font(.headline)
                         
                         // VSCode風コードブロック
@@ -189,7 +219,7 @@ struct ExportSheetView: View {
                                 Spacer()
                                 Image("icon-download")
                                     .renderingMode(.template)
-                                Text("タイトルのみでダウンロード")
+                                Text("タイトルと著者名のみでダウンロード")
                                 Spacer()
                             }
                             .font(.system(size: 15))
@@ -249,13 +279,13 @@ struct ExportSheetView: View {
                 .padding(.horizontal, 16)
                 .padding(.top, 8)
             }
-            .navigationTitle("エクスポート形式を選択")
+            .navigationTitle("ダウンロード形式を選択")
             .navigationBarTitleDisplayMode(.inline)
             .alert("Pro機能", isPresented: $showProAlert) {
                 Button("Pro機能を体験する") { }
                     .tint(Color(red: 34/255, green: 128/255, blue: 226/255))  // #2280e2
             } message: {
-                Text("詳細情報を含むエクスポートはPro版の機能です。")
+                Text("詳細情報を含むダウンロードはPro版の機能です。")
             }
         }
         .presentationDetents([.medium, .large])
@@ -332,10 +362,16 @@ struct ExportSheetView: View {
             Text("")
             
             if let book = sampleDetailedBook {
-                // 本のタイトル（h2）
-                Text("## \(book.title)")
-                    .font(.system(size: 11, design: .monospaced))
-                    .foregroundColor(headingColor)
+                // 本のタイトル（h2）+ お気に入りマーク
+                HStack(spacing: 0) {
+                    Text("## \(book.title)")
+                        .foregroundColor(headingColor)
+                    if book.isFavorite {
+                        Text(" ⭐️")
+                            .foregroundColor(textColor)
+                    }
+                }
+                .font(.system(size: 11, design: .monospaced))
                 
                 // プロパティ
                 if let author = book.author, !author.isEmpty {
@@ -350,6 +386,12 @@ struct ExportSheetView: View {
                 propertyLine(marker: "- ", key: "登録日: ", value: book.date)
                 if let isbn = book.isbn, !isbn.isEmpty {
                     propertyLine(marker: "- ", key: "ISBN: ", value: isbn)
+                }
+                if let imageURL = book.imageURL, !imageURL.isEmpty {
+                    propertyLine(marker: "- ", key: "表紙画像: ", value: imageURL)
+                }
+                if let memo = book.memo, !memo.isEmpty {
+                    propertyLine(marker: "- ", key: "メモ: ", value: memo)
                 }
                 
                 Text("")

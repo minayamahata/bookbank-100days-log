@@ -16,6 +16,7 @@ struct AccountListView: View {
     
     @State private var passbookToEdit: Passbook?
     @State private var showAddPassbook = false
+    @State private var showProAlert = false
     
     /// 口座選択時のコールバック
     var onPassbookSelected: ((Passbook) -> Void)?
@@ -157,7 +158,11 @@ struct AccountListView: View {
                 
                 // 新しい口座を追加ボタン
                 Button(action: {
-                    showAddPassbook = true
+                    if customPassbooks.count >= 3 {
+                        showProAlert = true
+                    } else {
+                        showAddPassbook = true
+                    }
                 }) {
                     HStack {
                         Image(systemName: "plus.circle.fill")
@@ -194,6 +199,11 @@ struct AccountListView: View {
         }
         .sheet(isPresented: $showAddPassbook) {
             AddPassbookView()
+        }
+        .confirmationDialog("Pro機能", isPresented: $showProAlert, titleVisibility: .visible) {
+            Button("Pro機能を体験する") { }
+        } message: {
+            Text("4つ以上の口座を作成するにはPro版が必要です。")
         }
     }
     

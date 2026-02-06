@@ -19,6 +19,7 @@ struct PassbookSelectorView: View {
     
     @State private var passbookToEdit: Passbook?
     @State private var showAddPassbook = false
+    @State private var showProAlert = false
     
     // カスタム口座を取得
     private var customPassbooks: [Passbook] {
@@ -57,7 +58,11 @@ struct PassbookSelectorView: View {
                 Divider()
                 
                 Button(action: {
-                    showAddPassbook = true
+                    if customPassbooks.count >= 3 {
+                        showProAlert = true
+                    } else {
+                        showAddPassbook = true
+                    }
                 }) {
                     HStack {
                         Image(systemName: "plus")
@@ -81,6 +86,11 @@ struct PassbookSelectorView: View {
         }
         .sheet(isPresented: $showAddPassbook) {
             AddPassbookView()
+        }
+        .confirmationDialog("Pro機能", isPresented: $showProAlert, titleVisibility: .visible) {
+            Button("Pro機能を体験する") { }
+        } message: {
+            Text("4つ以上の口座を作成するにはPro版が必要です。")
         }
     }
     
@@ -381,7 +391,10 @@ struct EditPassbookView: View {
                             price: book.priceAtRegistration,
                             publisher: book.publisher,
                             date: formatExportDate(book.registeredAt),
-                            isbn: book.isbn
+                            isbn: book.isbn,
+                            imageURL: book.imageURL,
+                            memo: book.memo,
+                            isFavorite: book.isFavorite
                         )
                     },
                     onExportTitleOnly: {

@@ -95,6 +95,16 @@ struct StatisticsView: View {
     private var totalMemoCharacterCount: Int {
         targetBooks.compactMap { $0.memo }.reduce(0) { $0 + $1.count }
     }
+    
+    /// メモを書いた本の数（口座全体）
+    private var totalMemoCount: Int {
+        targetBooks.filter { $0.memo != nil && !($0.memo?.isEmpty ?? true) }.count
+    }
+    
+    /// お気に入りの総数（口座全体）
+    private var totalFavoriteCount: Int {
+        targetBooks.filter { $0.isFavorite }.count
+    }
 
     // MARK: - Body
     
@@ -144,6 +154,22 @@ struct StatisticsView: View {
                                     .foregroundColor(.secondary)
                                 Spacer()
                                 Text("\(totalBookCount)冊")
+                                    .font(.subheadline)
+                            }
+                            HStack {
+                                Text("お気に入り")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                Spacer()
+                                Text("\(totalFavoriteCount)冊")
+                                    .font(.subheadline)
+                            }
+                            HStack {
+                                Text("メモ数")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                Spacer()
+                                Text("\(totalMemoCount)冊")
                                     .font(.subheadline)
                             }
                             HStack {

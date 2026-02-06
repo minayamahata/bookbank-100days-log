@@ -108,6 +108,12 @@ struct BookSearchView: View {
     /// ISBN検索中フラグ
     @State private var isSearchingByISBN: Bool = false
     
+    /// フィルタリング・ソート済みの検索結果（キャッシュ）
+    @State private var filteredResults: [RakutenBook] = []
+    
+    /// 登録済みISBNのキャッシュ（高速化用）
+    @State private var registeredISBNs: Set<String> = []
+    
     /// 楽天Books APIサービス
     private let rakutenService = RakutenBooksService()
     
@@ -119,10 +125,15 @@ struct BookSearchView: View {
         _selectedPassbook = State(initialValue: passbook)
     }
     
-    // MARK: - Computed Properties
+    // MARK: - Cache Update
     
-    /// フィルタリング・ソート済みの検索結果
-    private var filteredSearchResults: [RakutenBook] {
+    /// 登録済みISBNキャッシュを更新
+    private func updateRegisteredISBNsCache() {
+        registeredISBNs = Set(allUserBooks.compactMap { $0.isbn }.filter { !$0.isEmpty })
+    }
+    
+    /// フィルタリング・ソート済みの検索結果を更新
+    private func updateFilteredResults() {
         var results = showUnregisteredOnly
             ? searchResults.filter { !isBookRegistered($0) }
             : searchResults
@@ -152,7 +163,7 @@ struct BookSearchView: View {
             }
         }
 
-        return results
+        filteredResults = results
     }
 
     /// salesDateの文字列をDateに変換
@@ -291,22 +302,25 @@ struct BookSearchView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .padding()
-            } else if !filteredSearchResults.isEmpty {
+            } else if !filteredResults.isEmpty {
                 // 検索結果の表示
                 List {
                     // フィルター・口座選択・並べ替えオプション（1列）
                     HStack {
-                        // 未登録のみ
+                        // 登録済みを除外
                         Toggle(isOn: $showUnregisteredOnly) {
                             HStack(spacing: 4) {
                                 Image(systemName: showUnregisteredOnly ? "checkmark.square.fill" : "square")
                                     .foregroundColor(showUnregisteredOnly ? .blue : .secondary)
-                                Text("未登録のみ")
+                                Text("登録済みを除外")
                                     .font(.system(size: 13))
                             }
                         }
                         .toggleStyle(.button)
                         .buttonStyle(.plain)
+                        .onChange(of: showUnregisteredOnly) {
+                            updateFilteredResults()
+                        }
 
                         Spacer()
                         
@@ -354,6 +368,7 @@ struct BookSearchView: View {
                             ForEach(SortOption.allCases, id: \.self) { option in
                                 Button(action: {
                                     selectedSortOption = option
+                                    updateFilteredResults()
                                 }) {
                                     if selectedSortOption == option {
                                         Label(option.rawValue, systemImage: "checkmark")
@@ -380,8 +395,9 @@ struct BookSearchView: View {
                     }
                     .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
                     .listRowBackground(Color.appGroupedBackground)
+                    .listRowSeparator(.hidden)
                     
-                    ForEach(filteredSearchResults) { result in
+                    ForEach(filteredResults) { result in
                         let isAlreadyRegistered = isBookRegistered(result)
                         
                         Button(action: {
@@ -392,22 +408,30 @@ struct BookSearchView: View {
                             BookSearchResultRow(result: result, isRegistered: isAlreadyRegistered, themeColor: themeColor)
                         }
                         .disabled(isAlreadyRegistered)
-                        .onAppear {
-                            // 最後の要素が表示されたら次のページを読み込む
-                            if result.id == filteredSearchResults.last?.id && canLoadMore && !isLoadingMore {
-                                loadMoreResults()
-                            }
-                        }
+                        .listRowSeparator(.hidden)
+                        .listRowInsets(EdgeInsets(top: 8, leading: 24, bottom: 8, trailing: 24))
                     }
                     
-                    // 追加読み込み中のインジケーター
-                    if isLoadingMore {
-                        HStack {
-                            Spacer()
-                            ProgressView()
-                                .padding()
-                            Spacer()
+                    // リストの最後に「次の30件」ボタン
+                    if canLoadMore {
+                        Button(action: {
+                            loadMoreResults()
+                        }) {
+                            HStack {
+                                if isLoadingMore {
+                                    ProgressView()
+                                        .padding(.trailing, 8)
+                                }
+                                Text(isLoadingMore ? "読み込み中..." : "次の30件を読み込む")
+                            }
+                            .frame(maxWidth: .infinity)
+                            .font(.subheadline)
+                            .foregroundColor(.blue)
+                            .padding(.vertical, 12)
                         }
+                        .disabled(isLoadingMore)
+                        .listRowSeparator(.hidden)
+                        .listRowInsets(EdgeInsets(top: 8, leading: 24, bottom: 8, trailing: 24))
                     }
                 }
                 .listStyle(.plain)
@@ -446,7 +470,7 @@ struct BookSearchView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .padding()
-            } else if hasSearched && !searchResults.isEmpty && filteredSearchResults.isEmpty {
+            } else if hasSearched && !searchResults.isEmpty && filteredResults.isEmpty {
                 // フィルター適用後に0件
                 VStack(spacing: 16) {
                     Image(systemName: "checkmark.circle")
@@ -535,6 +559,10 @@ struct BookSearchView: View {
         currentPage = 1
         canLoadMore = true
         searchResults = []
+        filteredResults = []
+        
+        // 検索前にキャッシュを更新
+        updateRegisteredISBNsCache()
         
         Task {
             do {
@@ -542,10 +570,12 @@ struct BookSearchView: View {
                 let results = try await rakutenService.search(searchText, page: 1)
                 searchResults = results
                 canLoadMore = results.count >= 30
+                updateFilteredResults()
                 isSearching = false
             } catch {
                 errorMessage = error.localizedDescription
                 searchResults = []
+                filteredResults = []
                 isSearching = false
                 print("検索エラー: \(error)")
             }
@@ -569,6 +599,7 @@ struct BookSearchView: View {
                 
                 searchResults.append(contentsOf: newResults)
                 canLoadMore = results.count >= 30
+                updateFilteredResults()
                 isLoadingMore = false
             } catch {
                 print("追加読み込みエラー: \(error)")
@@ -587,6 +618,12 @@ struct BookSearchView: View {
         
         do {
             try context.save()
+            
+            // キャッシュを更新
+            if !result.isbn.isEmpty {
+                registeredISBNs.insert(result.isbn)
+            }
+            updateFilteredResults()
             
             // トースト通知を表示（画面は閉じない）
             toastAmount = result.itemPrice
@@ -608,13 +645,11 @@ struct BookSearchView: View {
     
     /// 本が既に登録済みかチェック（全口座を対象）
     private func isBookRegistered(_ book: RakutenBook) -> Bool {
-        // 全口座の本をチェック（重複登録を防ぐ）
-        
-        // ISBNで判定
+        // ISBNで判定（キャッシュを使用して高速化）
         if !book.isbn.isEmpty {
-            return allUserBooks.contains { $0.isbn == book.isbn }
+            return registeredISBNs.contains(book.isbn)
         }
-        // ISBNがない場合はタイトルと著者で判定
+        // ISBNがない場合のみ従来のループ（稀なケース）
         return allUserBooks.contains { userBook in
             userBook.title == book.title && userBook.author == book.author
         }
@@ -627,7 +662,11 @@ struct BookSearchView: View {
         errorMessage = nil
         isSearchingByISBN = true
         searchResults = []
+        filteredResults = []
         searchText = isbn  // 検索バーにISBNを表示
+        
+        // 検索前にキャッシュを更新
+        updateRegisteredISBNsCache()
         
         Task {
             do {
@@ -638,8 +677,10 @@ struct BookSearchView: View {
                     // 本が見つからない場合
                     errorMessage = "ISBN検索で本が見つかりませんでした"
                     searchResults = []
+                    filteredResults = []
                 } else {
                     searchResults = results
+                    updateFilteredResults()
                     
                     // 1件だけの場合は自動的に詳細を表示（登録済みでない場合のみ）
                     if results.count == 1, let book = results.first {
@@ -655,6 +696,7 @@ struct BookSearchView: View {
             } catch {
                 errorMessage = "検索中にエラーが発生しました: \(error.localizedDescription)"
                 searchResults = []
+                filteredResults = []
                 isSearching = false
                 isSearchingByISBN = false
                 print("ISBN検索エラー: \(error)")
@@ -691,34 +733,47 @@ struct BookSearchResultRow: View {
     
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
-            // サムネイル画像
-            if let imageUrlString = result.largeImageUrl ?? result.mediumImageUrl,
-               let imageUrl = URL(string: imageUrlString) {
-                AsyncImage(url: imageUrl) { image in
-                    image
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                } placeholder: {
+            // サムネイル画像（登録済みバッジをオーバーレイ）
+            ZStack(alignment: .bottom) {
+                if let imageUrlString = result.largeImageUrl ?? result.mediumImageUrl,
+                   let imageUrl = URL(string: imageUrlString) {
+                    AsyncImage(url: imageUrl) { image in
+                        image
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                    } placeholder: {
+                        RoundedRectangle(cornerRadius: 2)
+                            .fill(Color.gray.opacity(0.2))
+                            .overlay {
+                                ProgressView()
+                            }
+                    }
+                    .frame(width: 50, height: 75)
+                    .clipShape(RoundedRectangle(cornerRadius: 2))
+                } else {
+                    // 画像がない場合
                     RoundedRectangle(cornerRadius: 2)
                         .fill(Color.gray.opacity(0.2))
+                        .frame(width: 50, height: 75)
                         .overlay {
-                            ProgressView()
+                            Image(systemName: "book")
+                                .foregroundColor(.gray)
                         }
                 }
-                .frame(width: 50, height: 75)
-                .cornerRadius(2)
-                .opacity(isRegistered ? 0.4 : 1.0)
-            } else {
-                // 画像がない場合
-                RoundedRectangle(cornerRadius: 2)
-                    .fill(Color.gray.opacity(0.2))
-                    .frame(width: 50, height: 75)
-                    .overlay {
-                        Image(systemName: "book")
-                            .foregroundColor(.gray)
-                    }
-                    .opacity(isRegistered ? 0.4 : 1.0)
+                
+                // 登録済みバッジ（画像の下部にオーバーレイ）
+                if isRegistered {
+                    Text("登録済み")
+                        .font(.system(size: 9))
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 3)
+                        .background(Color.black)
+                }
             }
+            .frame(width: 50, height: 75)
+            .clipShape(RoundedRectangle(cornerRadius: 2))
+            .opacity(isRegistered ? 0.6 : 1.0)
             
             VStack(alignment: .leading, spacing: 2) {
                 // タイトル
@@ -733,17 +788,6 @@ struct BookSearchResultRow: View {
                         .font(.caption2)
                         .foregroundColor(.secondary)
                         .lineLimit(1)
-                }
-                
-                // 登録済みバッジ
-                if isRegistered {
-                    Text("登録済み")
-                        .font(.caption2)
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Color.gray)
-                        .cornerRadius(4)
                 }
             }
             

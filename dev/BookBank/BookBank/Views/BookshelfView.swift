@@ -112,14 +112,14 @@ struct BookshelfView: View {
                         .scaledToFit()
                         .frame(width: 14, height: 14)
                     Text("お気に入り")
-                        .font(.system(size: 14, weight: .medium))
+                        .font(.system(size: 13, weight: .medium))
                 }
-                .foregroundColor(showFavoritesOnly ? .white : .primary)
+                .foregroundColor(showFavoritesOnly ? .white : .black)
                 .padding(.horizontal, 16)
                 .padding(.vertical, 10)
                 .background(
                     Capsule()
-                        .fill(showFavoritesOnly ? themeColor : Color.primary.opacity(0.1))
+                        .fill(showFavoritesOnly ? themeColor : Color.white)
                 )
             }
             
@@ -128,17 +128,17 @@ struct BookshelfView: View {
                 showWithMemoOnly.toggle()
             }) {
                 HStack(spacing: 6) {
-                    Image(systemName: showWithMemoOnly ? "note.text" : "note.text")
-                        .font(.system(size: 14, weight: .medium))
+                    Image(systemName: "note.text")
+                        .font(.system(size: 13, weight: .medium))
                     Text("メモあり")
-                        .font(.system(size: 14, weight: .medium))
+                        .font(.system(size: 13, weight: .medium))
                 }
-                .foregroundColor(showWithMemoOnly ? .white : .primary)
+                .foregroundColor(showWithMemoOnly ? .white : .black)
                 .padding(.horizontal, 16)
                 .padding(.vertical, 10)
                 .background(
                     Capsule()
-                        .fill(showWithMemoOnly ? themeColor : Color.primary.opacity(0.1))
+                        .fill(showWithMemoOnly ? themeColor : Color.white)
                 )
             }
             
@@ -179,6 +179,7 @@ struct BookshelfView: View {
                     }
                 }
                 .padding(.horizontal, 24)
+                .animation(nil, value: userBooks.count)
             }
         }
         .padding(.bottom, 100)

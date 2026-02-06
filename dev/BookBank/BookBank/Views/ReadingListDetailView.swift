@@ -36,6 +36,7 @@ struct ReadingListDetailView: View {
     @State private var showExporter = false
     @State private var exportDocument: MarkdownDocument = MarkdownDocument(text: "")
     @State private var exportFileName: String = ""
+    @State private var showDeleteListAlert = false
     
     // グリッドの列定義（4カラム）
     private let columns = [
@@ -49,6 +50,14 @@ struct ReadingListDetailView: View {
     
     var body: some View {
         ZStack {
+            // 背景色（ライト: #F2F2F7, ダーク: #1C1C1E）
+            Color(UIColor { traits in
+                traits.userInterfaceStyle == .dark
+                    ? UIColor(red: 28/255.0, green: 28/255.0, blue: 30/255.0, alpha: 1)  // #1C1C1E
+                    : UIColor.systemGroupedBackground
+            })
+                .ignoresSafeArea()
+            
             // メインコンテンツ
             GeometryReader { geometry in
                 ScrollView {
@@ -64,19 +73,12 @@ struct ReadingListDetailView: View {
                             // スクロール最下部の余白（背景色を継続）
                             Color(UIColor { traits in
                                 traits.userInterfaceStyle == .dark
-                                    ? UIColor.black  // ダーク: 黒
-                                    : .systemBackground  // ライト: 白
+                                    ? UIColor(red: 28/255.0, green: 28/255.0, blue: 30/255.0, alpha: 1)  // #1C1C1E
+                                    : UIColor.systemGroupedBackground
                             })
                                 .frame(height: 100)
                         }
                         .frame(minHeight: geometry.size.height + 100)
-                        .background(
-                            Color(UIColor { traits in
-                                traits.userInterfaceStyle == .dark
-                                    ? UIColor.black  // ダーク: 黒
-                                    : .systemBackground  // ライト: 白
-                            })
-                        )
                         .clipShape(
                             UnevenRoundedRectangle(
                                 topLeadingRadius: 40,
@@ -88,25 +90,6 @@ struct ReadingListDetailView: View {
                     }
                 }
             }
-            .background(
-                VStack(spacing: 0) {
-                    // 上部: ダークグレー（棚板エリア）- 高さを制限
-                    Color(UIColor { traits in
-                        traits.userInterfaceStyle == .dark
-                            ? UIColor(red: 26/255.0, green: 26/255.0, blue: 26/255.0, alpha: 1)  // #1A1A1A ダークグレー（棚板のシャドウ用）
-                            : .systemGroupedBackground
-                    })
-                    .frame(height: 600)  // 棚板エリアの高さに合わせる
-                    
-                    // 下部: リストビューと同じ色（スクロール時に浮いて見えないように）
-                    Color(UIColor { traits in
-                        traits.userInterfaceStyle == .dark
-                            ? UIColor.black  // ダーク: 黒
-                            : .systemBackground  // ライト: 白
-                    })
-                }
-                .ignoresSafeArea()
-            )
             .animation(nil, value: showBookCarousel)
             
             // カルーセルオーバーレイ
@@ -125,6 +108,7 @@ struct ReadingListDetailView: View {
                 .zIndex(1)
             }
         }
+        .background(Color(.systemGroupedBackground))
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showBookSelector) {
             BookSelectorView(readingList: readingList)
@@ -143,13 +127,13 @@ struct ReadingListDetailView: View {
                     showMoreSheet = false
                     showExportSheet = true
                 },
-                onReorder: {
-                    showMoreSheet = false
-                    isReorderMode = true
-                },
                 onEdit: {
                     showMoreSheet = false
                     showEditSheet = true
+                },
+                onDelete: {
+                    showMoreSheet = false
+                    showDeleteListAlert = true
                 }
             )
             .presentationDetents([.height(280)])
@@ -166,6 +150,14 @@ struct ReadingListDetailView: View {
             if let book = bookToRemove {
                 Text("「\(book.title)」をリストから削除しますか？\n本棚からは削除されません。")
             }
+        }
+        .alert("リストを削除", isPresented: $showDeleteListAlert) {
+            Button("キャンセル", role: .cancel) {}
+            Button("削除", role: .destructive) {
+                deleteReadingList()
+            }
+        } message: {
+            Text("「\(readingList.title)」を削除しますか？\nリスト内の本は本棚に残ります。")
         }
         .fullScreenCover(isPresented: $isReorderMode) {
             ReorderBooksView(readingList: readingList)
@@ -189,7 +181,10 @@ struct ReadingListDetailView: View {
                         price: book.priceAtRegistration,
                         publisher: book.publisher,
                         date: formatExportDate(book.registeredAt),
-                        isbn: book.isbn
+                        isbn: book.isbn,
+                        imageURL: book.imageURL,
+                        memo: book.memo,
+                        isFavorite: book.isFavorite
                     )
                 },
                 onExportTitleOnly: {
@@ -279,6 +274,25 @@ struct ReadingListDetailView: View {
                         Image(systemName: "plus")
                             .font(.system(size: 13, weight: .medium))
                         Text("追加")
+                            .font(.system(size: 13, weight: .medium))
+                    }
+                    .foregroundColor(.primary)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(
+                        Capsule()
+                            .fill(Color.primary.opacity(0.1))
+                    )
+                }
+                
+                // 並べ替え&削除ボタン
+                Button(action: {
+                    isReorderMode = true
+                }) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "arrow.up.arrow.down")
+                            .font(.system(size: 13, weight: .medium))
+                        Text("並べ替え&削除")
                             .font(.system(size: 13, weight: .medium))
                     }
                     .foregroundColor(.primary)
@@ -461,7 +475,7 @@ struct ReadingListDetailView: View {
     // MARK: - Book Row
     
     private func bookRow(book: UserBook) -> some View {
-        HStack(spacing: 12) {
+        HStack(alignment: .center, spacing: 12) {
             // 本の表紙
             if let imageURL = book.imageURL,
                let url = URL(string: imageURL) {
@@ -469,18 +483,17 @@ struct ReadingListDetailView: View {
                     image
                         .resizable()
                         .aspectRatio(contentMode: .fill)
+                        .frame(width: 50, height: 75)
+                        .clipShape(RoundedRectangle(cornerRadius: 2))
                 } placeholder: {
-                    Rectangle()
+                    RoundedRectangle(cornerRadius: 2)
                         .fill(Color.gray.opacity(0.2))
+                        .frame(width: 50, height: 75)
                 }
-                .frame(width: 50, height: 75)
-                .clipShape(RoundedRectangle(cornerRadius: 2))
-                .id(imageURL)
             } else {
-                Rectangle()
+                RoundedRectangle(cornerRadius: 2)
                     .fill(Color.gray.opacity(0.2))
                     .frame(width: 50, height: 75)
-                    .clipShape(RoundedRectangle(cornerRadius: 2))
                     .overlay {
                         Image(systemName: "book.closed")
                             .font(.caption)
@@ -489,7 +502,7 @@ struct ReadingListDetailView: View {
             }
             
             // 本の情報
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 2) {
                 Text(book.title)
                     .font(.subheadline)
                     .foregroundColor(.primary)
@@ -497,19 +510,28 @@ struct ReadingListDetailView: View {
                 
                 if !book.displayAuthor.isEmpty {
                     Text(book.displayAuthor)
-                        .font(.caption)
+                        .font(.caption2)
                         .foregroundColor(.secondary)
                         .lineLimit(1)
-                }
-                
-                if let price = book.priceAtRegistration {
-                    Text("¥\(price.formatted())")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
                 }
             }
             
             Spacer()
+            
+            // 金額
+            if let price = book.priceAtRegistration {
+                HStack(alignment: .lastTextBaseline, spacing: 1) {
+                    Text("\(price.formatted())")
+                        .font(.subheadline)
+                    Text("円")
+                        .font(.caption2)
+                }
+                .foregroundColor(.blue)
+            }
+            
+            Image(systemName: "chevron.right")
+                .font(.caption2)
+                .foregroundColor(.secondary)
         }
         .padding(.horizontal, 24)
         .padding(.vertical, 8)
@@ -591,6 +613,17 @@ struct ReadingListDetailView: View {
             try context.save()
         } catch {
             print("❌ Failed to remove book from list: \(error)")
+        }
+    }
+    
+    private func deleteReadingList() {
+        context.delete(readingList)
+        
+        do {
+            try context.save()
+            dismiss()
+        } catch {
+            print("❌ Failed to delete reading list: \(error)")
         }
     }
 }
@@ -711,7 +744,10 @@ struct EditReadingListView: View {
                             price: book.priceAtRegistration,
                             publisher: book.publisher,
                             date: formatExportDate(book.registeredAt),
-                            isbn: book.isbn
+                            isbn: book.isbn,
+                            imageURL: book.imageURL,
+                            memo: book.memo,
+                            isFavorite: book.isFavorite
                         )
                     },
                     onExportTitleOnly: {
@@ -1206,8 +1242,8 @@ struct MoreActionsSheet: View {
     let title: String
     let onShare: () -> Void
     let onDownload: () -> Void
-    let onReorder: () -> Void
     let onEdit: () -> Void
+    let onDelete: () -> Void
     
     var body: some View {
         VStack(spacing: 0) {
@@ -1247,13 +1283,13 @@ struct MoreActionsSheet: View {
             Divider()
                 .padding(.leading, 56)
             
-            // 並べ替え
-            Button(action: onReorder) {
+            // 名前と詳細の編集
+            Button(action: onEdit) {
                 HStack(spacing: 12) {
-                    Image(systemName: "line.3.horizontal")
+                    Image(systemName: "pencil")
                         .font(.system(size: 18))
                         .frame(width: 24)
-                    Text("並べ替え")
+                    Text("名前と詳細の編集")
                         .font(.system(size: 16))
                     Spacer()
                 }
@@ -1265,13 +1301,13 @@ struct MoreActionsSheet: View {
             Divider()
                 .padding(.leading, 56)
             
-            // 名前と詳細の編集
-            Button(action: onEdit) {
+            // このリストを削除
+            Button(action: onDelete) {
                 HStack(spacing: 12) {
-                    Image(systemName: "pencil")
-                        .font(.system(size: 18))
+                    Image("icon-delete")
+                        .renderingMode(.template)
                         .frame(width: 24)
-                    Text("名前と詳細の編集")
+                    Text("このリストを削除")
                         .font(.system(size: 16))
                     Spacer()
                 }

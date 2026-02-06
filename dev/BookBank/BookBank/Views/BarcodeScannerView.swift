@@ -56,39 +56,38 @@ struct BarcodeScannerView: View {
                     .ignoresSafeArea()
 
                 // スキャンガイドとUI
-                VStack {
+                ZStack {
+                    // 中央にガイドを配置（ScanAreaOverlayと同じ位置）
+                    VStack(spacing: 16) {
+                        CornerBracketShape()
+                            .stroke(Color.white, lineWidth: 1)
+                            .frame(width: 280, height: 80)
+                        
+                        Text("バーコードをこの枠内に合わせてください")
+                            .font(.subheadline)
+                            .foregroundColor(.white)
+                            .shadow(color: .black, radius: 2, x: 0, y: 1)
+                    }
+                    
                     // 上部のクローズボタン
-                    HStack {
-                        Button(action: {
-                            dismiss()
-                        }) {
-                            Image(systemName: "xmark")
-                                .font(.system(size: 18))
-                                .foregroundColor(.white)
-                                .frame(width: 36, height: 36)
-                                .background(Circle().fill(Color.black.opacity(0.5)))
+                    VStack {
+                        HStack {
+                            Button(action: {
+                                dismiss()
+                            }) {
+                                Image(systemName: "xmark")
+                                    .font(.system(size: 18))
+                                    .foregroundColor(.white)
+                                    .frame(width: 36, height: 36)
+                                    .background(Circle().fill(Color.black.opacity(0.5)))
+                            }
+                            .padding(.leading, 20)
+                            .padding(.top, 16)
+                            
+                            Spacer()
                         }
-                        .padding(.leading, 20)
-                        .padding(.top, 16)
-
                         Spacer()
                     }
-
-                    Spacer()
-
-                    // スキャンエリアのガイド（四隅のカッコ）
-                    CornerBracketShape()
-                        .stroke(Color.white, lineWidth: 1)
-                        .frame(width: 280, height: 80)
-
-                    Text("バーコードをこの枠内に合わせてください")
-                        .font(.subheadline)
-                        .foregroundColor(.white)
-                        .padding(.top, 16)
-                        .shadow(color: .black, radius: 2, x: 0, y: 1)
-
-                    Spacer()
-                    Spacer()
                 }
             } else if cameraPermission == .denied || cameraPermission == .restricted {
                 // カメラ権限がない場合

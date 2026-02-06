@@ -26,24 +26,11 @@ struct BookCoverView: View {
                 // 本の表紙
                 if let imageURL = book.imageURL,
                    let url = URL(string: imageURL) {
-                    AsyncImage(url: url) { phase in
-                        switch phase {
-                        case .success(let image):
-                            image
-                                .resizable()
-                                .aspectRatio(contentMode: .fill)
-                                .frame(width: geometry.size.width, height: geometry.size.width * 1.5)
-                                .clipped()
-                        case .failure(_):
-                            placeholderView(width: geometry.size.width)
-                        case .empty:
-                            ProgressView()
-                                .frame(width: geometry.size.width, height: geometry.size.width * 1.5)
-                                .background(Color.gray.opacity(0.1))
-                        @unknown default:
-                            placeholderView(width: geometry.size.width)
-                        }
-                    }
+                    CachedAsyncImage(
+                        url: url,
+                        width: geometry.size.width,
+                        height: geometry.size.width * 1.5
+                    )
                 } else {
                     placeholderView(width: geometry.size.width)
                 }

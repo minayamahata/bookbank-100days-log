@@ -211,7 +211,7 @@ struct UserBookDetailView: View {
             }) {
                 ZStack(alignment: .topLeading) {
                     RoundedRectangle(cornerRadius: 12)
-                        .fill(.thinMaterial)
+                        .fill(Color(.secondarySystemGroupedBackground))
                         .frame(minHeight: 120)
 
                     if let memo = book.memo, !memo.isEmpty {

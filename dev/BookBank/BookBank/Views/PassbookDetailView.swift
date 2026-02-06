@@ -177,17 +177,12 @@ struct PassbookDetailView: View {
                             // サムネイル
                             if let imageURL = book.imageURL,
                                let url = URL(string: imageURL) {
-                                AsyncImage(url: url) { image in
-                                    image
-                                        .resizable()
-                                        .aspectRatio(contentMode: .fill)
-                                        .frame(width: 50, height: 75)
-                                        .clipShape(RoundedRectangle(cornerRadius: 2))
-                                } placeholder: {
-                                    RoundedRectangle(cornerRadius: 2)
-                                        .fill(Color.gray.opacity(0.2))
-                                        .frame(width: 50, height: 75)
-                                }
+                                CachedAsyncImage(
+                                    url: url,
+                                    width: 50,
+                                    height: 75
+                                )
+                                .clipShape(RoundedRectangle(cornerRadius: 2))
                             } else {
                                 RoundedRectangle(cornerRadius: 2)
                                     .fill(Color.gray.opacity(0.2))
