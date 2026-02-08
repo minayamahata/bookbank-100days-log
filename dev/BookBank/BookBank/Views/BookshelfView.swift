@@ -154,11 +154,7 @@ struct BookshelfView: View {
     private var gridContent: some View {
         Group {
             if userBooks.isEmpty {
-                VStack(spacing: 16) {
-                    Image(systemName: "books.vertical")
-                        .font(.system(size: 60))
-                        .foregroundColor(.gray)
-                    
+                VStack(spacing: 8) {
                     Text("本棚はまだ空です")
                         .font(.headline)
                         .foregroundColor(.secondary)

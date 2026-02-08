@@ -38,6 +38,13 @@ struct ReadingListDetailView: View {
     @State private var exportFileName: String = ""
     @State private var showDeleteListAlert = false
     
+    // シェア関連
+    @State private var isSharing = false
+    @State private var shareURL: URL?
+    @State private var showSharePreview = false
+    @State private var showShareError = false
+    @State private var shareErrorMessage = ""
+    
     // グリッドの列定義（4カラム）
     private let columns = [
         GridItem(.flexible(), spacing: 2),
@@ -120,8 +127,8 @@ struct ReadingListDetailView: View {
             MoreActionsSheet(
                 title: readingList.title,
                 onShare: {
-                    // TODO: シェア機能を実装
                     showMoreSheet = false
+                    shareReadingList()
                 },
                 onDownload: {
                     showMoreSheet = false
@@ -138,6 +145,37 @@ struct ReadingListDetailView: View {
             )
             .presentationDetents([.height(280)])
             .presentationDragIndicator(.visible)
+        }
+        .sheet(isPresented: $showSharePreview) {
+            if let url = shareURL {
+                SharePreviewSheet(readingList: readingList, shareURL: url)
+            }
+        }
+        .alert("シェアエラー", isPresented: $showShareError) {
+            Button("OK") { }
+        } message: {
+            Text(shareErrorMessage)
+        }
+        .overlay {
+            if isSharing {
+                ZStack {
+                    Color.black.opacity(0.3)
+                        .ignoresSafeArea()
+                    
+                    VStack(spacing: 16) {
+                        ProgressView()
+                            .scaleEffect(1.5)
+                        Text("シェアリンクを作成中...")
+                            .font(.subheadline)
+                            .foregroundColor(.primary)
+                    }
+                    .padding(32)
+                    .background(
+                        RoundedRectangle(cornerRadius: 16)
+                            .fill(Color.appCardBackground)
+                    )
+                }
+            }
         }
         .alert("リストから削除", isPresented: $showRemoveAlert) {
             Button("キャンセル", role: .cancel) {}
@@ -358,18 +396,11 @@ struct ReadingListDetailView: View {
                             HStack(spacing: spacing) {
                                 ForEach(5..<min(10, books.count), id: \.self) { index in
                                     if let imageURL = books[index].imageURL {
-                                        AsyncImage(url: URL(string: imageURL)) { phase in
-                                            switch phase {
-                                            case .success(let image):
-                                                image
-                                                    .resizable()
-                                                    .aspectRatio(contentMode: .fill)
-                                            default:
-                                                Rectangle()
-                                                    .fill(Color.secondary.opacity(0.15))
-                                            }
-                                        }
-                                        .frame(width: cellWidth, height: cellHeight)
+                                        CachedAsyncImage(
+                                            url: URL(string: imageURL),
+                                            width: cellWidth,
+                                            height: cellHeight
+                                        )
                                         .clipShape(RoundedRectangle(cornerRadius: 2))
                                         .shadow(color: .black.opacity(0.1), radius: 1, x: 0, y: 1)
                                     }
@@ -382,18 +413,11 @@ struct ReadingListDetailView: View {
                                 ForEach(0..<5, id: \.self) { col in
                                     let index = col
                                     if index < books.count, let imageURL = books[index].imageURL {
-                                        AsyncImage(url: URL(string: imageURL)) { phase in
-                                            switch phase {
-                                            case .success(let image):
-                                                image
-                                                    .resizable()
-                                                    .aspectRatio(contentMode: .fill)
-                                            default:
-                                                Rectangle()
-                                                    .fill(Color.secondary.opacity(0.15))
-                                            }
-                                        }
-                                        .frame(width: cellWidth, height: cellHeight)
+                                        CachedAsyncImage(
+                                            url: URL(string: imageURL),
+                                            width: cellWidth,
+                                            height: cellHeight
+                                        )
                                         .clipShape(RoundedRectangle(cornerRadius: 2))
                                         .shadow(color: .black.opacity(0.1), radius: 1, x: 0, y: 1)
                                     } else {
@@ -479,17 +503,8 @@ struct ReadingListDetailView: View {
             // 本の表紙
             if let imageURL = book.imageURL,
                let url = URL(string: imageURL) {
-                AsyncImage(url: url) { image in
-                    image
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(width: 50, height: 75)
-                        .clipShape(RoundedRectangle(cornerRadius: 2))
-                } placeholder: {
-                    RoundedRectangle(cornerRadius: 2)
-                        .fill(Color.gray.opacity(0.2))
-                        .frame(width: 50, height: 75)
-                }
+                CachedAsyncImage(url: url, width: 50, height: 75)
+                    .clipShape(RoundedRectangle(cornerRadius: 2))
             } else {
                 RoundedRectangle(cornerRadius: 2)
                     .fill(Color.gray.opacity(0.2))
@@ -562,15 +577,11 @@ struct ReadingListDetailView: View {
                 // 本の表紙
                 if let imageURL = book.imageURL,
                    let url = URL(string: imageURL) {
-                    AsyncImage(url: url) { image in
-                        image
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                    } placeholder: {
-                        Rectangle()
-                            .fill(Color.gray.opacity(0.2))
-                    }
-                    .id(imageURL)
+                    CachedAsyncImage(
+                        url: url,
+                        width: geometry.size.width,
+                        height: geometry.size.width * 1.5
+                    )
                 } else {
                     Rectangle()
                         .fill(Color.gray.opacity(0.2))
@@ -624,6 +635,27 @@ struct ReadingListDetailView: View {
             dismiss()
         } catch {
             print("❌ Failed to delete reading list: \(error)")
+        }
+    }
+    
+    private func shareReadingList() {
+        isSharing = true
+        
+        Task {
+            do {
+                let url = try await ShareService.shared.shareReadingList(readingList)
+                await MainActor.run {
+                    isSharing = false
+                    shareURL = url
+                    showSharePreview = true
+                }
+            } catch {
+                await MainActor.run {
+                    isSharing = false
+                    shareErrorMessage = error.localizedDescription
+                    showShareError = true
+                }
+            }
         }
     }
 }
@@ -942,23 +974,9 @@ struct BookCarouselView: View {
             // 本の表紙
             if let imageURL = book.imageURL,
                let url = URL(string: imageURL) {
-                AsyncImage(url: url) { phase in
-                    switch phase {
-                    case .success(let image):
-                        image
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                    case .failure:
-                        bookPlaceholder
-                    case .empty:
-                        ProgressView()
-                    @unknown default:
-                        bookPlaceholder
-                    }
-                }
-                .frame(width: 140, height: 210)
-                .clipShape(RoundedRectangle(cornerRadius: 2))
-                .shadow(color: Color.primary.opacity(0.2), radius: 20, x: 0, y: 10)
+                CachedAsyncImage(url: url, width: 140, height: 210)
+                    .clipShape(RoundedRectangle(cornerRadius: 2))
+                    .shadow(color: Color.primary.opacity(0.2), radius: 20, x: 0, y: 10)
             } else {
                 bookPlaceholder
             }
@@ -1070,16 +1088,8 @@ struct ReorderBooksView: View {
                         // 本の表紙
                         if let imageURL = book.imageURL,
                            let url = URL(string: imageURL) {
-                            AsyncImage(url: url) { image in
-                                image
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fill)
-                            } placeholder: {
-                                Rectangle()
-                                    .fill(Color.gray.opacity(0.2))
-                            }
-                            .frame(width: 50, height: 75)
-                            .clipShape(RoundedRectangle(cornerRadius: 2))
+                            CachedAsyncImage(url: url, width: 50, height: 75)
+                                .clipShape(RoundedRectangle(cornerRadius: 2))
                         } else {
                             Rectangle()
                                 .fill(Color.gray.opacity(0.2))
@@ -1319,5 +1329,211 @@ struct MoreActionsSheet: View {
             Spacer()
         }
         .padding(.top, 20)
+    }
+}
+
+// MARK: - Share Preview Sheet
+
+/// シェアプレビュー画面
+struct SharePreviewSheet: View {
+    let readingList: ReadingList
+    let shareURL: URL
+    
+    @Environment(\.dismiss) private var dismiss
+    @State private var isCopied = false
+    
+    // カード背景色
+    private let cardBackground = Color(UIColor { traits in
+        traits.userInterfaceStyle == .dark
+            ? UIColor(red: 44/255, green: 44/255, blue: 46/255, alpha: 1)  // #2C2C2E
+            : UIColor.white
+    })
+    
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 24) {
+                    // プレビューカード
+                    previewCard
+                    
+                    // アクションボタン
+                    actionButtons
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 8)
+                .padding(.bottom, 24)
+            }
+            .background(Color(.systemGroupedBackground))
+            .navigationTitle("シェアプレビュー")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(action: { dismiss() }) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(.secondary)
+                            .frame(width: 28, height: 28)
+                            .background(Circle().fill(Color(.secondarySystemFill)))
+                    }
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
+    }
+    
+    // MARK: - Preview Card
+    
+    private var previewCard: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            // ヘッダー
+            VStack(alignment: .leading, spacing: 4) {
+                Text(readingList.title)
+                    .font(.headline)
+                    .foregroundColor(.primary)
+                
+                HStack(spacing: 8) {
+                    Text("\(readingList.totalValue.formatted())円")
+                        .font(.subheadline)
+                        .foregroundColor(.blue)
+                    
+                    Text("・")
+                        .foregroundColor(.secondary)
+                    
+                    Text("\(readingList.bookCount)冊")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+            }
+            
+            Divider()
+            
+            // 本のリスト（最大4冊）
+            let displayBooks = Array(readingList.books.prefix(4))
+            ForEach(displayBooks) { book in
+                bookRow(book: book)
+            }
+            
+            // 残りの冊数
+            if readingList.bookCount > 4 {
+                Text("他\(readingList.bookCount - 4)冊")
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .center)
+            }
+        }
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(cardBackground)
+                .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: 2)
+        )
+    }
+    
+    private func bookRow(book: UserBook) -> some View {
+        HStack(spacing: 12) {
+            // サムネイル
+            if let imageURL = book.imageURL,
+               let url = URL(string: imageURL) {
+                CachedAsyncImage(url: url, width: 36, height: 54)
+                    .clipShape(RoundedRectangle(cornerRadius: 2))
+            } else {
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(Color.gray.opacity(0.2))
+                    .frame(width: 36, height: 54)
+            }
+            
+            // 本の情報
+            VStack(alignment: .leading, spacing: 2) {
+                Text(book.title)
+                    .font(.subheadline)
+                    .foregroundColor(.primary)
+                    .lineLimit(1)
+                
+                if !book.displayAuthor.isEmpty {
+                    Text(book.displayAuthor)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                }
+            }
+            
+            Spacer()
+            
+            // 金額
+            if let price = book.priceAtRegistration {
+                Text("\(price.formatted())円")
+                    .font(.subheadline)
+                    .foregroundColor(.blue)
+            }
+        }
+    }
+    
+    // MARK: - Action Buttons
+    
+    private var actionButtons: some View {
+        HStack(spacing: 12) {
+            // リンクをコピー
+            Button(action: copyToClipboard) {
+                HStack(spacing: 8) {
+                    Image(systemName: isCopied ? "checkmark" : "doc.on.doc")
+                        .font(.system(size: 16))
+                    Text(isCopied ? "コピーしました！" : "リンクをコピー")
+                        .font(.subheadline)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 14)
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color(.secondarySystemFill))
+                )
+                .foregroundColor(.primary)
+            }
+            .disabled(isCopied)
+            
+            // Xでシェア
+            Button(action: shareOnX) {
+                HStack(spacing: 8) {
+                    Image(systemName: "arrow.up.right")
+                        .font(.system(size: 16))
+                    Text("Xでシェア")
+                        .font(.subheadline)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 14)
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color.black)
+                )
+                .foregroundColor(.white)
+            }
+        }
+    }
+    
+    // MARK: - Actions
+    
+    private func copyToClipboard() {
+        UIPasteboard.general.string = shareURL.absoluteString
+        
+        withAnimation {
+            isCopied = true
+        }
+        
+        // 1.5秒後に元に戻す
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+            withAnimation {
+                isCopied = false
+            }
+        }
+    }
+    
+    private func shareOnX() {
+        let tweetText = "「\(readingList.title)」を共有しました"
+        let encodedText = tweetText.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+        let encodedURL = shareURL.absoluteString.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+        
+        if let url = URL(string: "https://x.com/intent/tweet?text=\(encodedText)&url=\(encodedURL)") {
+            UIApplication.shared.open(url)
+        }
     }
 }

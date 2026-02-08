@@ -152,19 +152,11 @@ struct ReadingListView: View {
                     ForEach(0..<3, id: \.self) { col in
                         let index = row * 3 + col
                         if index < books.count, let imageURL = books[index].imageURL {
-                            AsyncImage(url: URL(string: imageURL)) { phase in
-                                switch phase {
-                                case .success(let image):
-                                    image
-                                        .resizable()
-                                        .aspectRatio(contentMode: .fill)
-                                default:
-                                    Rectangle()
-                                        .fill(Color.secondary.opacity(0.15))
-                                }
-                            }
-                            .frame(width: cellWidth, height: cellHeight)
-                            .clipped()
+                            CachedAsyncImage(
+                                url: URL(string: imageURL),
+                                width: cellWidth,
+                                height: cellHeight
+                            )
                         } else {
                             Rectangle()
                                 .fill(Color.secondary.opacity(0.15))
