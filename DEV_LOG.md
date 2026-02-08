@@ -516,6 +516,27 @@ git push origin main
 - ✅ **統計ページの改善**
   - お気に入り数、メモ数の表示を追加
 
+- ✅ **Web共有機能の実装**
+  - ShareService.swiftを新規作成
+  - POST API連携（https://bookbank-share.vercel.app/api/lists）
+  - readingListIdを送信し、同じリストから毎回同じURLを返すように対応
+  - エラーハンドリング（ネットワークエラー、APIエラー）
+
+- ✅ **シェアプレビュー画面（SharePreviewSheet）の実装**
+  - iOS標準シェアシートからカスタムプレビュー画面に変更
+  - プレビューカード（リストタイトル、合計金額、冊数、本のリスト最大4冊）
+  - ライト/ダークモード対応
+  - 「リンクをコピー」ボタン（コピー後フィードバック表示）
+  - 「Xでシェア」ボタン（intent/tweetでX投稿画面を開く）
+  - presentationDetents([.medium, .large])で引き上げ可能に
+
+- ✅ **読了リスト画面の画像表示安定化**
+  - ReadingListView、ReadingListDetailViewでCachedAsyncImageを使用
+  - タブ切り替え時の画像消失問題を解決
+
+- ✅ **本棚ページの空状態改善**
+  - 「本棚はまだ空です」の上の本棚アイコンを削除
+
 - ✅ **バーコードスキャナーの改善**
   - ガイド枠のアライメントを修正
 
