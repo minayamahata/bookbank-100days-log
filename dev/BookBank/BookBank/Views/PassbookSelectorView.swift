@@ -21,6 +21,7 @@ struct PassbookSelectorView: View {
     @State private var passbookToEdit: Passbook?
     @State private var showAddPassbook = false
     @State private var showProAlert = false
+    @State private var showPlatinumPaywall = false
     
     // カスタム口座を取得
     private var customPassbooks: [Passbook] {
@@ -88,8 +89,13 @@ struct PassbookSelectorView: View {
         .sheet(isPresented: $showAddPassbook) {
             AddPassbookView()
         }
+        .sheet(isPresented: $showPlatinumPaywall) {
+            PlatinumPaywallView()
+        }
         .confirmationDialog("Platinum機能", isPresented: $showProAlert, titleVisibility: .visible) {
-            Button("Platinum機能を体験する") { }
+            Button("Platinum機能を体験する") {
+                showPlatinumPaywall = true
+            }
         } message: {
             Text("4つ以上の口座を作成するにはPlatinum版が必要です。")
         }

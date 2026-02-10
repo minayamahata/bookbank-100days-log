@@ -16,6 +16,7 @@ struct MainTabView: View {
     @State private var showPassbookSelector = false
     @State private var showAddReadingList = false
     @State private var showProAlert = false
+    @State private var showPlatinumPaywall = false
     
     /// 各タブのナビゲーションパス
     @State private var accountListNavPath = NavigationPath()
@@ -233,8 +234,13 @@ struct MainTabView: View {
         .sheet(isPresented: $showAddReadingList) {
             AddReadingListView()
         }
+        .sheet(isPresented: $showPlatinumPaywall) {
+            PlatinumPaywallView()
+        }
         .confirmationDialog("Platinum機能", isPresented: $showProAlert, titleVisibility: .visible) {
-            Button("Platinum機能を体験する") { }
+            Button("Platinum機能を体験する") {
+                showPlatinumPaywall = true
+            }
         } message: {
             Text("4つ以上の読了リストを作成するにはPlatinum版が必要です。")
         }

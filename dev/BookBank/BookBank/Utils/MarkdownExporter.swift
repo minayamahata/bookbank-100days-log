@@ -175,6 +175,7 @@ struct ExportSheetView: View {
     
     private var platinumManager: PlatinumManager { PlatinumManager.shared }
     @State private var showPlatinumAlert = false
+    @State private var showPlatinumPaywall = false
     
     // VSCode風のカラー（ダークモード時は黒）
     private let codeBackground = Color(UIColor { traits in
@@ -288,8 +289,13 @@ struct ExportSheetView: View {
             }
             .navigationTitle("ダウンロード形式を選択")
             .navigationBarTitleDisplayMode(.inline)
+            .sheet(isPresented: $showPlatinumPaywall) {
+                PlatinumPaywallView()
+            }
             .alert("Platinum機能", isPresented: $showPlatinumAlert) {
-                Button("Platinum機能を体験する") { }
+                Button("Platinum機能を体験する") {
+                    showPlatinumPaywall = true
+                }
                     .tint(Color(red: 34/255, green: 128/255, blue: 226/255))  // #2280e2
             } message: {
                 Text("詳細情報を含むダウンロードはPlatinum版の機能です。")

@@ -1,6 +1,6 @@
 # BookBank 開発ログ
 
-最終更新: 2026年02月02日
+最終更新: 2026年02月11日
 
 ---
 
@@ -414,6 +414,30 @@ git push origin main
 ---
 
 ## 開発履歴
+
+### 2026-02-11
+- ✅ **StoreKit 2ベースの課金機能（Platinum）の実装**
+  - Products.storekit を新規作成（年額 980円 / 買い切り 1,200円）
+  - PlatinumManager.swift を新規作成（@Observable、StoreKit 2）
+  - Transaction.currentEntitlements で購入状態復元、Transaction.updates でリアルタイム更新
+  - purchase(product:) / restorePurchases() を実装
+  - isPlatinum は yearly または lifetime のいずれかが有効なら true
+
+- ✅ **既存のPro制限を PlatinumManager.isPlatinum で判定に変更**
+  - 口座4つ以上の作成制限（AccountListView / PassbookSelectorView）
+  - 読了リスト4つ以上の作成制限（MainTabView）
+  - 詳細データのマークダウンダウンロード（MarkdownExporter）
+  - 表記を「Pro」から「Platinum」に統一
+
+- ✅ **PlatinumPaywallView の新規作成**
+  - 銀行のプラチナカードをイメージしたダークトーンの課金画面
+  - 特典説明（口座無制限・読了リスト無制限・詳細エクスポート）
+  - 年額/買い切りをカード形式で横並び選択、購入・復元ボタン
+  - 制限アラートから「Platinum機能を体験する」でシート表示
+
+- ✅ **口座一覧での Platinum 会員表示**
+  - AccountListView の左上に Platinum 時のみバッジ表示
+  - 口座アイコン1つ + 「Platinum」テキストを Platinum カラー（グラデーション）で表示、枠線なし
 
 ### 2026-02-02（DAY72）
 - ✅ **デザインシステム（DESIGN_SYSTEM.md）の作成**

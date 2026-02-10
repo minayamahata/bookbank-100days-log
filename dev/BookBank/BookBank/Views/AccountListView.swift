@@ -18,6 +18,7 @@ struct AccountListView: View {
     @State private var passbookToEdit: Passbook?
     @State private var showAddPassbook = false
     @State private var showProAlert = false
+    @State private var showPlatinumPaywall = false
     
     /// 口座選択時のコールバック
     var onPassbookSelected: ((Passbook) -> Void)?
@@ -69,6 +70,11 @@ struct AccountListView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 32) {
+                // Platinum会員表示（左上）
+                if platinumManager.isPlatinum {
+                    platinumBadgeSection
+                }
+                
                 // 円グラフ（中央に総資産表示）
                 if !chartData.isEmpty && totalAmount > 0 {
                     ZStack {
@@ -201,11 +207,54 @@ struct AccountListView: View {
         .sheet(isPresented: $showAddPassbook) {
             AddPassbookView()
         }
+        .sheet(isPresented: $showPlatinumPaywall) {
+            PlatinumPaywallView()
+        }
         .confirmationDialog("Platinum機能", isPresented: $showProAlert, titleVisibility: .visible) {
-            Button("Platinum機能を体験する") { }
+            Button("Platinum機能を体験する") {
+                showPlatinumPaywall = true
+            }
         } message: {
             Text("4つ以上の口座を作成するにはPlatinum版が必要です。")
         }
+    }
+    
+    // Platinumカラー（Paywallと統一）
+    private static let platinumGradient = LinearGradient(
+        colors: [
+            Color(red: 180/255, green: 180/255, blue: 190/255),
+            Color(red: 220/255, green: 220/255, blue: 230/255),
+            Color(red: 200/255, green: 200/255, blue: 210/255)
+        ],
+        startPoint: .topLeading,
+        endPoint: .bottomTrailing
+    )
+    
+    // Platinum会員バッジ（アイコン1つ + Platinum表記）
+    private var platinumBadgeSection: some View {
+        HStack(spacing: 8) {
+            // 口座アイコン（Platinumカラー）
+            ZStack {
+                Image("icon-tab-account-fill")
+                    .renderingMode(.template)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .foregroundStyle(Color(red: 200/255, green: 200/255, blue: 210/255).opacity(0.4))
+                
+                Image("icon-tab-account")
+                    .renderingMode(.template)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .foregroundStyle(Self.platinumGradient)
+            }
+            .frame(width: 18, height: 18)
+            
+            // Platinum表記（枠線なし・Platinumカラー）
+            Text("Platinum")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(Self.platinumGradient)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
     
     // 口座行のビュー
