@@ -23,6 +23,7 @@ struct ShareListRequest: Encodable {
     let title: String
     let description: String?
     let ownerName: String?
+    let bgColor: String?
     let books: [ShareBookItem]
 }
 
@@ -97,11 +98,15 @@ class ShareService {
         // persistentModelIDを文字列に変換
         let readingListId = "\(readingList.persistentModelID)"
         
+        // colorIndexをHEXカラー文字列に変換
+        let bgColorHex = PassbookColor.hexString(for: readingList.colorIndex ?? 0)
+        
         let requestBody = ShareListRequest(
             readingListId: readingListId,
             title: readingList.title,
             description: readingList.listDescription,
             ownerName: nil,  // 将来的にユーザー名を設定可能に
+            bgColor: bgColorHex,
             books: bookItems
         )
         

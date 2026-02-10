@@ -49,6 +49,24 @@ struct PassbookColor {
         Color(hex: "fd82c3"),  // ピンク
     ]
     
+    /// HEXカラー文字列（API送信用）
+    static let hexStrings: [String] = [
+        "#292826",  // デフォルト（黒）
+        "#fe2b2c",  // 赤
+        "#fd8e0f",  // オレンジ
+        "#fdd00e",  // 黄色
+        "#30cd47",  // 緑
+        "#33c6dd",  // シアン
+        "#1398ff",  // 青
+        "#b780ff",  // 紫
+        "#fd82c3",  // ピンク
+    ]
+    
+    /// インデックスに対応するHEXカラー文字列を取得
+    static func hexString(for index: Int) -> String {
+        hexStrings[index % hexStrings.count]
+    }
+    
     /// カラーの数
     static var count: Int {
         colors.count

@@ -27,6 +27,9 @@ final class ReadingList {
     /// 更新日時
     var updatedAt: Date
     
+    /// テーマカラーのインデックス（nilの場合はデフォルト色）
+    var colorIndex: Int?
+    
     // MARK: - Relationships
     
     /// リストに含まれる本（参照）

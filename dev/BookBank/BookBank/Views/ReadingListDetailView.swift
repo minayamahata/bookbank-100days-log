@@ -53,6 +53,11 @@ struct ReadingListDetailView: View {
         GridItem(.flexible(), spacing: 2)
     ]
     
+    /// テーマカラー（colorIndexに基づく）
+    private var themeColor: Color {
+        PassbookColor.color(for: readingList.colorIndex ?? 0)
+    }
+    
     // MARK: - Body
     
     var body: some View {
@@ -270,7 +275,10 @@ struct ReadingListDetailView: View {
         VStack(alignment: .leading, spacing: 12) {
             // サムネイルグリッド（5カラム2列、最大10冊）
             if !readingList.books.isEmpty {
-                thumbnailGrid
+                GeometryReader { geometry in
+                    thumbnailGridContent(width: geometry.size.width)
+                }
+                .frame(height: thumbnailGridHeight)
             }
             
             // タイトル
@@ -294,7 +302,7 @@ struct ReadingListDetailView: View {
                     Text("円")
                         .font(.system(size: 13))
                 }
-                .foregroundColor(.blue)
+                .foregroundColor(themeColor)
                 
                 Text("\(readingList.bookCount)冊")
                     .font(.footnote)
@@ -367,104 +375,110 @@ struct ReadingListDetailView: View {
     
     // MARK: - Thumbnail Grid
     
-    private var thumbnailGrid: some View {
+    /// グリッドの高さを計算
+    private var thumbnailGridHeight: CGFloat {
+        let books = Array(readingList.books.prefix(10))
+        let totalRows = books.count > 5 ? 2 : 1
+        let estimatedCellWidth: CGFloat = 60  // 概算のセル幅
+        let cellHeight = estimatedCellWidth * 1.5
+        let shelfHeight: CGFloat = 12
+        let rowHeight = cellHeight + shelfHeight
+        let rowSpacing: CGFloat = 16
+        return totalRows == 2 ? (rowHeight * 2 + rowSpacing) : rowHeight
+    }
+    
+    private func thumbnailGridContent(width: CGFloat) -> some View {
         let books = Array(readingList.books.prefix(10))
         let spacing: CGFloat = 4
-        let sideMargin: CGFloat = 12
-        let totalRows = 2
+        let totalRows = books.count > 5 ? 2 : 1
         
-        return GeometryReader { geometry in
-            let availableWidth = geometry.size.width - sideMargin * 2
-            let cellWidth = (availableWidth - spacing * 4) / 5
-            let cellHeight = cellWidth * 1.5
-            
-            VStack(spacing: 16) {
-                ForEach(0..<totalRows, id: \.self) { row in
-                    // 奥行き係数: 0.0（最上段）〜 1.0（最下段）
-                    let depth = CGFloat(row) / CGFloat(max(totalRows - 1, 1))
-                    
-                    // 棚板の高さと色の濃さを行によって変える
-                    let shelfHeight: CGFloat = 6 + (4 * depth)  // 6pt 〜 10pt
-                    let shelfThickness: CGFloat = 2 + (2 * depth)  // 2pt 〜 4pt
-                    let shadowOpacity = 0.08 + (0.08 * depth)  // 0.08 〜 0.16
-                    let shadowY: CGFloat = 4 + (6 * depth)  // 4pt 〜 10pt
-                    
-                    VStack(spacing: 0) {
-                        // 本の行
-                        // 下段（row == 1）はセンタリング
-                        if row == 1 {
-                            HStack(spacing: spacing) {
-                                ForEach(5..<min(10, books.count), id: \.self) { index in
-                                    if let imageURL = books[index].imageURL {
-                                        CachedAsyncImage(
-                                            url: URL(string: imageURL),
-                                            width: cellWidth,
-                                            height: cellHeight
-                                        )
-                                        .clipShape(RoundedRectangle(cornerRadius: 2))
-                                        .shadow(color: .black.opacity(0.1), radius: 1, x: 0, y: 1)
-                                    }
-                                }
-                            }
-                            .frame(maxWidth: .infinity)
-                        } else {
-                            // 上段は従来通り
-                            HStack(spacing: spacing) {
-                                ForEach(0..<5, id: \.self) { col in
-                                    let index = col
-                                    if index < books.count, let imageURL = books[index].imageURL {
-                                        CachedAsyncImage(
-                                            url: URL(string: imageURL),
-                                            width: cellWidth,
-                                            height: cellHeight
-                                        )
-                                        .clipShape(RoundedRectangle(cornerRadius: 2))
-                                        .shadow(color: .black.opacity(0.1), radius: 1, x: 0, y: 1)
-                                    } else {
-                                        Color.clear
-                                            .frame(width: cellWidth, height: cellHeight)
-                                    }
-                                }
-                            }
-                            .padding(.horizontal, sideMargin)
+        // 親ビューの幅に基づいて計算
+        let cellWidth = (width - spacing * 4) / 5
+        let cellHeight = cellWidth * 1.5
+        let rowSpacing: CGFloat = 16
+        
+        return VStack(spacing: rowSpacing) {
+            // 上段（1〜5冊目）- センタリング
+            VStack(spacing: 0) {
+                HStack(spacing: spacing) {
+                    ForEach(0..<min(5, books.count), id: \.self) { col in
+                        if let imageURL = books[col].imageURL {
+                            CachedAsyncImage(
+                                url: URL(string: imageURL),
+                                width: cellWidth,
+                                height: cellHeight
+                            )
+                            .clipShape(RoundedRectangle(cornerRadius: 2))
+                            .shadow(color: .black.opacity(0.1), radius: 1, x: 0, y: 1)
                         }
-                        
-                        // 棚板（奥行き表現）
-                        VStack(spacing: 0) {
-                            // 棚板の上面
-                            Rectangle()
-                                .fill(Color(UIColor { traits in
-                                    traits.userInterfaceStyle == .dark
-                                        ? UIColor.black  // ダーク: 黒
-                                        : UIColor.white  // ライト: 白
-                                }))
-                                .frame(height: shelfHeight)
-                            
-                            // 棚板の側面（厚み）- 奥行きで変化
-                            Rectangle()
-                                .fill(Color(UIColor { traits in
-                                    traits.userInterfaceStyle == .dark
-                                        ? UIColor(white: 0.15, alpha: 1)  // ダーク: 濃いグレー（黒に近い）
-                                        : UIColor(white: 0.92, alpha: 1)  // ライト: 薄いグレー
-                                }))
-                                .frame(height: shelfThickness)
-                        }
-                        .shadow(
-                            color: Color(UIColor { traits in
-                                traits.userInterfaceStyle == .dark
-                                    ? UIColor.black.withAlphaComponent(0.3)  // ダーク: 黒いシャドウ
-                                    : UIColor.black.withAlphaComponent(shadowOpacity)  // ライト: 黒いシャドウ
-                            }),
-                            radius: 6,
-                            x: 3,
-                            y: shadowY
-                        )
                     }
+                }
+                .frame(maxWidth: .infinity)
+                
+                // 棚板（上段）
+                shelfBoard(depth: totalRows == 1 ? 1.0 : 0.0)
+            }
+            
+            // 下段（6〜10冊目）- 6冊以上の場合のみ、センタリング
+            if totalRows == 2 {
+                VStack(spacing: 0) {
+                    HStack(spacing: spacing) {
+                        ForEach(5..<books.count, id: \.self) { index in
+                            if let imageURL = books[index].imageURL {
+                                CachedAsyncImage(
+                                    url: URL(string: imageURL),
+                                    width: cellWidth,
+                                    height: cellHeight
+                                )
+                                .clipShape(RoundedRectangle(cornerRadius: 2))
+                                .shadow(color: .black.opacity(0.1), radius: 1, x: 0, y: 1)
+                            }
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                    
+                    // 棚板（下段）
+                    shelfBoard(depth: 1.0)
                 }
             }
         }
-        // アスペクト比を調整（棚板の高さと余白を考慮）
-        .aspectRatio(5.0 / 3.6, contentMode: .fit)
+    }
+    
+    // 棚板コンポーネント
+    @ViewBuilder
+    private func shelfBoard(depth: CGFloat) -> some View {
+        let shelfHeight: CGFloat = 6 + (4 * depth)
+        let shelfThickness: CGFloat = 2 + (2 * depth)
+        let shadowOpacity = 0.08 + (0.08 * depth)
+        let shadowY: CGFloat = 4 + (6 * depth)
+        
+        VStack(spacing: 0) {
+            Rectangle()
+                .fill(Color(UIColor { traits in
+                    traits.userInterfaceStyle == .dark
+                        ? UIColor.black
+                        : UIColor.white
+                }))
+                .frame(height: shelfHeight)
+            
+            Rectangle()
+                .fill(Color(UIColor { traits in
+                    traits.userInterfaceStyle == .dark
+                        ? UIColor(white: 0.15, alpha: 1)
+                        : UIColor(white: 0.92, alpha: 1)
+                }))
+                .frame(height: shelfThickness)
+        }
+        .shadow(
+            color: Color(UIColor { traits in
+                traits.userInterfaceStyle == .dark
+                    ? UIColor.black.withAlphaComponent(0.3)
+                    : UIColor.black.withAlphaComponent(shadowOpacity)
+            }),
+            radius: 6,
+            x: 3,
+            y: shadowY
+        )
     }
     
     // MARK: - List Content
@@ -541,7 +555,7 @@ struct ReadingListDetailView: View {
                     Text("円")
                         .font(.caption2)
                 }
-                .foregroundColor(.blue)
+                .foregroundColor(themeColor)
             }
             
             Image(systemName: "chevron.right")
@@ -670,6 +684,7 @@ struct EditReadingListView: View {
     
     @State private var title: String = ""
     @State private var listDescription: String = ""
+    @State private var selectedColorIndex: Int = 0
     @State private var showDeleteAlert = false
     @State private var showExportSheet = false
     @State private var showExporter = false
@@ -679,10 +694,11 @@ struct EditReadingListView: View {
     // 元の値を保存（変更検知用）
     @State private var originalTitle: String = ""
     @State private var originalDescription: String = ""
+    @State private var originalColorIndex: Int = 0
     
     /// 変更があるかどうか
     private var hasChanges: Bool {
-        title != originalTitle || listDescription != originalDescription
+        title != originalTitle || listDescription != originalDescription || selectedColorIndex != originalColorIndex
     }
     
     var body: some View {
@@ -695,6 +711,36 @@ struct EditReadingListView: View {
                 Section {
                     TextField("説明（任意）", text: $listDescription, axis: .vertical)
                         .lineLimit(3...6)
+                }
+                
+                Section {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("テーマカラー")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                        
+                        HStack(spacing: 0) {
+                            ForEach(0..<PassbookColor.count, id: \.self) { index in
+                                Button {
+                                    selectedColorIndex = index
+                                } label: {
+                                    Circle()
+                                        .fill(PassbookColor.color(for: index))
+                                        .frame(width: 24, height: 24)
+                                        .overlay {
+                                            if selectedColorIndex == index {
+                                                Circle()
+                                                    .stroke(Color.primary, lineWidth: 2)
+                                                    .frame(width: 30, height: 30)
+                                            }
+                                        }
+                                        .frame(maxWidth: .infinity)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+                    .padding(.vertical, 4)
                 }
                 
                 Section {
@@ -746,8 +792,10 @@ struct EditReadingListView: View {
             .onAppear {
                 title = readingList.title
                 listDescription = readingList.listDescription ?? ""
+                selectedColorIndex = readingList.colorIndex ?? 0
                 originalTitle = readingList.title
                 originalDescription = readingList.listDescription ?? ""
+                originalColorIndex = readingList.colorIndex ?? 0
             }
             .alert("リストを削除", isPresented: $showDeleteAlert) {
                 Button("キャンセル", role: .cancel) {}
@@ -823,6 +871,7 @@ struct EditReadingListView: View {
     private func saveChanges() {
         readingList.title = title
         readingList.listDescription = listDescription.isEmpty ? nil : listDescription
+        readingList.colorIndex = selectedColorIndex
         readingList.updatedAt = Date()
         
         do {
@@ -1349,6 +1398,11 @@ struct SharePreviewSheet: View {
             : UIColor.white
     })
     
+    /// テーマカラー（colorIndexに基づく）
+    private var themeColor: Color {
+        PassbookColor.color(for: readingList.colorIndex ?? 0)
+    }
+    
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -1386,6 +1440,9 @@ struct SharePreviewSheet: View {
     
     private var previewCard: some View {
         VStack(alignment: .leading, spacing: 16) {
+            // 本棚ビュー
+            previewThumbnailGrid
+            
             // ヘッダー
             VStack(alignment: .leading, spacing: 4) {
                 Text(readingList.title)
@@ -1395,7 +1452,7 @@ struct SharePreviewSheet: View {
                 HStack(spacing: 8) {
                     Text("\(readingList.totalValue.formatted())円")
                         .font(.subheadline)
-                        .foregroundColor(.blue)
+                        .foregroundColor(themeColor)
                     
                     Text("・")
                         .foregroundColor(.secondary)
@@ -1428,6 +1485,89 @@ struct SharePreviewSheet: View {
                 .fill(cardBackground)
                 .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: 2)
         )
+    }
+    
+    // MARK: - Preview Thumbnail Grid
+    
+    private var previewThumbnailGrid: some View {
+        let books = Array(readingList.books.prefix(10))
+        let totalRows = books.count > 5 ? 2 : 1
+        
+        // 固定サイズ（プレビュー用コンパクトサイズ）
+        let cellWidth: CGFloat = 48
+        let cellHeight: CGFloat = 72  // 2:3比率
+        let spacing: CGFloat = 4
+        let shelfTopHeight: CGFloat = 5
+        let shelfThickness: CGFloat = 2
+        let rowSpacing: CGFloat = 10
+        
+        return VStack(spacing: rowSpacing) {
+            // 上段（1〜5冊目）
+            VStack(spacing: 0) {
+                HStack(spacing: spacing) {
+                    ForEach(0..<5, id: \.self) { col in
+                        if col < books.count {
+                            previewBookThumbnail(book: books[col], width: cellWidth, height: cellHeight)
+                        } else {
+                            Color.clear
+                                .frame(width: cellWidth, height: cellHeight)
+                        }
+                    }
+                }
+                
+                // 棚板
+                previewShelf(topHeight: shelfTopHeight, thickness: shelfThickness)
+            }
+            
+            // 下段（6〜10冊目）- 6冊以上の場合のみ表示、センタリング
+            if totalRows == 2 && books.count > 5 {
+                VStack(spacing: 0) {
+                    HStack(spacing: spacing) {
+                        ForEach(5..<books.count, id: \.self) { index in
+                            previewBookThumbnail(book: books[index], width: cellWidth, height: cellHeight)
+                        }
+                    }
+                    
+                    // 棚板（下段は少し厚め）
+                    previewShelf(topHeight: shelfTopHeight + 1, thickness: shelfThickness + 1)
+                }
+            }
+        }
+        .padding(.bottom, 8)
+    }
+    
+    private func previewShelf(topHeight: CGFloat, thickness: CGFloat) -> some View {
+        VStack(spacing: 0) {
+            Rectangle()
+                .fill(Color(UIColor { traits in
+                    traits.userInterfaceStyle == .dark
+                        ? UIColor.black
+                        : UIColor.white
+                }))
+                .frame(height: topHeight)
+            
+            Rectangle()
+                .fill(Color(UIColor { traits in
+                    traits.userInterfaceStyle == .dark
+                        ? UIColor(white: 0.15, alpha: 1)
+                        : UIColor(white: 0.92, alpha: 1)
+                }))
+                .frame(height: thickness)
+        }
+    }
+    
+    private func previewBookThumbnail(book: UserBook, width: CGFloat, height: CGFloat) -> some View {
+        Group {
+            if let imageURL = book.imageURL, let url = URL(string: imageURL) {
+                CachedAsyncImage(url: url, width: width, height: height)
+                    .clipShape(RoundedRectangle(cornerRadius: 1))
+                    .shadow(color: .black.opacity(0.1), radius: 1, x: 0, y: 1)
+            } else {
+                RoundedRectangle(cornerRadius: 1)
+                    .fill(Color.gray.opacity(0.2))
+                    .frame(width: width, height: height)
+            }
+        }
     }
     
     private func bookRow(book: UserBook) -> some View {
@@ -1464,7 +1604,7 @@ struct SharePreviewSheet: View {
             if let price = book.priceAtRegistration {
                 Text("\(price.formatted())円")
                     .font(.subheadline)
-                    .foregroundColor(.blue)
+                    .foregroundColor(themeColor)
             }
         }
     }
@@ -1472,14 +1612,16 @@ struct SharePreviewSheet: View {
     // MARK: - Action Buttons
     
     private var actionButtons: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 8) {
             // リンクをコピー
             Button(action: copyToClipboard) {
-                HStack(spacing: 8) {
+                VStack(spacing: 6) {
                     Image(systemName: isCopied ? "checkmark" : "doc.on.doc")
-                        .font(.system(size: 16))
-                    Text(isCopied ? "コピーしました！" : "リンクをコピー")
-                        .font(.subheadline)
+                        .font(.system(size: 20))
+                    Text(isCopied ? "コピー完了" : "リンクをコピー")
+                        .font(.caption)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 14)
@@ -1491,13 +1633,34 @@ struct SharePreviewSheet: View {
             }
             .disabled(isCopied)
             
+            // ブラウザで表示
+            Button(action: openInBrowser) {
+                VStack(spacing: 6) {
+                    Image(systemName: "safari")
+                        .font(.system(size: 20))
+                    Text("ブラウザで表示")
+                        .font(.caption)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 14)
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color(.secondarySystemFill))
+                )
+                .foregroundColor(.primary)
+            }
+            
             // Xでシェア
             Button(action: shareOnX) {
-                HStack(spacing: 8) {
+                VStack(spacing: 6) {
                     Image(systemName: "arrow.up.right")
-                        .font(.system(size: 16))
+                        .font(.system(size: 20))
                     Text("Xでシェア")
-                        .font(.subheadline)
+                        .font(.caption)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 14)
@@ -1525,6 +1688,10 @@ struct SharePreviewSheet: View {
                 isCopied = false
             }
         }
+    }
+    
+    private func openInBrowser() {
+        UIApplication.shared.open(shareURL)
     }
     
     private func shareOnX() {

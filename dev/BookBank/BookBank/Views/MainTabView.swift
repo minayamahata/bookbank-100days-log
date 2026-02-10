@@ -10,9 +10,12 @@ import SwiftData
 
 struct MainTabView: View {
     @Query(sort: \Passbook.sortOrder) private var passbooks: [Passbook]
+    @Query(sort: \ReadingList.updatedAt) private var readingLists: [ReadingList]
+    private var platinumManager: PlatinumManager { PlatinumManager.shared }
     @State private var selectedPassbook: Passbook?
     @State private var showPassbookSelector = false
     @State private var showAddReadingList = false
+    @State private var showProAlert = false
     
     /// 各タブのナビゲーションパス
     @State private var accountListNavPath = NavigationPath()
@@ -172,7 +175,11 @@ struct MainTabView: View {
                         // Myリストタブの場合はMenu表示
                         Menu {
                             Button(action: {
-                                showAddReadingList = true
+                                if readingLists.count >= 3 && !platinumManager.isPlatinum {
+                                    showProAlert = true
+                                } else {
+                                    showAddReadingList = true
+                                }
                             }) {
                                 Label {
                                     Text("読了リストを作成する")
@@ -225,6 +232,11 @@ struct MainTabView: View {
         }
         .sheet(isPresented: $showAddReadingList) {
             AddReadingListView()
+        }
+        .confirmationDialog("Platinum機能", isPresented: $showProAlert, titleVisibility: .visible) {
+            Button("Platinum機能を体験する") { }
+        } message: {
+            Text("4つ以上の読了リストを作成するにはPlatinum版が必要です。")
         }
         .overlay {
             // 背景の暗幕（フェード）

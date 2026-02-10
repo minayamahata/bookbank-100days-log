@@ -130,12 +130,26 @@ struct ReadingListView: View {
         }
         .padding(16)
         .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(Color.appCardBackground)
+            ZStack {
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(Color.appCardBackground)
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(PassbookColor.color(for: list.colorIndex ?? 0).opacity(0.08))
+            }
         )
         .overlay(
             RoundedRectangle(cornerRadius: 16)
-                .stroke(Color.primary.opacity(0.2), lineWidth: 0.5)
+                .stroke(
+                    LinearGradient(
+                        colors: [
+                            PassbookColor.color(for: list.colorIndex ?? 0).opacity(0.6),
+                            PassbookColor.color(for: list.colorIndex ?? 0).opacity(0.1)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 1
+                )
         )
     }
     

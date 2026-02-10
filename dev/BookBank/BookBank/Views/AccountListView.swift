@@ -13,6 +13,7 @@ import Charts
 struct AccountListView: View {
     @Query(sort: \Passbook.sortOrder) private var passbooks: [Passbook]
     @Query private var allBooks: [UserBook]
+    private var platinumManager: PlatinumManager { PlatinumManager.shared }
     
     @State private var passbookToEdit: Passbook?
     @State private var showAddPassbook = false
@@ -158,7 +159,7 @@ struct AccountListView: View {
                 
                 // 新しい口座を追加ボタン
                 Button(action: {
-                    if customPassbooks.count >= 3 {
+                    if customPassbooks.count >= 3 && !platinumManager.isPlatinum {
                         showProAlert = true
                     } else {
                         showAddPassbook = true
@@ -200,10 +201,10 @@ struct AccountListView: View {
         .sheet(isPresented: $showAddPassbook) {
             AddPassbookView()
         }
-        .confirmationDialog("Pro機能", isPresented: $showProAlert, titleVisibility: .visible) {
-            Button("Pro機能を体験する") { }
+        .confirmationDialog("Platinum機能", isPresented: $showProAlert, titleVisibility: .visible) {
+            Button("Platinum機能を体験する") { }
         } message: {
-            Text("4つ以上の口座を作成するにはPro版が必要です。")
+            Text("4つ以上の口座を作成するにはPlatinum版が必要です。")
         }
     }
     

@@ -13,6 +13,7 @@ import UniformTypeIdentifiers
 struct PassbookSelectorView: View {
     @Environment(\.dismiss) private var dismiss
     @Query(sort: \Passbook.sortOrder) private var passbooks: [Passbook]
+    private var platinumManager: PlatinumManager { PlatinumManager.shared }
     
     @Binding var selectedPassbook: Passbook?
     var onSelect: (() -> Void)?  // 選択時のコールバック
@@ -58,7 +59,7 @@ struct PassbookSelectorView: View {
                 Divider()
                 
                 Button(action: {
-                    if customPassbooks.count >= 3 {
+                    if customPassbooks.count >= 3 && !platinumManager.isPlatinum {
                         showProAlert = true
                     } else {
                         showAddPassbook = true
@@ -87,10 +88,10 @@ struct PassbookSelectorView: View {
         .sheet(isPresented: $showAddPassbook) {
             AddPassbookView()
         }
-        .confirmationDialog("Pro機能", isPresented: $showProAlert, titleVisibility: .visible) {
-            Button("Pro機能を体験する") { }
+        .confirmationDialog("Platinum機能", isPresented: $showProAlert, titleVisibility: .visible) {
+            Button("Platinum機能を体験する") { }
         } message: {
-            Text("4つ以上の口座を作成するにはPro版が必要です。")
+            Text("4つ以上の口座を作成するにはPlatinum版が必要です。")
         }
     }
     

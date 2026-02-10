@@ -173,7 +173,8 @@ struct ExportSheetView: View {
     let onExportTitleOnly: () -> Void
     let onExportDetailed: () -> Void
     
-    @State private var showProAlert = false
+    private var platinumManager: PlatinumManager { PlatinumManager.shared }
+    @State private var showPlatinumAlert = false
     
     // VSCode風のカラー（ダークモード時は黒）
     private let codeBackground = Color(UIColor { traits in
@@ -238,39 +239,45 @@ struct ExportSheetView: View {
                             Text("詳細情報を含める")
                                 .font(.headline)
                             
-                            Text("Pro")
-                                .font(.caption2)
-                                .fontWeight(.semibold)
-                                .foregroundColor(.white)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .background(Color.blue)
-                                .clipShape(Capsule())
+                            if !platinumManager.isPlatinum {
+                                Text("Platinum")
+                                    .font(.caption2)
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(.white)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(proGradient)
+                                    .clipShape(Capsule())
+                            }
                         }
                         
                         // VSCode風コードブロック
                         codeBlock(content: detailedAttributedContent)
                         
-                        // ダウンロードボタン（Pro）
+                        // ダウンロードボタン（Platinum）
                         Button(action: {
-                            showProAlert = true
+                            if platinumManager.isPlatinum {
+                                onExportDetailed()
+                            } else {
+                                showPlatinumAlert = true
+                            }
                         }) {
                             HStack(spacing: 8) {
                                 Spacer()
                                 Image("icon-download")
                                     .renderingMode(.template)
-                                Text("詳細情報でダウンロード（Pro）")
+                                Text(platinumManager.isPlatinum ? "詳細情報でダウンロード" : "詳細情報でダウンロード（Platinum）")
                                 Spacer()
                             }
                             .font(.system(size: 15))
                             .padding(.vertical, 18)
                             .background(
                                 RoundedRectangle(cornerRadius: 12)
-                                    .fill(proGradient.opacity(0.1))
+                                    .fill(platinumManager.isPlatinum ? AnyShapeStyle(Color.primary.opacity(0.1)) : AnyShapeStyle(proGradient.opacity(0.1)))
                             )
                             .overlay(
                                 RoundedRectangle(cornerRadius: 12)
-                                    .stroke(proGradient, lineWidth: 1)
+                                    .stroke(platinumManager.isPlatinum ? AnyShapeStyle(Color.primary.opacity(0.3)) : AnyShapeStyle(proGradient), lineWidth: 1)
                             )
                         }
                         .buttonStyle(.plain)
@@ -281,11 +288,11 @@ struct ExportSheetView: View {
             }
             .navigationTitle("ダウンロード形式を選択")
             .navigationBarTitleDisplayMode(.inline)
-            .alert("Pro機能", isPresented: $showProAlert) {
-                Button("Pro機能を体験する") { }
+            .alert("Platinum機能", isPresented: $showPlatinumAlert) {
+                Button("Platinum機能を体験する") { }
                     .tint(Color(red: 34/255, green: 128/255, blue: 226/255))  // #2280e2
             } message: {
-                Text("詳細情報を含むダウンロードはPro版の機能です。")
+                Text("詳細情報を含むダウンロードはPlatinum版の機能です。")
             }
         }
         .presentationDetents([.medium, .large])
