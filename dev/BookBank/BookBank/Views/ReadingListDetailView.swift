@@ -90,7 +90,6 @@ struct ReadingListDetailView: View {
                             })
                                 .frame(height: 100)
                         }
-                        .frame(minHeight: geometry.size.height + 100)
                         .clipShape(
                             UnevenRoundedRectangle(
                                 topLeadingRadius: 40,
@@ -281,11 +280,12 @@ struct ReadingListDetailView: View {
                 .frame(height: thumbnailGridHeight)
             }
             
-            // タイトル
+            // タイトル（本棚グリッドとの間隔を確保）
             Text(readingList.title)
                 .font(.title2)
                 .fontWeight(.bold)
                 .foregroundColor(.primary)
+                .padding(.top, readingList.books.isEmpty ? 0 : 34)
             
             // 説明文
             if let description = readingList.listDescription, !description.isEmpty {
@@ -298,7 +298,7 @@ struct ReadingListDetailView: View {
             HStack(alignment: .lastTextBaseline, spacing: 12) {
                 HStack(alignment: .lastTextBaseline, spacing: 2) {
                     Text("\(readingList.totalValue.formatted())")
-                        .font(.system(size: 20))
+                        .font(.system(size: 24))
                     Text("円")
                         .font(.system(size: 13))
                 }
@@ -348,6 +348,37 @@ struct ReadingListDetailView: View {
                         Capsule()
                             .fill(Color.primary.opacity(0.1))
                     )
+                }
+                
+                // シェア（アイコンのみ）
+                Button(action: {
+                    showSharePreview = true
+                }) {
+                    Image(systemName: "square.and.arrow.up")
+                        .font(.system(size: 16))
+                        .foregroundColor(.primary)
+                        .frame(width: 33, height: 33)
+                        .background(
+                            Circle()
+                                .fill(Color.primary.opacity(0.1))
+                        )
+                }
+                
+                // ダウンロード（アイコンのみ）
+                Button(action: {
+                    showExportSheet = true
+                }) {
+                    Image("icon-download")
+                        .renderingMode(.template)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 16, height: 16)
+                        .foregroundColor(.primary)
+                        .frame(width: 33, height: 33)
+                        .background(
+                            Circle()
+                                .fill(Color.primary.opacity(0.1))
+                        )
                 }
                 
                 // その他ボタン（ボトムシート）
@@ -895,15 +926,23 @@ struct EditReadingListView: View {
 
 // MARK: - Book Carousel View
 
-/// 本の詳細をカルーセル形式で表示するポップアップ
+/// 本の詳細をカルーセル形式で表示するポップアップ（映画チケットアプリ風カード）
 struct BookCarouselView: View {
     let books: [UserBook]
     let initialIndex: Int
     let readingList: ReadingList
     let onDismiss: () -> Void
     
-    @Environment(\.colorScheme) private var colorScheme
     @State private var currentBookId: PersistentIdentifier?
+    
+    /// 白いカードの背景色（ダークモードではやや明るいグレー）
+    private var cardBackgroundColor: Color {
+        Color(UIColor { traits in
+            traits.userInterfaceStyle == .dark
+                ? UIColor(red: 0.22, green: 0.22, blue: 0.24, alpha: 1)
+                : .white
+        })
+    }
     
     init(books: [UserBook], initialIndex: Int, readingList: ReadingList, onDismiss: @escaping () -> Void) {
         self.books = books
@@ -911,7 +950,6 @@ struct BookCarouselView: View {
         self.readingList = readingList
         self.onDismiss = onDismiss
         
-        // 初期値をここで設定
         if initialIndex < books.count {
             _currentBookId = State(initialValue: books[initialIndex].persistentModelID)
         }
@@ -924,14 +962,13 @@ struct BookCarouselView: View {
     
     var body: some View {
         ZStack {
-            // 背景の暗いオーバーレイ（タップで閉じる）
+            // 背景：半透明の黒（タップで閉じる）
             Color.black.opacity(0.5)
                 .ignoresSafeArea()
                 .onTapGesture {
                     onDismiss()
                 }
             
-            // 浮いているカード
             VStack(spacing: 0) {
                 // 閉じるボタン
                 HStack {
@@ -941,23 +978,23 @@ struct BookCarouselView: View {
                     }) {
                         Image(systemName: "xmark")
                             .font(.title3)
-                            .foregroundColor(.secondary)
+                            .foregroundColor(.white)
                             .frame(width: 44, height: 44)
                     }
                 }
-                .padding(.horizontal, 8)
+                .padding(.horizontal, 16)
                 .padding(.top, 8)
                 
                 // リスト情報
                 VStack(spacing: 4) {
                     Text(readingList.title)
                         .font(.headline)
-                        .foregroundColor(.primary)
+                        .foregroundColor(.white)
                     
                     if let description = readingList.listDescription, !description.isEmpty {
                         Text(description)
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundColor(.white.opacity(0.8))
                             .multilineTextAlignment(.center)
                             .lineLimit(2)
                     }
@@ -967,21 +1004,21 @@ struct BookCarouselView: View {
                 
                 Spacer()
                 
-                // カルーセル（次の要素が見えるデザイン）
+                // カード形式カルーセル（エリア幅100%、カード間スペース狭め）
                 GeometryReader { geometry in
-                    let spacing: CGFloat = 16
-                    let cardWidth = geometry.size.width * 0.65  // カード幅は65%
-                    let sideInset = (geometry.size.width - cardWidth) / 2 - spacing / 2  // 左右の余白
+                    let spacing: CGFloat = 8
+                    let cardWidth = geometry.size.width * 0.78
+                    let sideInset = (geometry.size.width - cardWidth) / 2 - spacing / 2
                     
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: spacing) {
-                            ForEach(Array(books.enumerated()), id: \.element.id) { index, book in
+                            ForEach(Array(books.enumerated()), id: \.element.id) { _, book in
                                 bookDetailCard(book: book)
                                     .frame(width: cardWidth)
-                                    .scrollTransition { content, phase in
+                                    .scrollTransition(.interactive) { content, phase in
                                         content
-                                            .scaleEffect(phase.isIdentity ? 1 : 0.85)
-                                            .opacity(phase.isIdentity ? 1 : 0.7)
+                                            .scaleEffect(phase.isIdentity ? 1.0 : 0.85)
+                                            .opacity(phase.isIdentity ? 1.0 : 0.4)
                                     }
                                     .id(book.persistentModelID)
                             }
@@ -991,100 +1028,76 @@ struct BookCarouselView: View {
                     }
                     .scrollTargetBehavior(.viewAligned)
                     .scrollPosition(id: $currentBookId)
+                    .animation(.spring(response: 0.35, dampingFraction: 0.85), value: currentBookId)
                 }
-                .frame(height: 450)
+                .frame(height: 460)
                 
                 Spacer()
                 
                 // ページインジケーター
                 Text("\(currentIndex + 1) / \(books.count)")
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(.white.opacity(0.9))
+                    .padding(.horizontal, 16)
                     .padding(.bottom, 32)
             }
-            .background(
-                RoundedRectangle(cornerRadius: 24)
-                    .fill(.ultraThinMaterial)
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 24))
-            .overlay(
-                RoundedRectangle(cornerRadius: 24)
-                    .stroke(Color.primary.opacity(0.2), lineWidth: 0.5)
-            )
-            .padding(.horizontal, 16)
-            .padding(.vertical, 60)
-            .shadow(color: .black.opacity(0.2), radius: 20, x: 0, y: 10)
+            .padding(.vertical, 50)
         }
     }
     
-    // 本の詳細カード
+    /// 白いカード内の本1冊（表紙＋タイトル＋著者＋価格）
+    /// 表紙サイズは DESIGN_SYSTEM: 単体表示（カルーセル）140x210px、角丸2px
     private func bookDetailCard(book: UserBook) -> some View {
-        VStack(spacing: 20) {
-            // 本の表紙
+        VStack(spacing: 16) {
+            // 本の表紙（DESIGN_SYSTEM: カルーセル 140x210、角丸2px）
             if let imageURL = book.imageURL,
                let url = URL(string: imageURL) {
                 CachedAsyncImage(url: url, width: 140, height: 210)
                     .clipShape(RoundedRectangle(cornerRadius: 2))
-                    .shadow(color: Color.primary.opacity(0.2), radius: 20, x: 0, y: 10)
             } else {
                 bookPlaceholder
             }
             
-            // 本の情報
-            VStack(spacing: 8) {
-                // タイトル
+            // タイトル・著者・価格
+            VStack(spacing: 6) {
                 Text(book.title)
                     .font(.headline)
                     .foregroundColor(.primary)
                     .multilineTextAlignment(.center)
                     .lineLimit(3)
                 
-                // 著者
                 if !book.displayAuthor.isEmpty {
                     Text(book.displayAuthor)
-                        .font(.footnote)
+                        .font(.subheadline)
                         .foregroundColor(.secondary)
+                        .lineLimit(1)
                 }
                 
-                // 金額
                 if let price = book.priceAtRegistration {
                     Text("¥\(price.formatted())")
                         .font(.title3)
+                        .fontWeight(.medium)
                         .foregroundColor(.primary)
-                        .padding(.top, 4)
+                        .padding(.top, 2)
                 }
             }
-            .padding(.horizontal, 16)
-            
-            // メモ
-            if let memo = book.memo, !memo.isEmpty {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("メモ")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    
-                    Text(memo)
-                        .font(.subheadline)
-                        .foregroundColor(.primary.opacity(0.8))
-                        .multilineTextAlignment(.leading)
-                        .lineLimit(4)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(16)
-                .background(
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(Color.appCardBackground)
-                )
-            }
+            .padding(.horizontal, 12)
+            .padding(.bottom, 4)
         }
-        .padding(.vertical, 20)
+        .padding(.top, 20)
+        .padding(.bottom, 16)
+        .frame(maxWidth: .infinity)
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(cardBackgroundColor)
+        )
+        .shadow(color: .black.opacity(0.25), radius: 16, x: 0, y: 8)
     }
     
     private var bookPlaceholder: some View {
-        Rectangle()
+        RoundedRectangle(cornerRadius: 2)
             .fill(Color.secondary.opacity(0.2))
-            .frame(width: 200, height: 300)
-            .clipShape(RoundedRectangle(cornerRadius: 2))
+            .frame(width: 140, height: 210)
             .overlay {
                 Image(systemName: "book.closed")
                     .font(.largeTitle)

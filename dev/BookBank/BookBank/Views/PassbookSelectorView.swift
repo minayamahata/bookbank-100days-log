@@ -55,7 +55,7 @@ struct PassbookSelectorView: View {
             
             Spacer()
             
-            // 下部に配置：新しい口座を追加
+            // 下部に配置：新しい口座を追加 / サブスクリプションを管理
             VStack(spacing: 0) {
                 Divider()
                 
@@ -77,11 +77,27 @@ struct PassbookSelectorView: View {
                     .padding(.horizontal, 20)
                     .padding(.vertical, 14)
                 }
+                
+                // 年額プランの場合のみ表示（lifetimeは解約不要のため非表示）
+                if platinumManager.isPlatinum && platinumManager.hasActiveYearlySubscription {
+                    Button(action: openSubscriptionManagement) {
+                        HStack {
+                            Image(systemName: "creditcard")
+                                .font(.subheadline)
+                            Text("サブスクリプションを管理")
+                                .font(.subheadline)
+                            Spacer()
+                        }
+                        .foregroundColor(.primary)
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 14)
+                    }
+                }
             }
             .background(Color.appCardBackground)
         }
         .background(Color.appGroupedBackground)
-        .navigationTitle("口座を選択")
+        .navigationTitle("口座を管理")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $passbookToEdit) { passbook in
             EditPassbookView(passbook: passbook)
@@ -99,6 +115,12 @@ struct PassbookSelectorView: View {
         } message: {
             Text("4つ以上の口座を作成するにはPlatinum版が必要です。")
         }
+    }
+    
+    /// App Storeのサブスクリプション管理ページを開く
+    private func openSubscriptionManagement() {
+        guard let url = URL(string: "https://apps.apple.com/account/subscriptions") else { return }
+        UIApplication.shared.open(url)
     }
     
     // 口座行のビュー

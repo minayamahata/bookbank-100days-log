@@ -17,9 +17,8 @@ struct ReadingListView: View {
     @State private var listToDelete: ReadingList?
     @State private var showDeleteAlert = false
     
-    // 2カラムグリッド
+    // 1カラム
     private let columns = [
-        GridItem(.flexible(), spacing: 12),
         GridItem(.flexible(), spacing: 12)
     ]
     
@@ -31,7 +30,7 @@ struct ReadingListView: View {
                     .padding(.horizontal, 16)
                     .padding(.vertical, 20)
             } else {
-                // 2カラムカード一覧
+                // 1カラムカード一覧
                 LazyVGrid(columns: columns, spacing: 12) {
                     ForEach(readingLists) { list in
                         NavigationLink(value: list) {
@@ -97,11 +96,11 @@ struct ReadingListView: View {
     /// カード形式のリストビュー
     private func readingListCard(list: ReadingList) -> some View {
         VStack(alignment: .leading, spacing: 16) {
-            // 3x3グリッドサムネイル（本の比率 2:3）
+            // 5カラム1行サムネイル（最大5冊、本の比率 2:3）
             GeometryReader { geometry in
-                gridThumbnail(for: list, size: geometry.size.width)
+                rowThumbnail(for: list, width: geometry.size.width)
             }
-            .aspectRatio(2/3, contentMode: .fit)
+            .aspectRatio(10/3, contentMode: .fit)  // 5冊横並び＋スペース分の高さ
             .clipShape(RoundedRectangle(cornerRadius: 6))
             
             // リスト情報
@@ -153,30 +152,26 @@ struct ReadingListView: View {
         )
     }
     
-    /// 3x3グリッドサムネイル（本の比率 2:3）
-    private func gridThumbnail(for list: ReadingList, size: CGFloat) -> some View {
-        let books = Array(list.books.prefix(9))
-        let spacing: CGFloat = 2
-        let cellWidth: CGFloat = (size - spacing * 2) / 3
-        let cellHeight: CGFloat = cellWidth * 1.5  // 本の比率 2:3
+    /// 5カラム1行サムネイル（最大5冊、本の比率 2:3）
+    private func rowThumbnail(for list: ReadingList, width: CGFloat) -> some View {
+        let books = Array(list.books.prefix(5))
+        let spacing: CGFloat = 4
+        let cellWidth: CGFloat = (width - spacing * 4) / 5
+        let cellHeight: CGFloat = cellWidth * 1.5  // 2:3
         
-        return VStack(spacing: spacing) {
-            ForEach(0..<3, id: \.self) { row in
-                HStack(spacing: spacing) {
-                    ForEach(0..<3, id: \.self) { col in
-                        let index = row * 3 + col
-                        if index < books.count, let imageURL = books[index].imageURL {
-                            CachedAsyncImage(
-                                url: URL(string: imageURL),
-                                width: cellWidth,
-                                height: cellHeight
-                            )
-                        } else {
-                            Rectangle()
-                                .fill(Color.secondary.opacity(0.15))
-                                .frame(width: cellWidth, height: cellHeight)
-                        }
-                    }
+        return HStack(spacing: spacing) {
+            ForEach(0..<5, id: \.self) { index in
+                if index < books.count, let imageURL = books[index].imageURL {
+                    CachedAsyncImage(
+                        url: URL(string: imageURL),
+                        width: cellWidth,
+                        height: cellHeight
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: 2))
+                } else {
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(Color.secondary.opacity(0.15))
+                        .frame(width: cellWidth, height: cellHeight)
                 }
             }
         }

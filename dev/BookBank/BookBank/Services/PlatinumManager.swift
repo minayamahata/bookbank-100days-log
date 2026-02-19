@@ -25,10 +25,15 @@ final class PlatinumManager {
         "com.bookbank.platinum.lifetime"  // 買い切り
     ]
     
+    private let yearlyProductId = "com.bookbank.platinum.yearly"
+    
     // MARK: - Observable Properties
     
     /// Platinum会員かどうか
     private(set) var isPlatinum: Bool = false
+    
+    /// 年額サブスクが有効かどうか（lifetimeのみの場合はfalse・解約管理不要のため）
+    private(set) var hasActiveYearlySubscription: Bool = false
     
     /// 利用可能な商品一覧
     private(set) var products: [Product] = []
@@ -133,6 +138,7 @@ final class PlatinumManager {
     /// 購入状態を更新
     private func updatePurchaseStatus() async {
         var hasValidEntitlement = false
+        var hasYearly = false
         
         // 現在の権利を確認
         for await result in Transaction.currentEntitlements {
@@ -145,6 +151,9 @@ final class PlatinumManager {
                     if let expirationDate = transaction.expirationDate {
                         if expirationDate > Date() {
                             hasValidEntitlement = true
+                            if transaction.productID == yearlyProductId {
+                                hasYearly = true
+                            }
                         }
                     } else {
                         // 買い切り（非消耗型）の場合
@@ -157,6 +166,7 @@ final class PlatinumManager {
         }
         
         isPlatinum = hasValidEntitlement
+        hasActiveYearlySubscription = hasYearly
     }
     
     /// トランザクションを監視
