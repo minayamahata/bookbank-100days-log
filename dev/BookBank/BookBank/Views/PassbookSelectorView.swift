@@ -82,16 +82,38 @@ struct PassbookSelectorView: View {
                 if platinumManager.isPlatinum && platinumManager.hasActiveYearlySubscription {
                     Button(action: openSubscriptionManagement) {
                         HStack {
-                            Image(systemName: "creditcard")
-                                .font(.subheadline)
                             Text("サブスクリプションを管理")
                                 .font(.subheadline)
                             Spacer()
                         }
                         .foregroundColor(.primary)
                         .padding(.horizontal, 20)
-                        .padding(.vertical, 14)
+                        .padding(.vertical, 10)
                     }
+                }
+                
+                // 利用規約
+                Button(action: { openURL("https://bookbank-share.vercel.app/terms") }) {
+                    HStack {
+                        Text("利用規約")
+                            .font(.subheadline)
+                        Spacer()
+                    }
+                    .foregroundColor(.primary)
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 14)
+                }
+                
+                // プライバシーポリシー
+                Button(action: { openURL("https://bookbank-share.vercel.app/privacy") }) {
+                    HStack {
+                        Text("プライバシーポリシー")
+                            .font(.subheadline)
+                        Spacer()
+                    }
+                    .foregroundColor(.primary)
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 14)
                 }
             }
             .background(Color.appCardBackground)
@@ -108,18 +130,30 @@ struct PassbookSelectorView: View {
         .sheet(isPresented: $showPlatinumPaywall) {
             PlatinumPaywallView()
         }
-        .confirmationDialog("Platinum機能", isPresented: $showProAlert, titleVisibility: .visible) {
-            Button("Platinum機能を体験する") {
-                showPlatinumPaywall = true
+        .overlay {
+            if showProAlert {
+                PlatinumAlertView(
+                    message: "4つ以上の口座を作成するにはPlatinum版が必要です。",
+                    onConfirm: {
+                        showProAlert = false
+                        showPlatinumPaywall = true
+                    },
+                    onCancel: {
+                        showProAlert = false
+                    }
+                )
             }
-        } message: {
-            Text("4つ以上の口座を作成するにはPlatinum版が必要です。")
         }
     }
     
     /// App Storeのサブスクリプション管理ページを開く
     private func openSubscriptionManagement() {
-        guard let url = URL(string: "https://apps.apple.com/account/subscriptions") else { return }
+        openURL("https://apps.apple.com/account/subscriptions")
+    }
+    
+    /// URLをSafariで開く
+    private func openURL(_ urlString: String) {
+        guard let url = URL(string: urlString) else { return }
         UIApplication.shared.open(url)
     }
     

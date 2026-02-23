@@ -69,7 +69,7 @@ struct AccountListView: View {
     
     var body: some View {
         ScrollView {
-            VStack(spacing: 32) {
+            VStack(spacing: 20) {
                 // Platinum会員表示（左上）
                 if platinumManager.isPlatinum {
                     platinumBadgeSection
@@ -191,7 +191,6 @@ struct AccountListView: View {
                 }
             }
             .padding(.horizontal, 16)
-            .padding(.vertical, 20)
         }
         .background(Color.appGroupedBackground)
         .navigationTitle("口座一覧")
@@ -210,12 +209,19 @@ struct AccountListView: View {
         .sheet(isPresented: $showPlatinumPaywall) {
             PlatinumPaywallView()
         }
-        .confirmationDialog("Platinum機能", isPresented: $showProAlert, titleVisibility: .visible) {
-            Button("Platinum機能を体験する") {
-                showPlatinumPaywall = true
+        .overlay {
+            if showProAlert {
+                PlatinumAlertView(
+                    message: "4つ以上の口座を作成するにはPlatinum版が必要です。",
+                    onConfirm: {
+                        showProAlert = false
+                        showPlatinumPaywall = true
+                    },
+                    onCancel: {
+                        showProAlert = false
+                    }
+                )
             }
-        } message: {
-            Text("4つ以上の口座を作成するにはPlatinum版が必要です。")
         }
     }
     

@@ -1,6 +1,6 @@
 # BookBank 開発ログ
 
-最終更新: 2026年02月15日
+最終更新: 2026年02月22日
 
 ---
 
@@ -414,6 +414,27 @@ git push origin main
 ---
 
 ## 開発履歴
+
+### 2026-02-22
+- ✅ **ReadingListDetailView（読了リスト詳細）の改善**
+  - サムネイルグリッドの左右余白を24pt→12ptに変更（本を大きく表示）
+  - カルーセルのカード幅を65%→75%に変更（アクティブカードを大きく）
+  - カルーセルのカード間スペースを16pt→8ptに変更
+  - カルーセルのカード内に水平16ptのpaddingを追加
+  - カルーセル上の説明文を全文表示（lineLimit解除、fixedSize追加）
+  - 説明文とカルーセルの間隔を16pt追加
+
+- ✅ **Platinum誘導ポップアップのデザイン統一**
+  - PlatinumAlertView.swiftを新規作成（共通コンポーネント）
+  - 「Platinum機能を体験する」ボタン: 青塗り（.blue）+ 白文字
+  - 「キャンセル」ボタン: 黒テキスト（.primary）
+  - 全箇所で統一（AccountListView、PassbookSelectorView、MainTabView、MarkdownExporter）
+  - .confirmationDialog から カスタムオーバーレイに変更
+
+- ✅ **エクスポートプレビュー（ExportSheetView）の改善**
+  - 詳細エクスポートのプレビューに全フィールドを表示
+  - 著者、金額、出版社、登録日、ISBN、表紙画像、メモの7項目
+  - データがない場合はサンプルテキストを表示
 
 ### 2026-02-15
 - ✅ **口座選択画面の変更（PassbookSelectorView）**

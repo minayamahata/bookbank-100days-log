@@ -237,12 +237,19 @@ struct MainTabView: View {
         .sheet(isPresented: $showPlatinumPaywall) {
             PlatinumPaywallView()
         }
-        .confirmationDialog("Platinum機能", isPresented: $showProAlert, titleVisibility: .visible) {
-            Button("Platinum機能を体験する") {
-                showPlatinumPaywall = true
+        .overlay {
+            if showProAlert {
+                PlatinumAlertView(
+                    message: "4つ以上の読了リストを作成するにはPlatinum版が必要です。",
+                    onConfirm: {
+                        showProAlert = false
+                        showPlatinumPaywall = true
+                    },
+                    onCancel: {
+                        showProAlert = false
+                    }
+                )
             }
-        } message: {
-            Text("4つ以上の読了リストを作成するにはPlatinum版が必要です。")
         }
         .overlay {
             // 背景の暗幕（フェード）

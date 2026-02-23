@@ -352,7 +352,7 @@ struct ReadingListDetailView: View {
                 
                 // シェア（アイコンのみ）
                 Button(action: {
-                    showSharePreview = true
+                    shareReadingList()
                 }) {
                     Image(systemName: "square.and.arrow.up")
                         .font(.system(size: 16))
@@ -422,14 +422,16 @@ struct ReadingListDetailView: View {
         let books = Array(readingList.books.prefix(10))
         let spacing: CGFloat = 4
         let totalRows = books.count > 5 ? 2 : 1
+        let shelfInset: CGFloat = 12  // 本棚の内側両端の余白
         
-        // 親ビューの幅に基づいて計算
-        let cellWidth = (width - spacing * 4) / 5
+        // 本の行は内側に余白分だけ狭い領域に収める
+        let bookRowWidth = width - shelfInset * 2
+        let cellWidth = (bookRowWidth - spacing * 4) / 5
         let cellHeight = cellWidth * 1.5
         let rowSpacing: CGFloat = 16
         
         return VStack(spacing: rowSpacing) {
-            // 上段（1〜5冊目）- センタリング
+            // 上段（1〜5冊目）
             VStack(spacing: 0) {
                 HStack(spacing: spacing) {
                     ForEach(0..<min(5, books.count), id: \.self) { col in
@@ -445,12 +447,13 @@ struct ReadingListDetailView: View {
                     }
                 }
                 .frame(maxWidth: .infinity)
+                .padding(.horizontal, shelfInset)
                 
-                // 棚板（上段）
+                // 棚板（上段）- 幅いっぱい
                 shelfBoard(depth: totalRows == 1 ? 1.0 : 0.0)
             }
             
-            // 下段（6〜10冊目）- 6冊以上の場合のみ、センタリング
+            // 下段（6〜10冊目）- 6冊以上の場合のみ
             if totalRows == 2 {
                 VStack(spacing: 0) {
                     HStack(spacing: spacing) {
@@ -467,8 +470,9 @@ struct ReadingListDetailView: View {
                         }
                     }
                     .frame(maxWidth: .infinity)
+                    .padding(.horizontal, shelfInset)
                     
-                    // 棚板（下段）
+                    // 棚板（下段）- 幅いっぱい
                     shelfBoard(depth: 1.0)
                 }
             }
@@ -742,6 +746,13 @@ struct EditReadingListView: View {
                 Section {
                     TextField("説明（任意）", text: $listDescription, axis: .vertical)
                         .lineLimit(3...6)
+                        .onChange(of: listDescription) { _, newValue in
+                            if newValue.count > 50 {
+                                listDescription = String(newValue.prefix(50))
+                            }
+                        }
+                } footer: {
+                    Text("50文字まで")
                 }
                 
                 Section {
@@ -822,10 +833,10 @@ struct EditReadingListView: View {
             }
             .onAppear {
                 title = readingList.title
-                listDescription = readingList.listDescription ?? ""
+                listDescription = String((readingList.listDescription ?? "").prefix(50))
                 selectedColorIndex = readingList.colorIndex ?? 0
                 originalTitle = readingList.title
-                originalDescription = readingList.listDescription ?? ""
+                originalDescription = String((readingList.listDescription ?? "").prefix(50))
                 originalColorIndex = readingList.colorIndex ?? 0
             }
             .alert("リストを削除", isPresented: $showDeleteAlert) {
@@ -901,7 +912,7 @@ struct EditReadingListView: View {
     
     private func saveChanges() {
         readingList.title = title
-        readingList.listDescription = listDescription.isEmpty ? nil : listDescription
+        readingList.listDescription = listDescription.isEmpty ? nil : String(listDescription.prefix(50))
         readingList.colorIndex = selectedColorIndex
         readingList.updatedAt = Date()
         
@@ -996,18 +1007,20 @@ struct BookCarouselView: View {
                             .font(.caption)
                             .foregroundColor(.white.opacity(0.8))
                             .multilineTextAlignment(.center)
-                            .lineLimit(2)
+                            .lineLimit(nil)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, 8)
+                .padding(.bottom, 16)
                 
                 Spacer()
                 
-                // カード形式カルーセル（エリア幅100%、カード間スペース狭め）
+                // カード形式カルーセル（DESIGN_SYSTEM: カード幅75%、spacing 8、高さ450）
                 GeometryReader { geometry in
                     let spacing: CGFloat = 8
-                    let cardWidth = geometry.size.width * 0.78
+                    let cardWidth = geometry.size.width * 0.75
                     let sideInset = (geometry.size.width - cardWidth) / 2 - spacing / 2
                     
                     ScrollView(.horizontal, showsIndicators: false) {
@@ -1018,7 +1031,7 @@ struct BookCarouselView: View {
                                     .scrollTransition(.interactive) { content, phase in
                                         content
                                             .scaleEffect(phase.isIdentity ? 1.0 : 0.85)
-                                            .opacity(phase.isIdentity ? 1.0 : 0.4)
+                                            .opacity(phase.isIdentity ? 1.0 : 0.7)
                                     }
                                     .id(book.persistentModelID)
                             }
@@ -1030,7 +1043,7 @@ struct BookCarouselView: View {
                     .scrollPosition(id: $currentBookId)
                     .animation(.spring(response: 0.35, dampingFraction: 0.85), value: currentBookId)
                 }
-                .frame(height: 460)
+                .frame(height: 450)
                 
                 Spacer()
                 
@@ -1053,6 +1066,7 @@ struct BookCarouselView: View {
             if let imageURL = book.imageURL,
                let url = URL(string: imageURL) {
                 CachedAsyncImage(url: url, width: 140, height: 210)
+                    .frame(width: 140, height: 210)
                     .clipShape(RoundedRectangle(cornerRadius: 2))
             } else {
                 bookPlaceholder
@@ -1083,9 +1097,26 @@ struct BookCarouselView: View {
             }
             .padding(.horizontal, 12)
             .padding(.bottom, 4)
+            
+            // メモ（あれば表示）
+            if let memo = book.memo, !memo.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("メモ")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Text(memo)
+                        .font(.footnote)
+                        .foregroundColor(.primary)
+                        .multilineTextAlignment(.leading)
+                        .lineLimit(3)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(12)
+            }
         }
         .padding(.top, 20)
         .padding(.bottom, 16)
+        .padding(.horizontal, 16)
         .frame(maxWidth: .infinity)
         .background(
             RoundedRectangle(cornerRadius: 16)

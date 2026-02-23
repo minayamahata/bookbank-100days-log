@@ -292,13 +292,19 @@ struct ExportSheetView: View {
             .sheet(isPresented: $showPlatinumPaywall) {
                 PlatinumPaywallView()
             }
-            .alert("Platinum機能", isPresented: $showPlatinumAlert) {
-                Button("Platinum機能を体験する") {
-                    showPlatinumPaywall = true
+            .overlay {
+                if showPlatinumAlert {
+                    PlatinumAlertView(
+                        message: "詳細情報を含むダウンロードはPlatinum版の機能です。",
+                        onConfirm: {
+                            showPlatinumAlert = false
+                            showPlatinumPaywall = true
+                        },
+                        onCancel: {
+                            showPlatinumAlert = false
+                        }
+                    )
                 }
-                    .tint(Color(red: 34/255, green: 128/255, blue: 226/255))  // #2280e2
-            } message: {
-                Text("詳細情報を含むダウンロードはPlatinum版の機能です。")
             }
         }
         .presentationDetents([.medium, .large])
@@ -386,26 +392,14 @@ struct ExportSheetView: View {
                 }
                 .font(.system(size: 11, design: .monospaced))
                 
-                // プロパティ
-                if let author = book.author, !author.isEmpty {
-                    propertyLine(marker: "- ", key: "著者: ", value: author)
-                }
-                if let price = book.price {
-                    propertyLine(marker: "- ", key: "金額: ", value: "\(price.formatted())円")
-                }
-                if let publisher = book.publisher, !publisher.isEmpty {
-                    propertyLine(marker: "- ", key: "出版社: ", value: publisher)
-                }
+                // プロパティ（すべて表示してフォーマットを示す）
+                propertyLine(marker: "- ", key: "著者: ", value: book.author ?? "著者名")
+                propertyLine(marker: "- ", key: "金額: ", value: book.price != nil ? "\(book.price!.formatted())円" : "1,000円")
+                propertyLine(marker: "- ", key: "出版社: ", value: book.publisher ?? "出版社名")
                 propertyLine(marker: "- ", key: "登録日: ", value: book.date)
-                if let isbn = book.isbn, !isbn.isEmpty {
-                    propertyLine(marker: "- ", key: "ISBN: ", value: isbn)
-                }
-                if let imageURL = book.imageURL, !imageURL.isEmpty {
-                    propertyLine(marker: "- ", key: "表紙画像: ", value: imageURL)
-                }
-                if let memo = book.memo, !memo.isEmpty {
-                    propertyLine(marker: "- ", key: "メモ: ", value: memo)
-                }
+                propertyLine(marker: "- ", key: "ISBN: ", value: book.isbn ?? "9784000000000")
+                propertyLine(marker: "- ", key: "表紙画像: ", value: "https://...")
+                propertyLine(marker: "- ", key: "メモ: ", value: book.memo ?? "メモ内容")
                 
                 Text("")
                 Text("...")
@@ -417,6 +411,11 @@ struct ExportSheetView: View {
                     .foregroundColor(headingColor)
                 propertyLine(marker: "- ", key: "著者: ", value: "著者名")
                 propertyLine(marker: "- ", key: "金額: ", value: "1,000円")
+                propertyLine(marker: "- ", key: "出版社: ", value: "出版社名")
+                propertyLine(marker: "- ", key: "登録日: ", value: "2024.01.01")
+                propertyLine(marker: "- ", key: "ISBN: ", value: "9784000000000")
+                propertyLine(marker: "- ", key: "表紙画像: ", value: "https://...")
+                propertyLine(marker: "- ", key: "メモ: ", value: "メモ内容")
             }
         }
     }
