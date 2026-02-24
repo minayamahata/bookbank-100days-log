@@ -98,8 +98,8 @@ struct AccountListView: View {
                                             .font(.caption2)
                                             .foregroundColor(.primary)
                                     }
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 4)
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 6)
                                     .background(
                                         Capsule()
                                             .fill(Color.appCardBackground)
@@ -111,7 +111,7 @@ struct AccountListView: View {
                         .chartLegend(.hidden)
                         
                         // 中央の総資産表示
-                        VStack(spacing: 2) {
+                        VStack(spacing: 8) {
                             Text("総資産")
                                 .font(.headline)
                                 .foregroundColor(.primary)
@@ -129,7 +129,7 @@ struct AccountListView: View {
                                 .foregroundColor(.secondary)
                         }
                     }
-                    .frame(height: 220)
+                    .frame(height: 260)
                 } else {
                     // データがない場合の総資産表示
                     VStack(spacing: 4) {
@@ -172,14 +172,14 @@ struct AccountListView: View {
                     }
                 }) {
                     HStack {
-                        Image(systemName: "plus.circle.fill")
-                            .font(.title3)
+                        Image(systemName: "plus")
+                            .font(.system(size: 14))
                         Text("新しい口座を追加")
                             .font(.body)
                     }
                     .foregroundColor(.primary)
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 16)
+                    .padding(.vertical, 26)
                     .background(
                         RoundedRectangle(cornerRadius: 12)
                             .stroke(Color.primary.opacity(0.3), lineWidth: 1)
@@ -302,7 +302,7 @@ struct AccountListView: View {
                 Text("円")
                     .font(.caption)
             }
-            .foregroundColor(.primary)
+            .foregroundColor(colorForPassbook(passbook))
             
             // 三点リーダー（タップで編集）
             Button(action: {

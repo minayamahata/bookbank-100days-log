@@ -56,6 +56,18 @@ struct StatisticsView: View {
         return .blue  // 総合口座は青
     }
     
+    /// テーマカラーが黒（index 0）かどうか
+    private var isBlackTheme: Bool {
+        guard let passbook = passbook else { return false }
+        if let colorIndex = passbook.colorIndex {
+            return colorIndex == 0
+        }
+        if let index = customPassbooks.firstIndex(where: { $0.persistentModelID == passbook.persistentModelID }) {
+            return index == 0
+        }
+        return false
+    }
+    
     /// 対象口座の書籍（口座指定がない場合は全書籍）
     private var targetBooks: [UserBook] {
         if let passbook = passbook {
@@ -194,7 +206,7 @@ struct StatisticsView: View {
         }
         .navigationTitle("集計")
         .navigationBarTitleDisplayMode(.inline)
-        .background(themeColor.opacity(0.1).ignoresSafeArea())
+        .background(ThemedBackgroundView(themeColor: themeColor, isBlackTheme: isBlackTheme))
     }
     
     // MARK: - Subviews

@@ -61,6 +61,17 @@ struct BookshelfView: View {
         PassbookColor.color(for: passbook, in: customPassbooks)
     }
     
+    /// テーマカラーが黒（index 0）かどうか
+    private var isBlackTheme: Bool {
+        if let colorIndex = passbook.colorIndex {
+            return colorIndex == 0
+        }
+        if let index = customPassbooks.firstIndex(where: { $0.persistentModelID == passbook.persistentModelID }) {
+            return index == 0
+        }
+        return false
+    }
+    
     // グリッドの列定義（4カラム）
     private let columns = [
         GridItem(.flexible(), spacing: 2),
@@ -92,7 +103,7 @@ struct BookshelfView: View {
             }
         }
         .id(passbook.persistentModelID) // 口座が変わったら強制的にViewを再生成
-        .background(themeColor.opacity(0.1).ignoresSafeArea())
+        .background(ThemedBackgroundView(themeColor: themeColor, isBlackTheme: isBlackTheme))
         .navigationTitle("本棚")
         .navigationBarTitleDisplayMode(.inline)
     }

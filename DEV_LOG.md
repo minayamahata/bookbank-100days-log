@@ -1,6 +1,6 @@
 # BookBank 開発ログ
 
-最終更新: 2026年02月22日
+最終更新: 2026年02月24日
 
 ---
 
@@ -333,7 +333,10 @@ BookBank/
 │   ├── BookSearchView.swift       # 本の検索画面（口座選択機能付き）
 │   ├── AddBookView.swift          # 手動登録画面（口座選択機能付き）
 │   ├── UserBookDetailView.swift   # 本の詳細画面
-│   └── MemoEditorView.swift       # メモ編集モーダル
+│   ├── MemoEditorView.swift       # メモ編集モーダル
+│   └── Components/
+│       ├── ThemedBackgroundView.swift  # 共通背景コンポーネント
+│       └── LiquidGlassButton.swift     # リキッドグラスボタン
 └── Services/
     ├── RakutenBooksService.swift  # 楽天Books API通信
     └── RakutenBooksModels.swift   # APIレスポンスモデル
@@ -414,6 +417,34 @@ git push origin main
 ---
 
 ## 開発履歴
+
+### 2026-02-24
+- ✅ **ThemedBackgroundView（共通背景コンポーネント）の作成**
+  - 通帳・本棚・集計ページの背景を再利用可能なコンポーネントに抽出
+  - RadialGradient（テーマカラー→透明）、光源PNG、ノイズテクスチャを含む
+  - themeColorとisBlackThemeをパラメータ化し、ダークモード時の黒テーマ対応
+
+- ✅ **PassbookDetailView（通帳ページ）の背景改善**
+  - テーマカラーのベタ塗りからRadialGradientベースのリッチな背景に変更
+  - 光源PNG（bg_glow）とノイズテクスチャ（bg_noise）を追加
+  - 金額テキストに白→テーマカラーのLinearGradientを適用
+  - アクションボタン（本を登録する・本棚を見る）を追加
+  - リスト項目にテーマカラーの背景と角丸を適用
+
+- ✅ **BookshelfView・StatisticsViewへの背景適用**
+  - 両ページの背景をThemedBackgroundViewに統一
+  - isBlackThemeプロパティを追加し、白テーマ＋ダークモード対応
+
+- ✅ **LiquidGlassButtonの改善**
+  - 白テーマ＋ダークモード時は塗りを白、テキストを黒に反転
+  - isBlackThemeパラメータを追加
+
+- ✅ **AccountListView（口座一覧）の改善**
+  - 口座ごとの金額テキストをテーマカラーで表示
+  - 「新しい口座を追加」ボタンのアイコンを統一
+
+- ✅ **ReadingListDetailView（読了リスト詳細）のダークモード対応**
+  - ダークモード時に背景にColor.black.opacity(0.2)を追加
 
 ### 2026-02-22
 - ✅ **ReadingListDetailView（読了リスト詳細）の改善**

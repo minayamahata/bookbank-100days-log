@@ -21,6 +21,7 @@ struct ReadingListDetailView: View {
     
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.colorScheme) private var colorScheme
     
     // MARK: - State
     
@@ -119,7 +120,15 @@ struct ReadingListDetailView: View {
                 .zIndex(1)
             }
         }
-        .background(Color(.systemGroupedBackground))
+        .background(
+            ZStack {
+                Color(.systemGroupedBackground)
+                if colorScheme == .dark {
+                    themeColor
+                    Color.black.opacity(0.2)
+                }
+            }
+        )
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showBookSelector) {
             BookSelectorView(readingList: readingList)

@@ -54,6 +54,18 @@ struct MainTabView: View {
         return .blue
     }
     
+    /// 現在の口座が黒テーマ（colorIndex == 0）かどうか
+    private var isBlackTheme: Bool {
+        guard let passbook = currentPassbook else { return false }
+        if let colorIndex = passbook.colorIndex {
+            return colorIndex == 0
+        }
+        if let index = customPassbooks.firstIndex(where: { $0.persistentModelID == passbook.persistentModelID }) {
+            return index == 0
+        }
+        return false
+    }
+    
     var body: some View {
         ZStack(alignment: .bottom) {
             // 標準のTabView
@@ -202,7 +214,7 @@ struct MainTabView: View {
                                 }
                             }
                         } label: {
-                            LiquidGlassButton(color: currentThemeColor)
+                            LiquidGlassButton(color: currentThemeColor, isBlackTheme: isBlackTheme)
                         }
                         .padding(.trailing, 16)
                         .padding(.bottom, 70)
@@ -223,7 +235,7 @@ struct MainTabView: View {
                                 }
                             }
                         }) {
-                            LiquidGlassButton(color: currentThemeColor)
+                            LiquidGlassButton(color: currentThemeColor, isBlackTheme: isBlackTheme)
                         }
                         .padding(.trailing, 16)
                         .padding(.bottom, 70)

@@ -25,6 +25,9 @@ struct PassbookDetailView: View {
     /// 画面を閉じるためのアクション
     @Environment(\.dismiss) private var dismiss
     
+    /// カラースキーム（ライト/ダークモード）
+    @Environment(\.colorScheme) private var colorScheme
+    
     // MARK: - SwiftData Query
     
     /// すべての口座を取得
@@ -67,6 +70,17 @@ struct PassbookDetailView: View {
         PassbookColor.color(for: passbook, in: customPassbooks)
     }
     
+    /// テーマカラーが黒（index 0）かどうか
+    private var isBlackTheme: Bool {
+        if let colorIndex = passbook.colorIndex {
+            return colorIndex == 0
+        }
+        if let index = customPassbooks.firstIndex(where: { $0.persistentModelID == passbook.persistentModelID }) {
+            return index == 0
+        }
+        return false
+    }
+    
     // MARK: - Initialization
     
     init(passbook: Passbook) {
@@ -85,7 +99,7 @@ struct PassbookDetailView: View {
                     accountInfoSection
                     
                     // コンテンツカード
-                    VStack(spacing: 0) {
+                    VStack(alignment: .leading, spacing: 0) {
                         // ヘッダー
                         HStack {
                             Text("入金履歴")
@@ -100,6 +114,9 @@ struct PassbookDetailView: View {
                         
                         // 書籍リスト
                         listContent
+                        
+                        // 空きスペースを下に寄せ、入金履歴を常に上に固定
+                        Spacer(minLength: 0)
                     }
                     .frame(minHeight: geometry.size.height)
                     .background(Color(.systemBackground))
@@ -115,61 +132,86 @@ struct PassbookDetailView: View {
             }
         }
         .id(passbook.persistentModelID) // 口座が変わったら強制的にViewを再生成
-        .background(
-            VStack(spacing: 0) {
-                themeColor.opacity(0.1)
-                Color(.systemBackground)
-            }
-            .ignoresSafeArea()
-        )
+        .background(ThemedBackgroundView(themeColor: themeColor, isBlackTheme: isBlackTheme))
         .navigationTitle("通帳")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbarBackground(.hidden, for: .navigationBar)
     }
     
     // MARK: - Account Info Section
     
     private var accountInfoSection: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 0) {
             Text("\(todayString) 時点")
                 .font(.footnote)
-                .foregroundColor(.secondary)
+                .foregroundColor(.white)
                 .frame(maxWidth: .infinity, alignment: .trailing)
                 .padding(.horizontal)
                 .padding(.bottom, 32)
 
             HStack(alignment: .lastTextBaseline, spacing: 2) {
                 Text("\(totalValue.formatted())")
-                    .font(.system(size: 32))
+                    .font(.system(size: 48, weight: .medium))
                 Text("円")
-                    .font(.system(size: 18))
+                    .font(.system(size: 18, weight: .medium))
             }
-            .foregroundColor(themeColor)
+            .foregroundStyle(
+                LinearGradient(
+                    stops: [
+                        Gradient.Stop(color: .white, location: 0),
+                        Gradient.Stop(color: .white, location: 0.6),
+                        Gradient.Stop(color: themeColor.opacity(0.1), location: 1.0)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
 
             Text("登録書籍: \(bookCount)冊")
                 .font(.subheadline)
-                .foregroundColor(.secondary)
+                .foregroundColor(.white)
+            
+            // アクションボタン
+            HStack(spacing: 12) {
+                NavigationLink(destination: BookSearchView(passbook: passbook, allowPassbookChange: true)) {
+                    Text("本を登録する")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .foregroundColor(colorScheme == .dark && isBlackTheme ? .black : .white)
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 12)
+                        .glassEffect(.regular.tint(colorScheme == .dark && isBlackTheme ? .white : themeColor))
+                        .clipShape(Capsule())
+                }
+                
+                NavigationLink(destination: BookshelfView(passbook: passbook)) {
+                    Text("本棚を見る")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .foregroundColor(colorScheme == .dark && isBlackTheme ? .black : .white)
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 12)
+                        .glassEffect(.regular.tint(colorScheme == .dark && isBlackTheme ? .white : themeColor))
+                        .clipShape(Capsule())
+                }
+            }
+            .padding(.top, 32)
         }
         .frame(maxWidth: .infinity)
         .padding(.top, 8)
-        .padding(.bottom, 60)
+        .padding(.bottom, 44)
     }
     
     // MARK: - List Content
     
     private var listContent: some View {
-        LazyVStack(spacing: 0) {
+        LazyVStack(spacing: 6) {
             if userBooks.isEmpty {
-                VStack(spacing: 30) {
-                    Image(systemName: "books.vertical")
-                        .font(.system(size: 60))
-                        .foregroundColor(.gray)
-
-                    Text("まだ本が登録されていません")
-                        .font(.headline)
-                        .foregroundColor(.secondary)
-                }
-                .frame(maxWidth: .infinity)
-                .padding()
+                Text("最近どんな本を読んだ？")
+                    .font(.headline)
+                    .foregroundColor(.secondary)
+                    .frame(maxWidth: .infinity)
+                    .padding()
             } else {
                 ForEach(userBooks) { book in
                     NavigationLink(destination: UserBookDetailView(book: book)) {
@@ -179,14 +221,14 @@ struct PassbookDetailView: View {
                                let url = URL(string: imageURL) {
                                 CachedAsyncImage(
                                     url: url,
-                                    width: 50,
-                                    height: 75
+                                    width: 47,
+                                    height: 70
                                 )
                                 .clipShape(RoundedRectangle(cornerRadius: 2))
                             } else {
                                 RoundedRectangle(cornerRadius: 2)
                                     .fill(Color.gray.opacity(0.2))
-                                    .frame(width: 50, height: 75)
+                                    .frame(width: 47, height: 70)
                                     .overlay {
                                         Image(systemName: "book.closed")
                                             .font(.caption)
@@ -227,10 +269,15 @@ struct PassbookDetailView: View {
                                 .font(.caption2)
                                 .foregroundColor(.secondary)
                         }
-                        .padding(.horizontal, 24)
+                        .padding(.horizontal, 10)
                         .padding(.vertical, 8)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6)
+                                .fill(colorScheme == .dark ? Color.white.opacity(0.1) : themeColor.opacity(0.1))
+                        )
                     }
                     .buttonStyle(.plain)
+                    .padding(.horizontal, 16)
                 }
             }
         }

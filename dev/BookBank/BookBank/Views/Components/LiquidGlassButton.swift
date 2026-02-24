@@ -11,13 +11,32 @@ import SwiftUI
 struct LiquidGlassButton: View {
     let color: Color
     let size: CGFloat = 56
+    var isBlackTheme: Bool = false
+    
+    @Environment(\.colorScheme) private var colorScheme
+    
+    /// 白テーマ＋ダークモード時は白を使用
+    private var effectiveColor: Color {
+        if colorScheme == .dark && isBlackTheme {
+            return .white
+        }
+        return color
+    }
+    
+    /// 白テーマ＋ダークモード時はテキストを黒に
+    private var textColor: Color {
+        if colorScheme == .dark && isBlackTheme {
+            return .black
+        }
+        return .white
+    }
     
     var body: some View {
         Image(systemName: "plus")
             .font(.system(size: 16))
-            .foregroundColor(.white)
+            .foregroundColor(textColor)
             .frame(width: size, height: size)
-            .glassEffect(.regular.tint(color))
+            .glassEffect(.regular.tint(effectiveColor))
             .clipShape(Circle())
     }
 }
