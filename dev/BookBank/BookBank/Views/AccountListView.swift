@@ -162,6 +162,7 @@ struct AccountListView: View {
                         .buttonStyle(.plain)
                     }
                 }
+                .padding(.top, 16)
                 
                 // 新しい口座を追加ボタン
                 Button(action: {
@@ -179,20 +180,34 @@ struct AccountListView: View {
                     }
                     .foregroundColor(.primary)
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 26)
-                    .background(
-                        RoundedRectangle(cornerRadius: 12)
-                            .stroke(Color.primary.opacity(0.3), lineWidth: 1)
-                            .background(
-                                RoundedRectangle(cornerRadius: 12)
-                                    .fill(Color.primary.opacity(0.05))
-                            )
-                    )
+                    .padding(.vertical, 12)
                 }
             }
             .padding(.horizontal, 16)
         }
-        .background(Color.appGroupedBackground)
+        .background(
+            GeometryReader { geometry in
+                ZStack {
+                    Color.appGroupedBackground
+                    
+                    // 光源PNG：上部中央に配置
+                    Image("bg_glow")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: geometry.size.width * 1)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                        .blendMode(.screen)
+                        .opacity(1)
+                    
+                    // ノイズテクスチャ：全体に重ねる
+                    Image("bg_noise")
+                        .resizable(resizingMode: .tile)
+                        .blendMode(.overlay)
+                        .opacity(0.2)
+                }
+            }
+            .ignoresSafeArea()
+        )
         .navigationTitle("口座一覧")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

@@ -311,16 +311,8 @@ struct BookSelectorView: View {
     /// 空状態ビュー
     private var emptyStateView: some View {
         VStack(spacing: 16) {
-            Image(systemName: "books.vertical")
-                .font(.system(size: 60))
-                .foregroundColor(.gray)
-            
-            Text("本棚が空です")
+            Text("最近どんな本を読んだ？")
                 .font(.headline)
-                .foregroundColor(.secondary)
-            
-            Text("先に本を登録してください")
-                .font(.subheadline)
                 .foregroundColor(.secondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

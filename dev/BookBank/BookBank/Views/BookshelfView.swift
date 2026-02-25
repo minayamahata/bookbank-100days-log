@@ -74,10 +74,10 @@ struct BookshelfView: View {
     
     // グリッドの列定義（4カラム）
     private let columns = [
-        GridItem(.flexible(), spacing: 2),
-        GridItem(.flexible(), spacing: 2),
-        GridItem(.flexible(), spacing: 2),
-        GridItem(.flexible(), spacing: 2)
+        GridItem(.flexible(), spacing: 10),
+        GridItem(.flexible(), spacing: 10),
+        GridItem(.flexible(), spacing: 10),
+        GridItem(.flexible(), spacing: 10)
     ]
     
     // MARK: - Initialization
@@ -155,7 +155,7 @@ struct BookshelfView: View {
             
             Spacer()
         }
-        .padding(.horizontal, 24)
+        .padding(.horizontal, 20)
         .padding(.top, 16)
         .padding(.bottom, 16)
     }
@@ -177,7 +177,7 @@ struct BookshelfView: View {
                 .frame(maxWidth: .infinity)
                 .padding()
             } else {
-                LazyVGrid(columns: columns, spacing: 2) {
+                LazyVGrid(columns: columns, spacing: 10) {
                     ForEach(userBooks) { book in
                         NavigationLink(destination: UserBookDetailView(book: book)) {
                             BookCoverView(book: book)

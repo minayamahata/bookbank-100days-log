@@ -129,8 +129,8 @@ struct StatisticsView: View {
                     VStack(spacing: 0) {
                         // 年表示（固定）
                         Text(String(selectedYear))
-                            .font(.title2)
-                            .foregroundColor(themeColor)
+                            .font(.title)
+                            .foregroundColor(.white)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.horizontal)
                             .padding(.top, 8)
@@ -348,7 +348,7 @@ struct YearlyChartContent: View {
                     }
                 }
                 .frame(height: 120)
-                .chartYScale(domain: .automatic(includesZero: true))
+                .chartYScale(domain: 0...)
                 .chartYAxis {
                     AxisMarks(position: .trailing) {
                         AxisGridLine()

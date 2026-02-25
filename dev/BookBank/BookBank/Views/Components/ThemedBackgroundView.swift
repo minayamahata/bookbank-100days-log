@@ -33,12 +33,12 @@ struct ThemedBackgroundView: View {
                 RadialGradient(
                     stops: [
                         Gradient.Stop(color: gradientColor, location: 0),
-                        Gradient.Stop(color: gradientColor, location: 0.5),
+                        Gradient.Stop(color: gradientColor, location: 0.4),
                         Gradient.Stop(color: gradientColor.opacity(0), location: 1)
                     ],
-                    center: UnitPoint(x: 0.5, y: 0),
+                    center: UnitPoint(x: 0.4, y: 0.1),
                     startRadius: 0,
-                    endRadius: geometry.size.width * 0.9
+                    endRadius: geometry.size.width * 1
                 )
                 
                 // 光源PNG：上部中央に配置
@@ -47,7 +47,7 @@ struct ThemedBackgroundView: View {
                     .scaledToFit()
                     .frame(width: geometry.size.width * 2.2)
                     .blendMode(.screen)
-                    .opacity(1.0)
+                    .opacity(1)
                 
                 // ノイズテクスチャ：全体に重ねる
                 Image("bg_noise")

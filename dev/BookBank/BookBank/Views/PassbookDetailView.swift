@@ -28,6 +28,11 @@ struct PassbookDetailView: View {
     /// カラースキーム（ライト/ダークモード）
     @Environment(\.colorScheme) private var colorScheme
     
+    // MARK: - State
+    
+    /// コラプス進捗（0.0 = 展開、1.0 = 折りたたみ）
+    @State private var collapseProgress: CGFloat = 0
+    
     // MARK: - SwiftData Query
     
     /// すべての口座を取得
@@ -92,50 +97,139 @@ struct PassbookDetailView: View {
     // MARK: - Body
     
     var body: some View {
-        GeometryReader { geometry in
-            ScrollView {
-                VStack(spacing: 0) {
-                    // 口座情報セクション
-                    accountInfoSection
-                    
-                    // コンテンツカード
-                    VStack(alignment: .leading, spacing: 0) {
-                        // ヘッダー
-                        HStack {
-                            Text("入金履歴")
-                                .font(.footnote)
-                                .foregroundColor(.secondary)
+        ZStack(alignment: .top) {
+            // 背景
+            ThemedBackgroundView(themeColor: themeColor, isBlackTheme: isBlackTheme)
+            
+            // メインコンテンツ
+            GeometryReader { geometry in
+                ScrollViewReader { scrollProxy in
+                    ScrollView {
+                        VStack(spacing: 0) {
+                            // 口座情報セクション（スクロールでフェードアウト）
+                            accountInfoSection
+                                .opacity(1 - collapseProgress)
+                                .scaleEffect(1 - collapseProgress * 0.1, anchor: .top)
+                                .id("top")
                             
-                            Spacer()
+                            // コンテンツカード（ボトムシート風）
+                            VStack(alignment: .leading, spacing: 0) {
+                                // ハンドル（スクロールでフェードアウト）
+                                RoundedRectangle(cornerRadius: 2.5)
+                                    .fill(Color.secondary.opacity(0.4))
+                                    .frame(width: 36, height: 5)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.top, 10)
+                                    .opacity(1.0 - min(collapseProgress * 2, 1.0))
+                                
+                                // ヘッダー（入金履歴ラベル）
+                                HStack {
+                                    Text("入金履歴")
+                                        .font(.footnote)
+                                        .foregroundColor(.secondary)
+                                    
+                                    Spacer()
+                                }
+                                .padding(.horizontal)
+                                .padding(.top, 16)
+                                .padding(.bottom, 12)
+                                
+                                // 書籍リスト
+                                listContent
+                                
+                                Spacer(minLength: 0)
+                            }
+                            .frame(minHeight: geometry.size.height)
+                            .background(Color(.systemBackground))
+                            .clipShape(
+                                UnevenRoundedRectangle(
+                                    topLeadingRadius: 40,
+                                    bottomLeadingRadius: 0,
+                                    bottomTrailingRadius: 0,
+                                    topTrailingRadius: 40
+                                )
+                            )
                         }
-                        .padding(.horizontal)
-                        .padding(.top, 28)
-                        .padding(.bottom, 12)
-                        
-                        // 書籍リスト
-                        listContent
-                        
-                        // 空きスペースを下に寄せ、入金履歴を常に上に固定
-                        Spacer(minLength: 0)
                     }
-                    .frame(minHeight: geometry.size.height)
-                    .background(Color(.systemBackground))
-                    .clipShape(
-                        UnevenRoundedRectangle(
-                            topLeadingRadius: 40,
-                            bottomLeadingRadius: 0,
-                            bottomTrailingRadius: 0,
-                            topTrailingRadius: 40
-                        )
-                    )
+                    .onScrollGeometryChange(for: CGFloat.self) { geometry in
+                        geometry.contentOffset.y
+                    } action: { oldValue, newValue in
+                        let scrollAmount = newValue
+                        let progress = min(max(scrollAmount / 150, 0), 1)
+                        
+                        withAnimation(.easeOut(duration: 0.1)) {
+                            collapseProgress = progress
+                        }
+                    }
+                    // コンパクトヘッダー（画面上部に固定、下から出現）
+                    .overlay(alignment: .top) {
+                        stickyCompactHeader(scrollProxy: scrollProxy)
+                    }
                 }
             }
         }
-        .id(passbook.persistentModelID) // 口座が変わったら強制的にViewを再生成
-        .background(ThemedBackgroundView(themeColor: themeColor, isBlackTheme: isBlackTheme))
+        .id(passbook.persistentModelID)
         .navigationTitle("通帳")
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.hidden, for: .navigationBar)
+        .toolbar(collapseProgress > 0.5 ? .hidden : .visible, for: .navigationBar)
+        .animation(.easeInOut(duration: 0.2), value: collapseProgress > 0.5)
+    }
+    
+    // MARK: - Sticky Compact Header
+    
+    /// 画面上部に固定されるコンパクトヘッダー
+    @ViewBuilder
+    private func stickyCompactHeader(scrollProxy: ScrollViewProxy) -> some View {
+        let appearProgress = min(max((collapseProgress - 0.3) / 0.4, 0), 1.0)
+        
+        HStack(spacing: 12) {
+            // 下に戻すボタン
+            Button {
+                withAnimation(.easeOut(duration: 0.3)) {
+                    scrollProxy.scrollTo("top", anchor: .top)
+                }
+            } label: {
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(themeColor)
+                    .frame(width: 32, height: 32)
+            }
+            
+            Spacer()
+            
+            // 金額表示
+            HStack(alignment: .lastTextBaseline, spacing: 2) {
+                Text("\(totalValue.formatted())")
+                    .font(.system(size: 17, weight: .semibold))
+                Text("円")
+                    .font(.system(size: 11, weight: .medium))
+            }
+            .foregroundStyle(
+                LinearGradient(
+                    stops: [
+                        Gradient.Stop(color: themeColor, location: 0),
+                        Gradient.Stop(color: themeColor, location: 0.6),
+                        Gradient.Stop(color: themeColor.opacity(0.3), location: 1.0)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
+            
+            Spacer()
+            
+            // バランス用スペーサー
+            Color.clear
+                .frame(width: 32, height: 32)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(
+            Color(.systemBackground)
+                .ignoresSafeArea(edges: .top)
+        )
+        .opacity(appearProgress)
     }
     
     // MARK: - Account Info Section

@@ -57,8 +57,6 @@ struct PassbookSelectorView: View {
             
             // 下部に配置：新しい口座を追加 / サブスクリプションを管理
             VStack(spacing: 0) {
-                Divider()
-                
                 Button(action: {
                     if customPassbooks.count >= 3 && !platinumManager.isPlatinum {
                         showProAlert = true

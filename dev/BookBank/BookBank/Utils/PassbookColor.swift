@@ -39,27 +39,27 @@ struct PassbookColor {
                 ? UIColor(red: 1, green: 1, blue: 1, alpha: 1)  // 白
                 : UIColor(red: 0x29/255.0, green: 0x28/255.0, blue: 0x26/255.0, alpha: 1)  // 黒
         }),
-        Color(hex: "fe2b2c"),  // 赤
-        Color(hex: "fd8e0f"),  // オレンジ
-        Color(hex: "fdd00e"),  // 黄色
-        Color(hex: "30cd47"),  // 緑
-        Color(hex: "33c6dd"),  // シアン
-        Color(hex: "1398ff"),  // 青
-        Color(hex: "b780ff"),  // 紫
-        Color(hex: "fd82c3"),  // ピンク
+        Color(hex: "e11717"),  // 赤
+        Color(hex: "f87221"),  // オレンジ
+        Color(hex: "ecd11e"),  // 黄色
+        Color(hex: "85ca0d"),  // 緑
+        Color(hex: "1cbcac"),  // シアン
+        Color(hex: "0549d5"),  // 青
+        Color(hex: "7317e3"),  // 紫
+        Color(hex: "e748a0"),  // ピンク
     ]
     
     /// HEXカラー文字列（API送信用）
     static let hexStrings: [String] = [
         "#292826",  // デフォルト（黒）
-        "#fe2b2c",  // 赤
-        "#fd8e0f",  // オレンジ
-        "#fdd00e",  // 黄色
-        "#30cd47",  // 緑
-        "#33c6dd",  // シアン
-        "#1398ff",  // 青
-        "#b780ff",  // 紫
-        "#fd82c3",  // ピンク
+        "#e11717",  // 赤
+        "#f87221",  // オレンジ
+        "#ecd11e",  // 黄色
+        "#85ca0d",  // 緑
+        "#1cbcac",  // シアン
+        "#0549d5",  // 青
+        "7317e3",  // 紫
+        "#e748a0",  // ピンク
     ]
     
     /// インデックスに対応するHEXカラー文字列を取得

@@ -33,5 +33,6 @@ struct ThemeToggleButton: View {
                 .font(.system(size: 10))
                 .contentTransition(.symbolEffect(.replace))
         }
+        .tint(.accentColor)
     }
 }
