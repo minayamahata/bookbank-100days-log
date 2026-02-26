@@ -72,12 +72,34 @@ struct BookshelfView: View {
         return false
     }
     
+    /// この口座の全書籍数
+    private var allBooksCount: Int {
+        allUserBooks.filter { book in
+            book.passbook?.persistentModelID == passbook.persistentModelID
+        }.count
+    }
+    
+    /// お気に入りの書籍数
+    private var favoriteCount: Int {
+        allUserBooks.filter { book in
+            book.passbook?.persistentModelID == passbook.persistentModelID && book.isFavorite
+        }.count
+    }
+    
+    /// メモありの書籍数
+    private var memoCount: Int {
+        allUserBooks.filter { book in
+            book.passbook?.persistentModelID == passbook.persistentModelID &&
+            book.memo != nil && !(book.memo?.isEmpty ?? true)
+        }.count
+    }
+    
     // グリッドの列定義（4カラム）
     private let columns = [
-        GridItem(.flexible(), spacing: 10),
-        GridItem(.flexible(), spacing: 10),
-        GridItem(.flexible(), spacing: 10),
-        GridItem(.flexible(), spacing: 10)
+        GridItem(.flexible(), spacing: 8),
+        GridItem(.flexible(), spacing: 8),
+        GridItem(.flexible(), spacing: 8),
+        GridItem(.flexible(), spacing: 8)
     ]
     
     // MARK: - Initialization
@@ -112,44 +134,89 @@ struct BookshelfView: View {
     
     private var filterSection: some View {
         HStack(spacing: 8) {
-            // お気に入りフィルター
+            // All ボタン
             Button(action: {
-                showFavoritesOnly.toggle()
+                showFavoritesOnly = false
+                showWithMemoOnly = false
             }) {
                 HStack(spacing: 6) {
-                    Image("icon-favorite")
-                        .renderingMode(.template)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 14, height: 14)
-                    Text("お気に入り")
-                        .font(.system(size: 13, weight: .medium))
+                    Text("すべて")
+                        .font(.system(size: 11, weight: .medium))
+                    Text("\(allBooksCount)")
+                        .font(.system(size: 10, weight: .medium))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(
+                            Capsule()
+                                .fill(Color.white.opacity(0.2))
+                        )
                 }
-                .foregroundColor(showFavoritesOnly ? .white : .black)
-                .padding(.horizontal, 16)
+                .foregroundColor(!showFavoritesOnly && !showWithMemoOnly ? .white : .white.opacity(0.5))
+                .padding(.horizontal, 14)
                 .padding(.vertical, 10)
                 .background(
                     Capsule()
-                        .fill(showFavoritesOnly ? themeColor : Color.white)
+                        .stroke(!showFavoritesOnly && !showWithMemoOnly ? Color.white : Color.white.opacity(0.3), lineWidth: 1)
                 )
             }
             
-            // メモありフィルター
+            // Like ボタン
             Button(action: {
-                showWithMemoOnly.toggle()
+                showFavoritesOnly.toggle()
+                if showFavoritesOnly {
+                    showWithMemoOnly = false
+                }
             }) {
                 HStack(spacing: 6) {
-                    Image(systemName: "note.text")
-                        .font(.system(size: 13, weight: .medium))
-                    Text("メモあり")
-                        .font(.system(size: 13, weight: .medium))
+                    Text("お気に入り")
+                        .font(.system(size: 11, weight: .medium))
+                    if favoriteCount > 0 {
+                        Text("\(favoriteCount)")
+                            .font(.system(size: 10, weight: .medium))
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(
+                                Capsule()
+                                    .fill(Color.white.opacity(0.2))
+                            )
+                    }
                 }
-                .foregroundColor(showWithMemoOnly ? .white : .black)
-                .padding(.horizontal, 16)
+                .foregroundColor(showFavoritesOnly ? .white : .white.opacity(0.5))
+                .padding(.horizontal, 14)
                 .padding(.vertical, 10)
                 .background(
                     Capsule()
-                        .fill(showWithMemoOnly ? themeColor : Color.white)
+                        .stroke(showFavoritesOnly ? Color.white : Color.white.opacity(0.3), lineWidth: 1)
+                )
+            }
+            
+            // Memo ボタン
+            Button(action: {
+                showWithMemoOnly.toggle()
+                if showWithMemoOnly {
+                    showFavoritesOnly = false
+                }
+            }) {
+                HStack(spacing: 6) {
+                    Text("メモ")
+                        .font(.system(size: 11, weight: .medium))
+                    if memoCount > 0 {
+                        Text("\(memoCount)")
+                            .font(.system(size: 10, weight: .medium))
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(
+                                Capsule()
+                                    .fill(Color.white.opacity(0.2))
+                            )
+                    }
+                }
+                .foregroundColor(showWithMemoOnly ? .white : .white.opacity(0.5))
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .background(
+                    Capsule()
+                        .stroke(showWithMemoOnly ? Color.white : Color.white.opacity(0.3), lineWidth: 1)
                 )
             }
             
@@ -166,12 +233,8 @@ struct BookshelfView: View {
         Group {
             if userBooks.isEmpty {
                 VStack(spacing: 8) {
-                    Text("本棚はまだ空です")
+                    Text("最近どんな本を読みましたか？")
                         .font(.headline)
-                        .foregroundColor(.secondary)
-                    
-                    Text("本を登録して本棚を埋めましょう")
-                        .font(.subheadline)
                         .foregroundColor(.secondary)
                 }
                 .frame(maxWidth: .infinity)
@@ -185,7 +248,7 @@ struct BookshelfView: View {
                         .buttonStyle(.plain)
                     }
                 }
-                .padding(.horizontal, 24)
+                .padding(.horizontal, 20)
                 .animation(nil, value: userBooks.count)
             }
         }

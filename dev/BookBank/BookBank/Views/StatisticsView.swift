@@ -348,7 +348,7 @@ struct YearlyChartContent: View {
                     }
                 }
                 .frame(height: 120)
-                .chartYScale(domain: 0...)
+                .chartYScale(domain: .automatic(includesZero: true))
                 .chartYAxis {
                     AxisMarks(position: .trailing) {
                         AxisGridLine()

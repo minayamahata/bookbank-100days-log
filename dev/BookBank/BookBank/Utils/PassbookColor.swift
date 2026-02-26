@@ -94,4 +94,17 @@ struct PassbookColor {
         }
         return .gray
     }
+    
+    /// 口座が黒テーマ（最初の色）かどうかを判定
+    static func isBlackTheme(for passbook: Passbook, in passbooks: [Passbook]) -> Bool {
+        // colorIndexが設定されている場合
+        if let colorIndex = passbook.colorIndex {
+            return colorIndex == 0
+        }
+        // そうでなければリスト内の位置で判定
+        if let index = passbooks.firstIndex(where: { $0.persistentModelID == passbook.persistentModelID }) {
+            return index == 0
+        }
+        return false
+    }
 }

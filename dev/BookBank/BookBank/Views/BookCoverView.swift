@@ -37,11 +37,19 @@ struct BookCoverView: View {
                 
                 // アイコンバッジ（お気に入り・メモ）
                 if book.isFavorite || hasMemo {
-                    HStack(spacing: 2) {
+                    HStack(spacing: 4) {
                         if hasMemo {
-                            Image(systemName: "note.text")
-                                .font(.system(size: 10))
+                            Image("icon-memo")
+                                .renderingMode(.template)
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 10, height: 10)
                                 .foregroundColor(.white)
+                                .padding(4)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 2)
+                                        .fill(Color.black.opacity(0.6))
+                                )
                         }
                         if book.isFavorite {
                             Image("icon-favorite")
@@ -50,14 +58,13 @@ struct BookCoverView: View {
                                 .scaledToFit()
                                 .frame(width: 10, height: 10)
                                 .foregroundColor(.white)
+                                .padding(4)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 2)
+                                        .fill(Color.black.opacity(0.6))
+                                )
                         }
                     }
-                    .padding(.horizontal, 4)
-                    .padding(.vertical, 3)
-                    .background(
-                        Capsule()
-                            .fill(Color.black.opacity(0.6))
-                    )
                     .padding(4)
                 }
             }

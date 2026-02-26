@@ -11,6 +11,7 @@ import SwiftData
 struct UserBookDetailView: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.colorScheme) private var colorScheme
     
     @Bindable var book: UserBook
 
@@ -29,13 +30,49 @@ struct UserBookDetailView: View {
         }
         return .blue
     }
+    
+    private var isBlackTheme: Bool {
+        if let passbook = book.passbook {
+            return PassbookColor.isBlackTheme(for: passbook, in: customPassbooks)
+        }
+        return false
+    }
+    
+    private var favoriteActiveColor: Color {
+        if colorScheme == .dark && isBlackTheme {
+            return .black
+        }
+        return themeColor
+    }
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 30) {
-                coverSection
-                titleSection
-                detailSection
+        GeometryReader { geometry in
+            ScrollView {
+                VStack(spacing: 0) {
+                    coverSection
+                    
+                    // ボトムシート風コンテンツ
+                    VStack(spacing: 24) {
+                        // ハンドル
+                        RoundedRectangle(cornerRadius: 2.5)
+                            .fill(Color.secondary.opacity(0.4))
+                            .frame(width: 36, height: 5)
+                            .padding(.top, 10)
+                        
+                        titleSection
+                        detailSection
+                    }
+                    .frame(minHeight: geometry.size.height - 280)
+                    .background(Color(.systemBackground))
+                    .clipShape(
+                        UnevenRoundedRectangle(
+                            topLeadingRadius: 40,
+                            bottomLeadingRadius: 0,
+                            bottomTrailingRadius: 0,
+                            topTrailingRadius: 40
+                        )
+                    )
+                }
             }
         }
         .ignoresSafeArea(edges: .top)
@@ -119,16 +156,8 @@ struct UserBookDetailView: View {
         }
         .frame(height: 330)
         .frame(maxWidth: .infinity)
-        .clipShape(
-            UnevenRoundedRectangle(
-                topLeadingRadius: 0,
-                bottomLeadingRadius: 40,
-                bottomTrailingRadius: 40,
-                topTrailingRadius: 0
-            )
-        )
         .overlay(alignment: .bottomTrailing) {
-            // お気に入りボタン（右下に配置）
+            // お気に入りボタン（右下に配置、削除ボタンと右揃え）
             Button(action: {
                 book.isFavorite.toggle()
                 try? context.save()
@@ -138,7 +167,7 @@ struct UserBookDetailView: View {
                     .resizable()
                     .scaledToFit()
                     .frame(width: 16, height: 16)
-                    .foregroundColor(book.isFavorite ? themeColor : .black)
+                    .foregroundColor(book.isFavorite ? favoriteActiveColor : Color.gray.opacity(0.4))
                     .padding(14)
                     .background(
                         RoundedRectangle(cornerRadius: 4)
@@ -146,19 +175,19 @@ struct UserBookDetailView: View {
                     )
             }
             .padding(.bottom, 30)
-            .padding(.trailing, 30)
+            .padding(.trailing, 16)
         }
     }
 
     private var titleSection: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(book.title)
-                .font(.title3)
+                .font(.title2)
                 .multilineTextAlignment(.leading)
 
             if !book.displayAuthor.isEmpty {
                 Text(book.displayAuthor)
-                    .font(.footnote)
+                    .font(.subheadline)
                     .foregroundColor(.secondary)
             }
 
@@ -169,15 +198,21 @@ struct UserBookDetailView: View {
                     Text("円")
                         .font(.subheadline)
                 }
+                .fontWeight(.medium)
                 .foregroundColor(themeColor)
+                .frame(maxWidth: .infinity, alignment: .trailing)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 24)
+        .padding(.top, 8)
     }
 
     private var detailSection: some View {
         VStack(alignment: .leading, spacing: 8) {
+            Divider()
+                .padding(.bottom, 24)
+            
             VStack(alignment: .leading, spacing: 8) {
                 if let passbookName = book.passbook?.name {
                     DetailInfoRow(label: "登録口座", value: passbookName)
@@ -201,10 +236,8 @@ struct UserBookDetailView: View {
                     DetailInfoRow(label: "ページ数", value: "\(pageCount)ページ")
                 }
             }
-            .font(.caption)
-
-            Divider()
-                .padding(.vertical, 16)
+            .font(.subheadline)
+            .padding(.bottom, 24)
 
             Button(action: {
                 showMemoEditor = true
@@ -212,18 +245,22 @@ struct UserBookDetailView: View {
                 ZStack(alignment: .topLeading) {
                     RoundedRectangle(cornerRadius: 12)
                         .fill(Color(.secondarySystemGroupedBackground))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(Color.primary.opacity(0.1), lineWidth: 1)
+                        )
                         .frame(minHeight: 120)
 
                     if let memo = book.memo, !memo.isEmpty {
                         Text(memo)
-                            .font(.caption)
+                            .font(.footnote)
                             .foregroundColor(.primary)
                             .multilineTextAlignment(.leading)
-                            .padding(12)
+                            .padding(20)
                             .frame(maxWidth: .infinity, minHeight: 120, alignment: .topLeading)
                     } else {
                         Text("メモはまだありません")
-                            .font(.caption)
+                            .font(.subheadline)
                             .foregroundColor(.secondary)
                             .italic()
                             .padding(12)
@@ -234,7 +271,7 @@ struct UserBookDetailView: View {
             .buttonStyle(.plain)
         }
         .padding(.horizontal, 24)
-        .padding(.vertical, 16)
+        .padding(.bottom, 40)
     }
 
     // MARK: - Actions

@@ -40,6 +40,7 @@ struct MemoEditorView: View {
                     .padding(4)
                     .focused($isFocused)
             }
+            .padding(.horizontal, 20)
             .navigationTitle("メモ")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

@@ -290,14 +290,6 @@ struct MainTabView: View {
                     .frame(width: geometry.size.width * 0.85)
                     .frame(maxHeight: .infinity)
                     .background(Color.appCardBackground)
-                    .clipShape(
-                        UnevenRoundedRectangle(
-                            topLeadingRadius: 0,
-                            bottomLeadingRadius: 0,
-                            bottomTrailingRadius: 40,
-                            topTrailingRadius: 40
-                        )
-                    )
                     .shadow(radius: 10)
                 }
                 .ignoresSafeArea()
