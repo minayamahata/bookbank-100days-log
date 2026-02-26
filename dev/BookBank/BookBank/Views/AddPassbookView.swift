@@ -17,8 +17,22 @@ struct AddPassbookView: View {
     @State private var selectedColorIndex: Int = 0
     @State private var showError: Bool = false
     
+    @Environment(\.colorScheme) private var colorScheme
+    
     // おすすめ口座名
-    private let suggestedNames = ["プライベート", "漫画", "仕事用", "小説", "技術書", "雑誌"]
+    private let suggestedNames = [
+        "小説", "ビジネス書", "マンガ", "参考書",
+        "雑誌", "旅行記", "エッセイ", "勉強用",
+        "レシピ", "写真集", "絵本", "子ども用",
+        "プレゼント", "積読"
+    ]
+    
+    private let tagRows: [[String]] = [
+        ["小説", "ビジネス書", "マンガ", "参考書"],
+        ["雑誌", "旅行記", "エッセイ", "勉強用"],
+        ["レシピ", "写真集", "絵本", "子ども用"],
+        ["プレゼント", "積読"]
+    ]
     
     var body: some View {
         NavigationStack {
@@ -48,23 +62,31 @@ struct AddPassbookView: View {
                 .padding(.top, 24)
                 
                 // おすすめ
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("おすすめ:")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                    
-                    FlowLayout(spacing: 8) {
-                        ForEach(suggestedNames, id: \.self) { name in
-                            Button(action: {
-                                accountName = name
-                            }) {
-                                Text(name)
-                                    .font(.subheadline)
-                                    .padding(.horizontal, 16)
-                                    .padding(.vertical, 8)
-                                    .background(Color(.systemGray6))
-                                    .cornerRadius(16)
-                                    .foregroundColor(.primary)
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(tagRows, id: \.self) { row in
+                        HStack(spacing: 8) {
+                            ForEach(row, id: \.self) { name in
+                                Button(action: {
+                                    accountName = name
+                                }) {
+                                    Text(name)
+                                        .font(.system(size: 12))
+                                        .lineLimit(1)
+                                        .fixedSize(horizontal: true, vertical: false)
+                                        .foregroundColor(accountName == name ? (colorScheme == .dark ? .black : .white) : .primary)
+                                        .padding(.horizontal, 14)
+                                        .padding(.vertical, 8)
+                                        .background(
+                                            accountName == name
+                                                ? Color.primary
+                                                : Color.clear
+                                        )
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 20)
+                                                .stroke(accountName == name ? Color.clear : Color.primary.opacity(0.3), lineWidth: 1)
+                                        )
+                                        .cornerRadius(20)
+                                }
                             }
                         }
                     }

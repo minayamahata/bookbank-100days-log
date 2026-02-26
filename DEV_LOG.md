@@ -419,6 +419,20 @@ git push origin main
 ## 開発履歴
 
 ### 2026-02-26
+- ✅ **OnboardingView（オンボーディング画面）のレイアウト刷新**
+  - レイアウト崩れを根本修正（背景画像のfillによるZStackサイズ膨張を解消）
+  - 背景画像をOnboardingBackground.jpgに変更（imageset化、SplashScreenViewと同じ配置方式）
+  - デフォルトで「小説」を選択状態に
+  - カテゴリタグの選択状態を白背景＋黒テキストに変更
+  - サブタイトルに文字間（kerning: 3）を追加
+  - キーボード表示時にスクロール対応（セクション間の余白が詰まらない）
+  - キーボード外タップでキーボードを閉じる機能を追加
+
+- ✅ **AddPassbookView（口座追加画面）のカテゴリタグ改善**
+  - OnboardingViewと同じ14個のカテゴリ候補に統一
+  - タグデザインをOnboardingViewと統一（選択時: ベタ背景＋反転色、非選択時: 境界線のみ）
+  - FlowLayoutから手動行分割に変更
+
 - ✅ **BookshelfView（本棚ページ）に月別カレンダービューを追加**
   - 右上にカレンダーアイコンボタンを追加（icon-calendar.imageset）
   - タップで通常グリッド⇔月別ビューを切り替え
