@@ -87,8 +87,12 @@ struct AccountListView: View {
                             .foregroundStyle(data.color)
                             .cornerRadius(2)
                             .annotation(position: .overlay) {
-                                // パーセンテージラベル
-                                let percentage = Double(data.amount) / Double(totalAmount) * 100
+                                // パーセンテージラベル（0除算とNaN/Infiniteを防止）
+                                let percentage: Double = {
+                                    guard totalAmount > 0 else { return 0 }
+                                    let value = Double(data.amount) / Double(totalAmount) * 100
+                                    return value.isNaN || value.isInfinite ? 0 : value
+                                }()
                                 if percentage >= 5 { // 5%以上のみ表示
                                     HStack(spacing: 4) {
                                         Circle()

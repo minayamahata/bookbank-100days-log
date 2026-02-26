@@ -135,7 +135,7 @@ struct StatisticsView: View {
                             .padding(.horizontal)
                             .padding(.top, 8)
                         
-                        // グラフ部分のTabView
+                        // グラフ部分のTabView（年別統計含む）
                         TabView(selection: $selectedYear) {
                             ForEach(availableYears, id: \.self) { year in
                                 YearlyChartContent(year: year, passbook: passbook, targetBooks: targetBooks, themeColor: themeColor)
@@ -144,53 +144,73 @@ struct StatisticsView: View {
                         }
                         .tabViewStyle(.page)
                         .indexViewStyle(.page(backgroundDisplayMode: .always))
-                        .frame(height: 420)
+                        .frame(height: 610)
 
                         // 口座サマリー
-                        VStack(spacing: 12) {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("口座サマリー")
+                                .font(.headline)
+                                .padding(.bottom, 4)
+                            
                             HStack {
                                 Text("総合計金額")
-                                    .font(.caption)
+                                    .font(.subheadline)
                                     .foregroundColor(.secondary)
                                 Spacer()
                                 HStack(alignment: .lastTextBaseline, spacing: 1) {
                                     Text("\(totalAmount.formatted())")
-                                        .font(.subheadline)
+                                        .font(.body)
                                     Text("円")
                                         .font(.caption2)
                                 }
                             }
                             HStack {
                                 Text("総冊数")
-                                    .font(.caption)
+                                    .font(.subheadline)
                                     .foregroundColor(.secondary)
                                 Spacer()
-                                Text("\(totalBookCount)冊")
-                                    .font(.subheadline)
+                                HStack(alignment: .lastTextBaseline, spacing: 1) {
+                                    Text("\(totalBookCount)")
+                                        .font(.body)
+                                    Text("冊")
+                                        .font(.caption2)
+                                }
                             }
                             HStack {
                                 Text("お気に入り")
-                                    .font(.caption)
+                                    .font(.subheadline)
                                     .foregroundColor(.secondary)
                                 Spacer()
-                                Text("\(totalFavoriteCount)冊")
-                                    .font(.subheadline)
+                                HStack(alignment: .lastTextBaseline, spacing: 1) {
+                                    Text("\(totalFavoriteCount)")
+                                        .font(.body)
+                                    Text("冊")
+                                        .font(.caption2)
+                                }
                             }
                             HStack {
                                 Text("メモ数")
-                                    .font(.caption)
+                                    .font(.subheadline)
                                     .foregroundColor(.secondary)
                                 Spacer()
-                                Text("\(totalMemoCount)冊")
-                                    .font(.subheadline)
+                                HStack(alignment: .lastTextBaseline, spacing: 1) {
+                                    Text("\(totalMemoCount)")
+                                        .font(.body)
+                                    Text("冊")
+                                        .font(.caption2)
+                                }
                             }
                             HStack {
                                 Text("メモ文字数")
-                                    .font(.caption)
+                                    .font(.subheadline)
                                     .foregroundColor(.secondary)
                                 Spacer()
-                                Text("\(totalMemoCharacterCount.formatted())文字")
-                                    .font(.subheadline)
+                                HStack(alignment: .lastTextBaseline, spacing: 1) {
+                                    Text("\(totalMemoCharacterCount.formatted())")
+                                        .font(.body)
+                                    Text("文字")
+                                        .font(.caption2)
+                                }
                             }
                         }
                         .padding()
@@ -199,6 +219,7 @@ struct StatisticsView: View {
                         .shadow(color: Color.black.opacity(0.05), radius: 8, x: 0, y: 2)
                         .padding(.horizontal)
                         .padding(.top, 16)
+                        .padding(.bottom, 80)
 
                     }
                 }
@@ -232,14 +253,44 @@ struct StatisticsView: View {
 
 // MARK: - YearlyChartContent
 
-/// 年別グラフコンテンツ（グラフ部分のみ）
+/// 年別グラフコンテンツ（統計サマリー + グラフ）
 struct YearlyChartContent: View {
     let year: Int
     let passbook: Passbook?
     let targetBooks: [UserBook]
     let themeColor: Color
     
-    // MARK: - Computed Properties
+    // MARK: - Year-specific Computed Properties
+    
+    /// 指定年の書籍
+    private var booksInYear: [UserBook] {
+        let calendar = Calendar.current
+        return targetBooks.filter { book in
+            calendar.component(.year, from: book.registeredAt) == year
+        }
+    }
+    
+    /// 指定年の合計金額
+    private var yearlyAmount: Int {
+        booksInYear.compactMap { $0.priceAtRegistration }.reduce(0, +)
+    }
+    
+    /// 指定年の冊数
+    private var yearlyBookCount: Int {
+        booksInYear.count
+    }
+    
+    /// 指定年のお気に入り数
+    private var yearlyFavoriteCount: Int {
+        booksInYear.filter { $0.isFavorite }.count
+    }
+    
+    /// 指定年のメモ数
+    private var yearlyMemoCount: Int {
+        booksInYear.filter { $0.memo != nil && !($0.memo?.isEmpty ?? true) }.count
+    }
+    
+    // MARK: - Chart Computed Properties
     
     /// 指定年の月別データ（常に1-12月を返す）
     private var chartData: [ChartDataPoint] {
@@ -289,18 +340,88 @@ struct YearlyChartContent: View {
     // MARK: - Body
     
     var body: some View {
-        ScrollView {
-            VStack(spacing: 24) {
-                // グラフ
-                combinedChart
-            }
-            .padding(.horizontal)
-            .padding(.top)
-            .padding(.bottom, 8)
+        VStack(spacing: 16) {
+            // 年別統計サマリー（2x2グリッド）
+            yearlyStatsSection
+            
+            // グラフ
+            combinedChart
         }
+        .padding(.horizontal)
+        .padding(.top)
+        .padding(.bottom, 62)
     }
     
     // MARK: - Subviews
+    
+    /// 年別統計サマリー（2x2グリッド）
+    private var yearlyStatsSection: some View {
+        LazyVGrid(columns: [
+            GridItem(.flexible(), spacing: 8),
+            GridItem(.flexible(), spacing: 8)
+        ], spacing: 8) {
+            // 合計金額
+            statsCard(
+                title: "合計金額",
+                value: "\(yearlyAmount.formatted())",
+                unit: "円"
+            )
+            
+            // 冊数
+            statsCard(
+                title: "冊数",
+                value: "\(yearlyBookCount)",
+                unit: "冊"
+            )
+            
+            // お気に入り数
+            statsCard(
+                title: "お気に入り",
+                value: "\(yearlyFavoriteCount)",
+                unit: "冊"
+            )
+            
+            // メモ数
+            statsCard(
+                title: "メモ",
+                value: "\(yearlyMemoCount)",
+                unit: "冊"
+            )
+        }
+    }
+    
+    /// 統計カード
+    private func statsCard(title: String, value: String, unit: String) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text(title)
+                .font(.caption)
+                .foregroundColor(.secondary)
+            HStack(alignment: .lastTextBaseline, spacing: 1) {
+                Text(value)
+                    .font(.title2)
+                    .fontWeight(.medium)
+                    .foregroundStyle(
+                        LinearGradient(
+                            stops: [
+                                Gradient.Stop(color: themeColor, location: 0),
+                                Gradient.Stop(color: themeColor, location: 0.6),
+                                Gradient.Stop(color: themeColor.opacity(0.3), location: 1.0)
+                            ],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+                Text(unit)
+                    .font(.caption2)
+                    .fontWeight(.medium)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .background(Color.appCardBackground)
+        .cornerRadius(8)
+    }
     
     /// 金額と冊数を上下2段で表示
     private var combinedChart: some View {
@@ -308,10 +429,29 @@ struct YearlyChartContent: View {
             // 金額グラフ（上段）
             VStack(alignment: .leading, spacing: 12) {
                 Text("金額")
-                    .font(.caption)
+                    .font(.subheadline)
                     .foregroundColor(.secondary)
                 
                 Chart {
+                    // エリア（グラデーション塗りつぶし）
+                    ForEach(chartData.filter { hasDataBeforeMonth($0.month) }) { dataPoint in
+                        AreaMark(
+                            x: .value("Month", dataPoint.label),
+                            y: .value("Amount", dataPoint.amount)
+                        )
+                        .foregroundStyle(
+                            LinearGradient(
+                                stops: [
+                                    Gradient.Stop(color: themeColor.opacity(0.3), location: 0),
+                                    Gradient.Stop(color: themeColor.opacity(0.05), location: 1.0)
+                                ],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                        )
+                        .interpolationMethod(.linear)
+                    }
+                    
                     // データがある月までのみグラフを描画
                     ForEach(chartData.filter { hasDataBeforeMonth($0.month) }) { dataPoint in
                         LineMark(
@@ -350,10 +490,15 @@ struct YearlyChartContent: View {
                 .frame(height: 120)
                 .chartYScale(domain: .automatic(includesZero: true))
                 .chartYAxis {
-                    AxisMarks(position: .trailing) {
+                    AxisMarks(position: .trailing) { value in
                         AxisGridLine()
-                        AxisValueLabel()
-                            .font(.system(size: 9))
+                        AxisValueLabel {
+                            if let intValue = value.as(Int.self) {
+                                Text(intValue.formatted())
+                                    .font(.system(size: 10))
+                                    .frame(width: 50, alignment: .trailing)
+                            }
+                        }
                     }
                 }
                 .chartXAxis(.hidden)
@@ -362,7 +507,7 @@ struct YearlyChartContent: View {
             // 冊数グラフ（下段）
             VStack(alignment: .leading, spacing: 12) {
                 Text("冊数")
-                    .font(.caption)
+                    .font(.subheadline)
                     .foregroundColor(.secondary)
                 
                 Chart {
@@ -373,14 +518,23 @@ struct YearlyChartContent: View {
                             BarMark(
                                 x: .value("Month", dataPoint.label),
                                 y: .value("Count", dataPoint.count),
-                                width: 12
+                                width: 14
                             )
-                            .foregroundStyle(themeColor.opacity(0.7))
+                            .foregroundStyle(
+                                LinearGradient(
+                                    stops: [
+                                        Gradient.Stop(color: themeColor, location: 0),
+                                        Gradient.Stop(color: themeColor.opacity(0.3), location: 1.0)
+                                    ],
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                )
+                            )
                             .cornerRadius(2)
                             .annotation(position: .top, spacing: 4) {
                                 if dataPoint.count > 0 {
                                     Text("\(dataPoint.count)")
-                                        .font(.system(size: 7))
+                                        .font(.system(size: 10))
                                         .foregroundColor(.secondary)
                                 }
                             }
@@ -389,7 +543,7 @@ struct YearlyChartContent: View {
                             BarMark(
                                 x: .value("Month", dataPoint.label),
                                 y: .value("Count", 0),
-                                width: 12
+                                width: 14
                             )
                             .foregroundStyle(Color.clear)
                         }
@@ -397,10 +551,15 @@ struct YearlyChartContent: View {
                 }
                 .frame(height: 120)
                 .chartYAxis {
-                    AxisMarks(position: .trailing) {
+                    AxisMarks(position: .trailing) { value in
                         AxisGridLine()
-                        AxisValueLabel()
-                            .font(.system(size: 9))
+                        AxisValueLabel {
+                            if let intValue = value.as(Int.self) {
+                                Text(intValue.formatted())
+                                    .font(.system(size: 10))
+                                    .frame(width: 50, alignment: .trailing)
+                            }
+                        }
                     }
                 }
                 .chartXAxis {
@@ -408,7 +567,7 @@ struct YearlyChartContent: View {
                         AxisValueLabel(verticalSpacing: 20) {
                             if let label = value.as(String.self) {
                                 Text(label)
-                                    .font(.system(size: 9))
+                                    .font(.system(size: 10))
                             }
                         }
                     }

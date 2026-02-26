@@ -55,6 +55,14 @@ struct BookSearchView: View {
         return .blue
     }
     
+    /// 選択中の口座が黒テーマかどうか
+    private var isBlackTheme: Bool {
+        if let passbook = selectedPassbook {
+            return PassbookColor.isBlackTheme(for: passbook, in: customPassbooks)
+        }
+        return false
+    }
+    
     // MARK: - State
     
     /// 検索キーワード
@@ -503,7 +511,7 @@ struct BookSearchView: View {
         .overlay(alignment: .top) {
             // トースト通知
             if showToast {
-                ToastView(amount: toastAmount, themeColor: themeColor)
+                ToastView(amount: toastAmount, themeColor: themeColor, isBlackTheme: isBlackTheme)
                     .padding(.top, 8)
                     .transition(.move(edge: .top).combined(with: .opacity))
             }
@@ -711,11 +719,22 @@ struct BookSearchView: View {
 struct ToastView: View {
     let amount: Int
     var themeColor: Color = .blue
+    var isBlackTheme: Bool = false
+    
+    @Environment(\.colorScheme) private var colorScheme
+    
+    /// テキストの色（黒テーマ+ダークモードでは黒、それ以外は白）
+    private var textColor: Color {
+        if isBlackTheme && colorScheme == .dark {
+            return .black
+        }
+        return .white
+    }
 
     var body: some View {
         Text("\(amount.formatted())円 入金しました！")
             .font(.system(size: 13))
-            .foregroundColor(.white)
+            .foregroundColor(textColor)
             .padding(.horizontal, 20)
             .padding(.vertical, 12)
             .glassEffect(.regular.tint(themeColor))

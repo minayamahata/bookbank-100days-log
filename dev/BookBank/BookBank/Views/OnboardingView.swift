@@ -23,10 +23,6 @@ struct OnboardingView: View {
             VStack(spacing: 32) {
                 // ヘッダー
                 VStack(spacing: 16) {
-                    Image(systemName: "banknote.fill")
-                        .font(.system(size: 80))
-                        .foregroundColor(.blue)
-                    
                     Text("BookBankへようこそ！")
                         .font(.title)
                     
