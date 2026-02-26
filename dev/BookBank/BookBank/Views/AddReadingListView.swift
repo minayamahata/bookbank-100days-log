@@ -110,11 +110,19 @@ struct AddReadingListView: View {
             Text("リストの作成に失敗しました")
         }
         .fullScreenCover(isPresented: $showBookSelector, onDismiss: {
-            // 本の追加画面が閉じたら、この画面も閉じる
+            // 本の追加画面が閉じたら、リストが空かどうかチェック
+            if let list = createdList {
+                if list.books.isEmpty {
+                    // 本が追加されなかった場合はリストを削除
+                    context.delete(list)
+                    try? context.save()
+                    print("✅ Reading list creation cancelled and deleted (no books added)")
+                }
+            }
             dismiss()
         }) {
             if let list = createdList {
-                AddBooksToNewListView(readingList: list)
+                BookSelectorView(readingList: list)
             }
         }
     }
@@ -135,175 +143,6 @@ struct AddReadingListView: View {
         } catch {
             print("❌ Error creating reading list: \(error)")
             showError = true
-        }
-    }
-}
-
-// MARK: - Step 2: 本を追加する画面
-
-/// 新規作成したリストに本を追加する画面
-struct AddBooksToNewListView: View {
-    @Bindable var readingList: ReadingList
-    @Environment(\.modelContext) private var context
-    @Environment(\.dismiss) private var dismiss
-    
-    @Query(sort: \UserBook.registeredAt, order: .reverse) private var allBooks: [UserBook]
-    @State private var selectedBookIDs: Set<PersistentIdentifier> = []
-    
-    private let columns = [
-        GridItem(.flexible(), spacing: 2),
-        GridItem(.flexible(), spacing: 2),
-        GridItem(.flexible(), spacing: 2),
-        GridItem(.flexible(), spacing: 2)
-    ]
-    
-    var body: some View {
-        NavigationStack {
-            ZStack {
-                Color.appGroupedBackground
-                    .ignoresSafeArea()
-                
-                VStack(spacing: 0) {
-                    // ヘッダー
-                    VStack(spacing: 4) {
-                        Text("「\(readingList.title)」に")
-                            .font(.subheadline)
-                            .foregroundColor(.primary)
-                        Text("本を追加しましょう")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                    .padding(.top, 20)
-                    .padding(.bottom, 16)
-                    
-                    if allBooks.isEmpty {
-                        Spacer()
-                        VStack(spacing: 16) {
-                            Image(systemName: "books.vertical")
-                                .font(.system(size: 48))
-                                .foregroundColor(.secondary)
-                            Text("本棚が空です")
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
-                        }
-                        Spacer()
-                    } else {
-                        // 選択状態
-                        HStack {
-                            Text("\(selectedBookIDs.count)冊選択中")
-                                .font(.footnote)
-                                .foregroundColor(.secondary)
-                            Spacer()
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.bottom, 8)
-                        
-                        // 本棚グリッド
-                        ScrollView {
-                            LazyVGrid(columns: columns, spacing: 2) {
-                                ForEach(allBooks) { book in
-                                    selectableBookCover(book: book)
-                                }
-                            }
-                            .padding(.horizontal, 16)
-                            .padding(.bottom, 120)
-                        }
-                    }
-                }
-            }
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("スキップ") {
-                        dismiss()
-                    }
-                }
-                
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("完了 (\(selectedBookIDs.count))") {
-                        addSelectedBooks()
-                    }
-                    .disabled(selectedBookIDs.isEmpty)
-                }
-            }
-        }
-    }
-    
-    private func selectableBookCover(book: UserBook) -> some View {
-        let isSelected = selectedBookIDs.contains(book.persistentModelID)
-        
-        return Button(action: {
-            if isSelected {
-                selectedBookIDs.remove(book.persistentModelID)
-            } else {
-                selectedBookIDs.insert(book.persistentModelID)
-            }
-        }) {
-            GeometryReader { geometry in
-                ZStack(alignment: .topTrailing) {
-                    // 本の表紙
-                    if let imageURL = book.imageURL,
-                       let url = URL(string: imageURL) {
-                        AsyncImage(url: url) { image in
-                            image
-                                .resizable()
-                                .aspectRatio(contentMode: .fill)
-                        } placeholder: {
-                            Rectangle()
-                                .fill(Color.secondary.opacity(0.2))
-                        }
-                        .id(imageURL)
-                    } else {
-                        Rectangle()
-                            .fill(Color.secondary.opacity(0.2))
-                            .overlay {
-                                Image(systemName: "book.closed")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-                    }
-                    
-                    // 選択状態アイコン
-                    if isSelected {
-                        Image(systemName: "checkmark.circle.fill")
-                            .font(.system(size: 20))
-                            .foregroundColor(.blue)
-                            .background(
-                                Circle()
-                                    .fill(Color.white)
-                                    .frame(width: 18, height: 18)
-                            )
-                            .padding(6)
-                    } else {
-                        Circle()
-                            .stroke(Color.white, lineWidth: 2)
-                            .frame(width: 20, height: 20)
-                            .shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 1)
-                            .padding(6)
-                    }
-                }
-                .frame(width: geometry.size.width, height: geometry.size.width * 1.5)
-                .clipShape(RoundedRectangle(cornerRadius: 2))
-            }
-            .aspectRatio(2/3, contentMode: .fit)
-        }
-        .buttonStyle(.plain)
-    }
-    
-    private func addSelectedBooks() {
-        let booksToAdd = allBooks.filter { selectedBookIDs.contains($0.persistentModelID) }
-        
-        for book in booksToAdd {
-            readingList.books.append(book)
-        }
-        
-        readingList.updatedAt = Date()
-        
-        do {
-            try context.save()
-            dismiss()
-        } catch {
-            print("❌ Failed to add books: \(error)")
         }
     }
 }

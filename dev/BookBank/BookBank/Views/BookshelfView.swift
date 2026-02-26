@@ -32,6 +32,9 @@ struct BookshelfView: View {
     /// メモありフィルター
     @State private var showWithMemoOnly = false
     
+    /// カレンダー表示モード
+    @State private var showCalendarView = false
+    
     /// この口座に紐づく書籍のみをフィルタリング
     private var userBooks: [UserBook] {
         var books = allUserBooks.filter { book in
@@ -102,6 +105,48 @@ struct BookshelfView: View {
         GridItem(.flexible(), spacing: 8)
     ]
     
+    // カレンダー用の7カラムグリッド
+    private let calendarColumns = Array(repeating: GridItem(.flexible(), spacing: 4), count: 7)
+    
+    /// 月別にグループ化した書籍データ
+    private var booksByMonth: [(year: Int, month: Int, books: [UserBook])] {
+        let calendar = Calendar.current
+        var grouped: [String: (year: Int, month: Int, books: [UserBook])] = [:]
+        
+        for book in userBooks {
+            let components = calendar.dateComponents([.year, .month], from: book.registeredAt)
+            let key = "\(components.year ?? 0)-\(components.month ?? 0)"
+            if grouped[key] == nil {
+                grouped[key] = (year: components.year ?? 0, month: components.month ?? 0, books: [])
+            }
+            grouped[key]?.books.append(book)
+        }
+        
+        return grouped.values.sorted { ($0.year, $0.month) > ($1.year, $1.month) }
+    }
+    
+    /// 年別にグループ化した書籍データ（Stickyヘッダー用）
+    private var booksByYear: [(year: Int, months: [(month: Int, books: [UserBook])])] {
+        var grouped: [Int: [(month: Int, books: [UserBook])]] = [:]
+        
+        for monthData in booksByMonth {
+            if grouped[monthData.year] == nil {
+                grouped[monthData.year] = []
+            }
+            grouped[monthData.year]?.append((month: monthData.month, books: monthData.books))
+        }
+        
+        return grouped.map { (year: $0.key, months: $0.value) }
+            .sorted { $0.year > $1.year }
+    }
+    
+    /// 月名をフォーマット
+    private func monthName(month: Int) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US")
+        return formatter.monthSymbols[month - 1]
+    }
+    
     // MARK: - Initialization
     
     init(passbook: Passbook) {
@@ -119,8 +164,12 @@ struct BookshelfView: View {
                     // フィルターセクション
                     filterSection
                     
-                    // 本棚グリッド
-                    gridContent
+                    // 本棚グリッドまたはカレンダービュー
+                    if showCalendarView {
+                        calendarContent
+                    } else {
+                        gridContent
+                    }
                 }
             }
         }
@@ -221,6 +270,18 @@ struct BookshelfView: View {
             }
             
             Spacer()
+            
+            // カレンダービュー切り替えボタン
+            Button(action: {
+                showCalendarView.toggle()
+            }) {
+                Image("icon-calendar")
+                    .renderingMode(.template)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 20, height: 20)
+                    .foregroundColor(showCalendarView ? .white : .white.opacity(0.5))
+            }
         }
         .padding(.horizontal, 20)
         .padding(.top, 16)
@@ -253,6 +314,54 @@ struct BookshelfView: View {
             }
         }
         .padding(.bottom, 100)
+    }
+    
+    // MARK: - Calendar Content
+    
+    private var calendarContent: some View {
+        LazyVStack(spacing: 50) {
+            ForEach(Array(booksByMonth.enumerated()), id: \.offset) { _, monthData in
+                calendarMonthSection(year: monthData.year, month: monthData.month, books: monthData.books)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.bottom, 100)
+    }
+    
+    private func calendarMonthSection(year: Int, month: Int, books: [UserBook]) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            // 月ヘッダー
+            HStack {
+                Text("\(year)年\(month)月")
+                    .font(.title3)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.white)
+                
+                Text("\(books.count)冊")
+                    .font(.system(size: 14))
+                    .foregroundColor(.white.opacity(0.6))
+                
+                Spacer()
+            }
+            
+            // 7カラムグリッドで本を並べる
+            LazyVGrid(columns: calendarColumns, spacing: 4) {
+                ForEach(books) { book in
+                    NavigationLink(destination: UserBookDetailView(book: book)) {
+                        if let imageURL = book.imageURL,
+                           let url = URL(string: imageURL) {
+                            CachedAsyncImage(url: url, width: 50, height: 75)
+                                .clipShape(RoundedRectangle(cornerRadius: 2))
+                        } else {
+                            RoundedRectangle(cornerRadius: 2)
+                                .fill(Color.white.opacity(0.1))
+                                .aspectRatio(0.67, contentMode: .fit)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
     }
 }
 

@@ -290,6 +290,12 @@ struct YearlyChartContent: View {
         booksInYear.filter { $0.memo != nil && !($0.memo?.isEmpty ?? true) }.count
     }
     
+    /// 金額グラフの最大値（Y軸ドメイン用）
+    private var maxAmount: Int {
+        let maxValue = chartData.map { $0.amount }.max() ?? 0
+        return max(maxValue, 1)
+    }
+    
     // MARK: - Chart Computed Properties
     
     /// 指定年の月別データ（常に1-12月を返す）
@@ -488,7 +494,7 @@ struct YearlyChartContent: View {
                     }
                 }
                 .frame(height: 120)
-                .chartYScale(domain: .automatic(includesZero: true))
+                .chartYScale(domain: 0...maxAmount)
                 .chartYAxis {
                     AxisMarks(position: .trailing) { value in
                         AxisGridLine()

@@ -20,6 +20,7 @@ struct BookSelectorView: View {
     
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.colorScheme) private var colorScheme
     
     // MARK: - SwiftData Query
     
@@ -89,7 +90,7 @@ struct BookSelectorView: View {
                     }
                 }
             }
-            .background(Color.appGroupedBackground)
+            .background(Color.clear)
             .navigationBarHidden(true)
         }
     }
@@ -188,15 +189,16 @@ struct BookSelectorView: View {
                 }
             }
         }
-        .background(Color.appGroupedBackground)
+        .background(Color.clear)
     }
     
     /// 本のリストビュー（口座ごと）
     private func bookListView(for passbook: Passbook) -> some View {
         let passbookBooks = books(for: passbook)
+        let themeColor = PassbookColor.color(for: passbook.colorIndex ?? 0)
         
         return ScrollView {
-            LazyVStack(spacing: 0) {
+            LazyVStack(spacing: 6) {
                 // 選択状態
                 HStack {
                     Text("\(selectedBookIDs.count)冊選択中")
@@ -204,25 +206,21 @@ struct BookSelectorView: View {
                         .foregroundColor(.secondary)
                     Spacer()
                 }
-                .padding(.horizontal, 16)
+                .padding(.horizontal, 4)
                 .padding(.top, 10)
-                .padding(.bottom, 8)
+                .padding(.bottom, 4)
                 
                 // 本のリスト
                 ForEach(passbookBooks) { book in
-                    selectableBookRow(book: book)
+                    selectableBookRow(book: book, themeColor: themeColor)
                 }
             }
-            .background(
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(Color.appCardBackground)
-            )
             .padding(.bottom, 100)
         }
     }
     
     /// 選択可能な本の行
-    private func selectableBookRow(book: UserBook) -> some View {
+    private func selectableBookRow(book: UserBook, themeColor: Color) -> some View {
         let isAlreadyInList = existingBookIDs.contains(book.persistentModelID)
         let isSelected = selectedBookIDs.contains(book.persistentModelID)
         
@@ -239,21 +237,12 @@ struct BookSelectorView: View {
                 // 本の表紙
                 if let imageURL = book.imageURL,
                    let url = URL(string: imageURL) {
-                    AsyncImage(url: url) { image in
-                        image
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                    } placeholder: {
-                        Rectangle()
-                            .fill(Color.gray.opacity(0.2))
-                    }
-                    .frame(width: 50, height: 75)
-                    .clipShape(RoundedRectangle(cornerRadius: 2))
-                    .id(imageURL)
+                    CachedAsyncImage(url: url, width: 47, height: 70)
+                        .clipShape(RoundedRectangle(cornerRadius: 2))
                 } else {
                     Rectangle()
                         .fill(Color.gray.opacity(0.2))
-                        .frame(width: 50, height: 75)
+                        .frame(width: 47, height: 70)
                         .clipShape(RoundedRectangle(cornerRadius: 2))
                         .overlay {
                             Image(systemName: "book.closed")
@@ -263,7 +252,11 @@ struct BookSelectorView: View {
                 }
                 
                 // 本の情報
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(formatDate(book.registeredAt))
+                        .font(.system(size: 10))
+                        .foregroundColor(.secondary)
+                    
                     Text(book.title)
                         .font(.subheadline)
                         .foregroundColor(.primary)
@@ -271,15 +264,10 @@ struct BookSelectorView: View {
                     
                     if !book.displayAuthor.isEmpty {
                         Text(book.displayAuthor)
-                            .font(.caption)
+                            .font(.caption2)
                             .foregroundColor(.secondary)
                             .lineLimit(1)
                     }
-                    
-                    // 登録日
-                    Text(formatDate(book.registeredAt))
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
                 }
                 
                 Spacer()
@@ -299,8 +287,12 @@ struct BookSelectorView: View {
                         .frame(width: 20, height: 20)
                 }
             }
-            .padding(.horizontal, 24)
+            .padding(.horizontal, 10)
             .padding(.vertical, 8)
+            .background(
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(colorScheme == .dark ? Color.white.opacity(0.1) : themeColor.opacity(0.1))
+            )
             .contentShape(Rectangle())
             .opacity(isAlreadyInList ? 0.5 : 1.0)
         }

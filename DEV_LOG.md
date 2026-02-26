@@ -1,6 +1,6 @@
 # BookBank 開発ログ
 
-最終更新: 2026年02月25日
+最終更新: 2026年02月26日
 
 ---
 
@@ -419,6 +419,52 @@ git push origin main
 ## 開発履歴
 
 ### 2026-02-26
+- ✅ **BookshelfView（本棚ページ）に月別カレンダービューを追加**
+  - 右上にカレンダーアイコンボタンを追加（icon-calendar.imageset）
+  - タップで通常グリッド⇔月別ビューを切り替え
+  - 月別7カラムグリッドで本のサムネイルを表示
+  - 「2026年1月」のような日本語表記で年月を表示（フォントはtitle3）
+  - 月ごとの冊数も表示
+  - 月と月の間隔は50pt
+
+- ✅ **ReadingListDetailView（読了リスト詳細）の大幅改善**
+  - サムネイルグリッドを本棚デザインからシンプルな5x2グリッドに変更
+  - シェアボタンをアイコン+テキスト形式に変更（icon-share.imageset）
+  - ダウンロードボタンを削除（三点リーダー内に統合済み）
+  - 並べ替えボタンのアイコンをicon-sortに変更
+  - 三点リーダーをシステムアイコン（ellipsis）に変更
+  - 三点リーダー内のアイコンをカスタムアイコンに変更（icon-share、icon-edit、icon-delete）
+  - 金額と冊数を右寄せに変更、順序を入れ替え
+  - 金額にグラデーションを適用、フォントweightをMediumに
+  - List Contentの各リストに背景色を追加
+  - List Contentのbottomに40ptの余白を追加
+  - 削除アイコンの色をシステムカラー（赤）に変更
+  - 削除アラートのキャンセルボタンの色を非テーマカラーに変更
+
+- ✅ **SharePreviewSheet（シェアプレビュー）の改善**
+  - 背景をThemedBackgroundView風のデザインに変更
+  - サムネイルグリッドをシンプルな5x2グリッドに変更
+  - List Contentに背景色を追加
+  - プレビューカードの上にシェアURLとコピーボタンを追加
+  - アクションボタン（リンクをコピー、ブラウザで表示、Xでシェア）を削除
+  - 閉じるボタンの二重丸を修正
+
+- ✅ **BookSelectorView（本選択画面）の改善**
+  - List Contentの各リストに背景色を追加
+  - スクロール最下部の背景色を透明に変更
+  - 本のサムネイル表示をCachedAsyncImageに変更（表示バグ修正）
+
+- ✅ **AddReadingListView（読了リスト作成）の改善**
+  - 本選択UIをBookSelectorViewに統一（スワイプ式）
+
+- ✅ **ReadingListView（読了リスト一覧）の改善**
+  - 削除アラートのキャンセルボタンの色を非テーマカラーに変更
+
+- ✅ **アセット追加**
+  - icon-calendar.imageset（カレンダービュー切り替え用）
+  - icon-share.imageset（シェアボタン用）
+  - icon-edit.imageset（編集ボタン用）
+
 - ✅ **AccountListView（口座一覧ページ）のクラッシュ修正**
   - 円グラフのパーセンテージ計算で0除算・NaN/Infiniteチェックを追加
   - Double→Int変換時のクラッシュを防止

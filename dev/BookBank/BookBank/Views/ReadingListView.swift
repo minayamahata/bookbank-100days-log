@@ -77,6 +77,7 @@ struct ReadingListView: View {
                 Text("「\(list.title)」を削除しますか？\nリストに含まれる本は削除されません。")
             }
         }
+        .tint(.primary)
     }
     
     // MARK: - Subviews
