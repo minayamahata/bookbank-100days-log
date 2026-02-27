@@ -302,7 +302,7 @@ struct PassbookDetailView: View {
         LazyVStack(spacing: 6) {
             if userBooks.isEmpty {
                 Text("最近どんな本を読んだ？")
-                    .font(.headline)
+                    .font(.body)
                     .foregroundColor(.secondary)
                     .frame(maxWidth: .infinity)
                     .padding()

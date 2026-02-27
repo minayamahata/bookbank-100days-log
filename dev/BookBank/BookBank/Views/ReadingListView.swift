@@ -86,7 +86,7 @@ struct ReadingListView: View {
     private var emptyStateView: some View {
         VStack(spacing: 16) {
             Text("自分の本棚の中から\n読了リストを作りましょう")
-                .font(.subheadline)
+                .font(.body)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
         }
@@ -101,7 +101,7 @@ struct ReadingListView: View {
             GeometryReader { geometry in
                 rowThumbnail(for: list, width: geometry.size.width)
             }
-            .aspectRatio(10/3, contentMode: .fit)  // 5冊横並び＋スペース分の高さ
+            .aspectRatio(list.books.count > 5 ? 10/6.3 : 10/3, contentMode: .fit)
             .clipShape(RoundedRectangle(cornerRadius: 6))
             
             // リスト情報
@@ -134,46 +134,50 @@ struct ReadingListView: View {
                 RoundedRectangle(cornerRadius: 16)
                     .fill(Color.appCardBackground)
                 RoundedRectangle(cornerRadius: 16)
-                    .fill(PassbookColor.color(for: list.colorIndex ?? 0).opacity(0.08))
+                    .fill(PassbookColor.color(for: list.colorIndex ?? 0).opacity(0.2))
             }
         )
-        .overlay(
-            RoundedRectangle(cornerRadius: 16)
-                .stroke(
-                    LinearGradient(
-                        colors: [
-                            PassbookColor.color(for: list.colorIndex ?? 0).opacity(0.6),
-                            PassbookColor.color(for: list.colorIndex ?? 0).opacity(0.1)
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ),
-                    lineWidth: 1
-                )
-        )
+        .clipShape(RoundedRectangle(cornerRadius: 16))
     }
     
-    /// 5カラム1行サムネイル（最大5冊、本の比率 2:3）
+    /// 5カラム×最大2行サムネイル（最大10冊、本の比率 2:3）
     private func rowThumbnail(for list: ReadingList, width: CGFloat) -> some View {
-        let books = Array(list.books.prefix(5))
+        let books = Array(list.books.prefix(10))
+        let topRowBooks = Array(books.prefix(5))
+        let bottomRowBooks = books.count > 5 ? Array(books.dropFirst(5)) : []
         let spacing: CGFloat = 4
         let cellWidth: CGFloat = (width - spacing * 4) / 5
-        let cellHeight: CGFloat = cellWidth * 1.5  // 2:3
+        let cellHeight: CGFloat = cellWidth * 1.5
+        let rowSpacing: CGFloat = 8
         
-        return HStack(spacing: spacing) {
-            ForEach(0..<5, id: \.self) { index in
-                if index < books.count, let imageURL = books[index].imageURL {
-                    CachedAsyncImage(
-                        url: URL(string: imageURL),
-                        width: cellWidth,
-                        height: cellHeight
-                    )
-                    .clipShape(RoundedRectangle(cornerRadius: 2))
-                } else {
-                    RoundedRectangle(cornerRadius: 2)
-                        .fill(Color.secondary.opacity(0.15))
-                        .frame(width: cellWidth, height: cellHeight)
+        return VStack(spacing: rowSpacing) {
+            HStack(spacing: spacing) {
+                ForEach(topRowBooks) { book in
+                    if let imageURL = book.imageURL {
+                        CachedAsyncImage(
+                            url: URL(string: imageURL),
+                            width: cellWidth,
+                            height: cellHeight
+                        )
+                        .clipShape(RoundedRectangle(cornerRadius: 2))
+                    }
                 }
+            }
+            
+            if !bottomRowBooks.isEmpty {
+                HStack(spacing: spacing) {
+                    ForEach(bottomRowBooks) { book in
+                        if let imageURL = book.imageURL {
+                            CachedAsyncImage(
+                                url: URL(string: imageURL),
+                                width: cellWidth,
+                                height: cellHeight
+                            )
+                            .clipShape(RoundedRectangle(cornerRadius: 2))
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
     }

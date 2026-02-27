@@ -40,12 +40,18 @@ struct AddPassbookView: View {
                 // 入力フィールド
                 VStack(alignment: .leading, spacing: 12) {
                     Text("口座名")
-                        .font(.headline)
+                        .font(.body)
                     
                     HStack(spacing: 8) {
-                        TextField("プライベート", text: $accountName)
-                            .textFieldStyle(.roundedBorder)
-                            .font(.body)
+                        TextField("小説", text: $accountName)
+                            .font(.system(size: 18, weight: .light))
+                            .multilineTextAlignment(.center)
+                            .frame(height: 50)
+                            .background(Color.clear)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 4)
+                                    .stroke(Color.primary.opacity(0.3), lineWidth: 1)
+                            )
                             .submitLabel(.done)
                             .onSubmit {
                                 if !accountName.isEmpty {
@@ -54,7 +60,7 @@ struct AddPassbookView: View {
                             }
                         
                         Text("口座")
-                            .font(.body)
+                            .font(.system(size: 14))
                             .foregroundColor(.secondary)
                     }
                 }
@@ -74,8 +80,8 @@ struct AddPassbookView: View {
                                         .lineLimit(1)
                                         .fixedSize(horizontal: true, vertical: false)
                                         .foregroundColor(accountName == name ? (colorScheme == .dark ? .black : .white) : .primary)
-                                        .padding(.horizontal, 14)
-                                        .padding(.vertical, 8)
+                                        .padding(.horizontal, 20)
+                                        .padding(.vertical, 12)
                                         .background(
                                             accountName == name
                                                 ? Color.primary
@@ -88,15 +94,18 @@ struct AddPassbookView: View {
                                         .cornerRadius(20)
                                 }
                             }
+                            Spacer()
                         }
                     }
                 }
                 .padding(.horizontal)
                 
+                Spacer().frame(height: 16)
+                
                 // テーマカラー選択
                 VStack(alignment: .leading, spacing: 12) {
                     Text("テーマカラー")
-                        .font(.headline)
+                        .font(.body)
                     
                     HStack(spacing: 0) {
                         ForEach(0..<PassbookColor.count, id: \.self) { index in

@@ -96,28 +96,7 @@ struct PlatinumPaywallView: View {
     // MARK: - Header Section
     
     private var headerSection: some View {
-        VStack(spacing: 16) {
-            // Platinumアイコン
-            ZStack {
-                Circle()
-                    .fill(platinumGradient)
-                    .frame(width: 100, height: 100)
-                    .shadow(color: .white.opacity(0.3), radius: 20)
-                
-                Image(systemName: "star.fill")
-                    .font(.system(size: 40))
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [
-                                Color(red: 30/255, green: 30/255, blue: 40/255),
-                                Color(red: 50/255, green: 50/255, blue: 60/255)
-                            ],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                    )
-            }
-            
+        VStack(spacing: 16) {            
             // タイトル
             Text("BookBank")
                 .font(.system(size: 16))

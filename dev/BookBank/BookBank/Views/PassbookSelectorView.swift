@@ -288,29 +288,33 @@ struct EditPassbookView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 24) {
                         // 口座名セクション
-                        VStack(alignment: .leading, spacing: 8) {
+                        VStack(alignment: .leading, spacing: 12) {
                             Text("口座名")
-                                .font(.system(size: 13))
-                                .foregroundColor(.secondary)
+                                .font(.headline)
                             
-                            TextField("口座名", text: $editingName)
-                                .textInputAutocapitalization(.never)
-                                .autocorrectionDisabled()
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 12)
-                                .background(Color(.secondarySystemGroupedBackground))
-                                .clipShape(RoundedRectangle(cornerRadius: 16))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 16)
-                                        .stroke(Color.primary.opacity(0.1), lineWidth: 1)
-                                )
+                            HStack(spacing: 8) {
+                                TextField("口座名", text: $editingName)
+                                    .textInputAutocapitalization(.never)
+                                    .autocorrectionDisabled()
+                                    .font(.system(size: 18, weight: .light))
+                                    .multilineTextAlignment(.center)
+                                    .frame(height: 50)
+                                    .background(Color.clear)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 4)
+                                            .stroke(Color.primary.opacity(0.3), lineWidth: 1)
+                                    )
+                                
+                                Text("口座")
+                                    .font(.system(size: 14))
+                                    .foregroundColor(.secondary)
+                            }
                         }
                         
                         // テーマカラーセクション
-                        VStack(alignment: .leading, spacing: 8) {
+                        VStack(alignment: .leading, spacing: 12) {
                             Text("テーマカラー")
-                                .font(.system(size: 13))
-                                .foregroundColor(.secondary)
+                                .font(.headline)
                             
                             HStack(spacing: 0) {
                                 ForEach(0..<PassbookColor.count, id: \.self) { index in
@@ -332,11 +336,10 @@ struct EditPassbookView: View {
                                     .buttonStyle(.plain)
                                 }
                             }
-                            .padding(.vertical, 12)
                         }
                     }
                     .padding(.horizontal, 16)
-                    .padding(.top, 16)
+                    .padding(.top, 24)
                 }
                 .onAppear {
                     // colorIndexが未設定の場合、リスト内の位置に基づいた色をデフォルトにする

@@ -109,7 +109,6 @@ struct OnboardingView: View {
             .font(.system(size: 24, weight: .light))
             .foregroundColor(.white)
             .multilineTextAlignment(.center)
-            .kerning(3)
         }
         .frame(maxWidth: .infinity)
     }
@@ -191,7 +190,7 @@ struct OnboardingView: View {
                 .font(.system(size: 16))
                 .foregroundColor(accountName.isEmpty ? .white.opacity(0.5) : .white)
                 .frame(maxWidth: .infinity)
-                .frame(height: 50)
+                .frame(height: 60)
                 .background(
                     accountName.isEmpty
                         ? Color.white.opacity(0.2)

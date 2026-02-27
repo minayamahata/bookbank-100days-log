@@ -502,6 +502,7 @@ struct BookSearchView: View {
         }
         .navigationTitle("本を検索")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.hidden, for: .tabBar)
         .onAppear {
             // 画面表示時に自動的に検索バーにフォーカス
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {

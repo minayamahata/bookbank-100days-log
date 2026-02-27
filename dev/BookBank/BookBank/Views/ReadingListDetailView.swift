@@ -1188,7 +1188,7 @@ struct SharePreviewSheet: View {
                 .padding(.top, 8)
                 .padding(.bottom, 24)
             }
-            .background(Color(.systemGroupedBackground))
+            .background(colorScheme == .dark ? Color.black : Color(.systemGroupedBackground))
             .navigationTitle("シェアプレビュー")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -1236,7 +1236,7 @@ struct SharePreviewSheet: View {
         .padding(.vertical, 12)
         .background(
             RoundedRectangle(cornerRadius: 10)
-                .fill(Color.appCardBackground)
+                .fill(Color(.secondarySystemGroupedBackground))
         )
     }
     
@@ -1348,6 +1348,7 @@ struct SharePreviewSheet: View {
     
     private var previewThumbnailGrid: some View {
         let books = Array(readingList.books.prefix(10))
+        let hasSecondRow = books.count > 5
         let spacing: CGFloat = 4
         let rowSpacing: CGFloat = 8
         
@@ -1366,7 +1367,7 @@ struct SharePreviewSheet: View {
                 .frame(maxWidth: .infinity)
                 
                 // 下段（6〜10冊目）- 6冊以上の場合のみ
-                if books.count > 5 {
+                if hasSecondRow {
                     HStack(spacing: spacing) {
                         ForEach(5..<books.count, id: \.self) { index in
                             previewBookThumbnail(book: books[index], width: cellWidth, height: cellHeight)
@@ -1376,7 +1377,7 @@ struct SharePreviewSheet: View {
                 }
             }
         }
-        .frame(height: readingList.books.count > 5 ? 160 : 80)
+        .aspectRatio(hasSecondRow ? 5.0 / 3.2 : 5.0 / 1.5, contentMode: .fit)
     }
     
     private func previewBookThumbnail(book: UserBook, width: CGFloat, height: CGFloat) -> some View {

@@ -294,9 +294,9 @@ struct BookshelfView: View {
         Group {
             if userBooks.isEmpty {
                 VStack(spacing: 8) {
-                    Text("最近どんな本を読みましたか？")
-                        .font(.headline)
-                        .foregroundColor(.secondary)
+                    Text("読んだ本を登録しましょう")
+                        .font(.body)
+                        .foregroundColor(.white)
                 }
                 .frame(maxWidth: .infinity)
                 .padding()

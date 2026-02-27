@@ -53,12 +53,28 @@ struct AccountListView: View {
     
     // 円グラフ用のデータ
     private var chartData: [AccountChartData] {
-        customPassbooks.map { passbook in
-            AccountChartData(
-                name: passbook.name,
-                amount: amountForPassbook(passbook),
-                color: PassbookColor.color(for: passbook, in: customPassbooks)
-            )
+        if totalAmount > 0 {
+            return customPassbooks.map { passbook in
+                AccountChartData(
+                    name: passbook.name,
+                    amount: amountForPassbook(passbook),
+                    color: PassbookColor.color(for: passbook, in: customPassbooks)
+                )
+            }
+        } else if !customPassbooks.isEmpty {
+            return customPassbooks.map { passbook in
+                AccountChartData(
+                    name: passbook.name,
+                    amount: 1,
+                    color: Color.gray.opacity(0.3)
+                )
+            }
+        } else {
+            return [AccountChartData(
+                name: "empty",
+                amount: 1,
+                color: Color.gray.opacity(0.2)
+            )]
         }
     }
     
@@ -76,24 +92,22 @@ struct AccountListView: View {
                 }
                 
                 // 円グラフ（中央に総資産表示）
-                if !chartData.isEmpty && totalAmount > 0 {
-                    ZStack {
-                        Chart(chartData) { data in
-                            SectorMark(
-                                angle: .value("金額", data.amount),
-                                innerRadius: .ratio(0.6),
-                                angularInset: 1.5
-                            )
-                            .foregroundStyle(data.color)
-                            .cornerRadius(2)
-                            .annotation(position: .overlay) {
-                                // パーセンテージラベル（0除算とNaN/Infiniteを防止）
+                ZStack {
+                    Chart(chartData) { data in
+                        SectorMark(
+                            angle: .value("金額", data.amount),
+                            innerRadius: .ratio(0.6),
+                            angularInset: 1.5
+                        )
+                        .foregroundStyle(data.color)
+                        .cornerRadius(2)
+                        .annotation(position: .overlay) {
+                            if totalAmount > 0 {
                                 let percentage: Double = {
-                                    guard totalAmount > 0 else { return 0 }
                                     let value = Double(data.amount) / Double(totalAmount) * 100
                                     return value.isNaN || value.isInfinite ? 0 : value
                                 }()
-                                if percentage >= 5 { // 5%以上のみ表示
+                                if percentage >= 5 {
                                     HStack(spacing: 4) {
                                         Circle()
                                             .fill(data.color)
@@ -112,48 +126,29 @@ struct AccountListView: View {
                                 }
                             }
                         }
-                        .chartLegend(.hidden)
-                        
-                        // 中央の総資産表示
-                        VStack(spacing: 8) {
-                            Text("総資産")
-                                .font(.headline)
-                                .foregroundColor(.primary)
-                            
-                            HStack(alignment: .lastTextBaseline, spacing: 1) {
-                                Text("\(totalAmount.formatted())")
-                                    .font(.system(size: 22))
-                                Text("円")
-                                    .font(.system(size: 14))
-                            }
-                            .foregroundColor(.primary)
-                            
-                            Text("\(totalBookCount)冊")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
                     }
-                    .frame(height: 260)
-                } else {
-                    // データがない場合の総資産表示
-                    VStack(spacing: 4) {
+                    .chartLegend(.hidden)
+                    
+                    // 中央の総資産表示
+                    VStack(spacing: 8) {
                         Text("総資産")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+                            .font(.headline)
+                            .foregroundColor(.primary)
                         
-                        HStack(alignment: .lastTextBaseline, spacing: 2) {
+                        HStack(alignment: .lastTextBaseline, spacing: 1) {
                             Text("\(totalAmount.formatted())")
-                                .font(.system(size: 32))
+                                .font(.system(size: 22))
                             Text("円")
-                                .font(.system(size: 18))
+                                .font(.system(size: 14))
                         }
                         .foregroundColor(.primary)
                         
                         Text("\(totalBookCount)冊")
-                            .font(.subheadline)
+                            .font(.caption)
                             .foregroundColor(.secondary)
                     }
                 }
+                .frame(height: 260)
                 
                 // 口座リスト
                 VStack(spacing: 10) {
