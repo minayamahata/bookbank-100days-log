@@ -1,5 +1,5 @@
 //
-//  PlatinumManager.swift
+//  UnlimitedManager.swift
 //  BookBank
 //
 //  Created on 2026/02/10
@@ -9,14 +9,14 @@ import Foundation
 import StoreKit
 import Observation
 
-/// Platinum会員の購入・状態管理を行うシングルトン
+/// Unlimited会員の購入・状態管理を行うシングルトン
 @Observable
 @MainActor
-final class PlatinumManager {
+final class UnlimitedManager {
     
     // MARK: - Singleton
     
-    static let shared = PlatinumManager()
+    static let shared = UnlimitedManager()
     
     // MARK: - Product IDs
     
@@ -29,8 +29,8 @@ final class PlatinumManager {
     
     // MARK: - Observable Properties
     
-    /// Platinum会員かどうか
-    private(set) var isPlatinum: Bool = false
+    /// Unlimited会員かどうか
+    private(set) var isUnlimited: Bool = false
     
     /// 年額サブスクが有効かどうか（lifetimeのみの場合はfalse・解約管理不要のため）
     private(set) var hasActiveYearlySubscription: Bool = false
@@ -165,7 +165,7 @@ final class PlatinumManager {
             }
         }
         
-        isPlatinum = hasValidEntitlement
+        isUnlimited = hasValidEntitlement
         hasActiveYearlySubscription = hasYearly
     }
     
@@ -201,7 +201,7 @@ final class PlatinumManager {
 
 // MARK: - Convenience Properties
 
-extension PlatinumManager {
+extension UnlimitedManager {
     /// 年額サブスク商品
     var yearlyProduct: Product? {
         products.first { $0.id == "com.bookbank.platinum.yearly" }

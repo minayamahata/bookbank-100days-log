@@ -1,5 +1,5 @@
 //
-//  PlatinumAlertView.swift
+//  UnlimitedAlertView.swift
 //  BookBank
 //
 //  Created on 2026/02/22
@@ -7,8 +7,8 @@
 
 import SwiftUI
 
-/// Platinum機能への誘導アラート（統一デザイン）
-struct PlatinumAlertView: View {
+/// Unlimited機能への誘導アラート（統一デザイン）
+struct UnlimitedAlertView: View {
     let message: String
     let onConfirm: () -> Void
     let onCancel: () -> Void
@@ -26,7 +26,7 @@ struct PlatinumAlertView: View {
             VStack(spacing: 20) {
                 // タイトルとメッセージ
                 VStack(spacing: 8) {
-                    Text("Platinum機能")
+                    Text("Unlimited機能")
                         .font(.headline)
                         .foregroundColor(.primary)
                     
@@ -38,9 +38,8 @@ struct PlatinumAlertView: View {
                 
                 // ボタン
                 VStack(spacing: 12) {
-                    // Platinum機能を体験するボタン（青塗り）
                     Button(action: onConfirm) {
-                        Text("Platinum機能を体験する")
+                        Text("Unlimited機能を体験する")
                             .font(.headline)
                             .foregroundColor(.white)
                             .frame(maxWidth: .infinity)
@@ -51,7 +50,6 @@ struct PlatinumAlertView: View {
                             )
                     }
                     
-                    // キャンセルボタン（黒テキスト）
                     Button(action: onCancel) {
                         Text("キャンセル")
                             .font(.subheadline)
@@ -70,8 +68,8 @@ struct PlatinumAlertView: View {
 }
 
 #Preview {
-    PlatinumAlertView(
-        message: "4つ以上の口座を作成するにはPlatinum版が必要です。",
+    UnlimitedAlertView(
+        message: "4つ以上の口座を作成するにはUnlimited版が必要です。",
         onConfirm: {},
         onCancel: {}
     )

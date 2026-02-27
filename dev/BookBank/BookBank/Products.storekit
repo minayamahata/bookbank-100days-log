@@ -11,12 +11,12 @@
       "localizations" : [
         {
           "description" : "すべての機能を永久に利用できます",
-          "displayName" : "Platinum（買い切り）",
+          "displayName" : "Unlimited（買い切り）",
           "locale" : "ja"
         }
       ],
       "productID" : "com.bookbank.platinum.lifetime",
-      "referenceName" : "Platinum Lifetime",
+      "referenceName" : "Unlimited Lifetime",
       "type" : "NonConsumable"
     }
   ],
@@ -80,12 +80,12 @@
       "id" : "platinum_group",
       "localizations" : [
         {
-          "description" : "Platinumプラン",
-          "displayName" : "Platinum",
+          "description" : "Unlimitedプラン",
+          "displayName" : "Unlimited",
           "locale" : "ja"
         }
       ],
-      "name" : "Platinum",
+      "name" : "Unlimited",
       "subscriptions" : [
         {
           "adHocOffers" : [
@@ -102,13 +102,13 @@
           "localizations" : [
             {
               "description" : "年額でお得にすべての機能を利用",
-              "displayName" : "Platinum（年額）",
+              "displayName" : "Unlimited（年額）",
               "locale" : "ja"
             }
           ],
           "productID" : "com.bookbank.platinum.yearly",
           "recurringSubscriptionPeriod" : "P1Y",
-          "referenceName" : "Platinum Yearly",
+          "referenceName" : "Unlimited Yearly",
           "subscriptionGroupID" : "platinum_group",
           "type" : "RecurringSubscription",
           "winbackOffers" : [

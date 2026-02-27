@@ -13,7 +13,7 @@ import UniformTypeIdentifiers
 struct PassbookSelectorView: View {
     @Environment(\.dismiss) private var dismiss
     @Query(sort: \Passbook.sortOrder) private var passbooks: [Passbook]
-    private var platinumManager: PlatinumManager { PlatinumManager.shared }
+    private var unlimitedManager: UnlimitedManager { UnlimitedManager.shared }
     
     @Binding var selectedPassbook: Passbook?
     var onSelect: (() -> Void)?  // 選択時のコールバック
@@ -21,7 +21,7 @@ struct PassbookSelectorView: View {
     @State private var passbookToEdit: Passbook?
     @State private var showAddPassbook = false
     @State private var showProAlert = false
-    @State private var showPlatinumPaywall = false
+    @State private var showUnlimitedPaywall = false
     
     // カスタム口座を取得
     private var customPassbooks: [Passbook] {
@@ -58,7 +58,7 @@ struct PassbookSelectorView: View {
             // 下部に配置：新しい口座を追加 / サブスクリプションを管理
             VStack(spacing: 0) {
                 Button(action: {
-                    if customPassbooks.count >= 3 && !platinumManager.isPlatinum {
+                    if customPassbooks.count >= 3 && !unlimitedManager.isUnlimited {
                         showProAlert = true
                     } else {
                         showAddPassbook = true
@@ -77,7 +77,7 @@ struct PassbookSelectorView: View {
                 }
                 
                 // 年額プランの場合のみ表示（lifetimeは解約不要のため非表示）
-                if platinumManager.isPlatinum && platinumManager.hasActiveYearlySubscription {
+                if unlimitedManager.isUnlimited && unlimitedManager.hasActiveYearlySubscription {
                     Button(action: openSubscriptionManagement) {
                         HStack {
                             Text("サブスクリプションを管理")
@@ -125,16 +125,16 @@ struct PassbookSelectorView: View {
         .sheet(isPresented: $showAddPassbook) {
             AddPassbookView()
         }
-        .sheet(isPresented: $showPlatinumPaywall) {
-            PlatinumPaywallView()
+        .sheet(isPresented: $showUnlimitedPaywall) {
+            UnlimitedPaywallView()
         }
         .overlay {
             if showProAlert {
-                PlatinumAlertView(
-                    message: "4つ以上の口座を作成するにはPlatinum版が必要です。",
+                UnlimitedAlertView(
+                    message: "4つ以上の口座を作成するにはUnlimited版が必要です。",
                     onConfirm: {
                         showProAlert = false
-                        showPlatinumPaywall = true
+                        showUnlimitedPaywall = true
                     },
                     onCancel: {
                         showProAlert = false

@@ -13,12 +13,12 @@ import Charts
 struct AccountListView: View {
     @Query(sort: \Passbook.sortOrder) private var passbooks: [Passbook]
     @Query private var allBooks: [UserBook]
-    private var platinumManager: PlatinumManager { PlatinumManager.shared }
+    private var unlimitedManager: UnlimitedManager { UnlimitedManager.shared }
     
     @State private var passbookToEdit: Passbook?
     @State private var showAddPassbook = false
     @State private var showProAlert = false
-    @State private var showPlatinumPaywall = false
+    @State private var showUnlimitedPaywall = false
     
     /// 口座選択時のコールバック
     var onPassbookSelected: ((Passbook) -> Void)?
@@ -86,9 +86,8 @@ struct AccountListView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 20) {
-                // Platinum会員表示（左上）
-                if platinumManager.isPlatinum {
-                    platinumBadgeSection
+                if unlimitedManager.isUnlimited {
+                    unlimitedBadgeSection
                 }
                 
                 // 円グラフ（中央に総資産表示）
@@ -165,7 +164,7 @@ struct AccountListView: View {
                 
                 // 新しい口座を追加ボタン
                 Button(action: {
-                    if customPassbooks.count >= 3 && !platinumManager.isPlatinum {
+                    if customPassbooks.count >= 3 && !unlimitedManager.isUnlimited {
                         showProAlert = true
                     } else {
                         showAddPassbook = true
@@ -220,16 +219,16 @@ struct AccountListView: View {
         .sheet(isPresented: $showAddPassbook) {
             AddPassbookView()
         }
-        .sheet(isPresented: $showPlatinumPaywall) {
-            PlatinumPaywallView()
+        .sheet(isPresented: $showUnlimitedPaywall) {
+            UnlimitedPaywallView()
         }
         .overlay {
             if showProAlert {
-                PlatinumAlertView(
-                    message: "4つ以上の口座を作成するにはPlatinum版が必要です。",
+                UnlimitedAlertView(
+                    message: "4つ以上の口座を作成するにはUnlimited版が必要です。",
                     onConfirm: {
                         showProAlert = false
-                        showPlatinumPaywall = true
+                        showUnlimitedPaywall = true
                     },
                     onCancel: {
                         showProAlert = false
@@ -239,8 +238,7 @@ struct AccountListView: View {
         }
     }
     
-    // Platinumカラー（Paywallと統一）
-    private static let platinumGradient = LinearGradient(
+    private static let unlimitedGradient = LinearGradient(
         colors: [
             Color(red: 180/255, green: 180/255, blue: 190/255),
             Color(red: 220/255, green: 220/255, blue: 230/255),
@@ -250,10 +248,8 @@ struct AccountListView: View {
         endPoint: .bottomTrailing
     )
     
-    // Platinum会員バッジ（アイコン1つ + Platinum表記）
-    private var platinumBadgeSection: some View {
+    private var unlimitedBadgeSection: some View {
         HStack(spacing: 8) {
-            // 口座アイコン（Platinumカラー）
             ZStack {
                 Image("icon-tab-account-fill")
                     .renderingMode(.template)
@@ -265,14 +261,13 @@ struct AccountListView: View {
                     .renderingMode(.template)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
-                    .foregroundStyle(Self.platinumGradient)
+                    .foregroundStyle(Self.unlimitedGradient)
             }
             .frame(width: 18, height: 18)
             
-            // Platinum表記（枠線なし・Platinumカラー）
-            Text("Platinum")
+            Text("Unlimited")
                 .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(Self.platinumGradient)
+                .foregroundStyle(Self.unlimitedGradient)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }

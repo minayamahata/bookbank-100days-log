@@ -173,9 +173,9 @@ struct ExportSheetView: View {
     let onExportTitleOnly: () -> Void
     let onExportDetailed: () -> Void
     
-    private var platinumManager: PlatinumManager { PlatinumManager.shared }
-    @State private var showPlatinumAlert = false
-    @State private var showPlatinumPaywall = false
+    private var unlimitedManager: UnlimitedManager { UnlimitedManager.shared }
+    @State private var showUnlimitedAlert = false
+    @State private var showUnlimitedPaywall = false
     
     // VSCode風のカラー（ダークモード時は黒）
     private let codeBackground = Color(UIColor { traits in
@@ -240,8 +240,8 @@ struct ExportSheetView: View {
                             Text("詳細情報を含める")
                                 .font(.headline)
                             
-                            if !platinumManager.isPlatinum {
-                                Text("Platinum")
+                            if !unlimitedManager.isUnlimited {
+                                Text("Unlimited")
                                     .font(.caption2)
                                     .fontWeight(.semibold)
                                     .foregroundColor(.white)
@@ -255,30 +255,29 @@ struct ExportSheetView: View {
                         // VSCode風コードブロック
                         codeBlock(content: detailedAttributedContent)
                         
-                        // ダウンロードボタン（Platinum）
                         Button(action: {
-                            if platinumManager.isPlatinum {
+                            if unlimitedManager.isUnlimited {
                                 onExportDetailed()
                             } else {
-                                showPlatinumAlert = true
+                                showUnlimitedAlert = true
                             }
                         }) {
                             HStack(spacing: 8) {
                                 Spacer()
                                 Image("icon-download")
                                     .renderingMode(.template)
-                                Text(platinumManager.isPlatinum ? "詳細情報でダウンロード" : "詳細情報でダウンロード（Platinum）")
+                                Text(unlimitedManager.isUnlimited ? "詳細情報でダウンロード" : "詳細情報でダウンロード（Unlimited）")
                                 Spacer()
                             }
                             .font(.system(size: 15))
                             .padding(.vertical, 18)
                             .background(
                                 RoundedRectangle(cornerRadius: 12)
-                                    .fill(platinumManager.isPlatinum ? AnyShapeStyle(Color.primary.opacity(0.1)) : AnyShapeStyle(proGradient.opacity(0.1)))
+                                    .fill(unlimitedManager.isUnlimited ? AnyShapeStyle(Color.primary.opacity(0.1)) : AnyShapeStyle(proGradient.opacity(0.1)))
                             )
                             .overlay(
                                 RoundedRectangle(cornerRadius: 12)
-                                    .stroke(platinumManager.isPlatinum ? AnyShapeStyle(Color.primary.opacity(0.3)) : AnyShapeStyle(proGradient), lineWidth: 1)
+                                    .stroke(unlimitedManager.isUnlimited ? AnyShapeStyle(Color.primary.opacity(0.3)) : AnyShapeStyle(proGradient), lineWidth: 1)
                             )
                         }
                         .buttonStyle(.plain)
@@ -289,19 +288,19 @@ struct ExportSheetView: View {
             }
             .navigationTitle("ダウンロード形式を選択")
             .navigationBarTitleDisplayMode(.inline)
-            .sheet(isPresented: $showPlatinumPaywall) {
-                PlatinumPaywallView()
+            .sheet(isPresented: $showUnlimitedPaywall) {
+                UnlimitedPaywallView()
             }
             .overlay {
-                if showPlatinumAlert {
-                    PlatinumAlertView(
-                        message: "詳細情報を含むダウンロードはPlatinum版の機能です。",
+                if showUnlimitedAlert {
+                    UnlimitedAlertView(
+                        message: "詳細情報を含むダウンロードはUnlimited版の機能です。",
                         onConfirm: {
-                            showPlatinumAlert = false
-                            showPlatinumPaywall = true
+                            showUnlimitedAlert = false
+                            showUnlimitedPaywall = true
                         },
                         onCancel: {
-                            showPlatinumAlert = false
+                            showUnlimitedAlert = false
                         }
                     )
                 }

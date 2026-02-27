@@ -1,5 +1,5 @@
 //
-//  PlatinumPaywallView.swift
+//  UnlimitedPaywallView.swift
 //  BookBank
 //
 //  Created on 2026/02/10
@@ -8,16 +8,15 @@
 import SwiftUI
 import StoreKit
 
-/// Platinum課金画面
-struct PlatinumPaywallView: View {
+/// Unlimited課金画面
+struct UnlimitedPaywallView: View {
     @Environment(\.dismiss) private var dismiss
-    private var platinumManager: PlatinumManager { PlatinumManager.shared }
+    private var unlimitedManager: UnlimitedManager { UnlimitedManager.shared }
     
     @State private var selectedProduct: Product?
     @State private var isRestoring = false
     
-    // プラチナカードをイメージしたグラデーション
-    private let platinumGradient = LinearGradient(
+    private let unlimitedGradient = LinearGradient(
         colors: [
             Color(red: 180/255, green: 180/255, blue: 190/255),  // シルバー
             Color(red: 220/255, green: 220/255, blue: 230/255),  // プラチナ
@@ -81,12 +80,12 @@ struct PlatinumPaywallView: View {
             .onAppear {
                 // 初期選択: 年額プラン
                 if selectedProduct == nil {
-                    selectedProduct = platinumManager.yearlyProduct
+                    selectedProduct = unlimitedManager.yearlyProduct
                 }
             }
-            .onChange(of: platinumManager.isPlatinum) { _, isPlatinum in
+            .onChange(of: unlimitedManager.isUnlimited) { _, isUnlimited in
                 // 購入完了後に自動でdismiss
-                if isPlatinum {
+                if isUnlimited {
                     dismiss()
                 }
             }
@@ -98,15 +97,11 @@ struct PlatinumPaywallView: View {
     private var headerSection: some View {
         VStack(spacing: 16) {            
             // タイトル
-            Text("BookBank")
-                .font(.system(size: 16))
-                .foregroundColor(.white.opacity(0.6))
+            Text("Unlimited")
+                .font(.custom("Fearlessly Authentic", size: 42))
+                .foregroundStyle(unlimitedGradient)
             
-            Text("Platinum")
-                .font(.system(size: 36, weight: .bold))
-                .foregroundStyle(platinumGradient)
-            
-            Text("すべての機能を無制限に")
+            Text("知識は、最も美しい資産になる")
                 .font(.system(size: 16))
                 .foregroundColor(.white.opacity(0.7))
         }
@@ -181,7 +176,7 @@ struct PlatinumPaywallView: View {
             
             HStack(spacing: 12) {
                 // 年額プラン
-                if let yearly = platinumManager.yearlyProduct {
+                if let yearly = unlimitedManager.yearlyProduct {
                     planCard(
                         product: yearly,
                         badge: "おすすめ",
@@ -191,7 +186,7 @@ struct PlatinumPaywallView: View {
                 }
                 
                 // 買い切りプラン
-                if let lifetime = platinumManager.lifetimeProduct {
+                if let lifetime = unlimitedManager.lifetimeProduct {
                     planCard(
                         product: lifetime,
                         badge: "一生使える",
@@ -216,7 +211,7 @@ struct PlatinumPaywallView: View {
                     .padding(.vertical, 4)
                     .background(
                         Capsule()
-                            .fill(isSelected ? AnyShapeStyle(platinumGradient) : AnyShapeStyle(Color.white.opacity(0.2)))
+                            .fill(isSelected ? AnyShapeStyle(unlimitedGradient) : AnyShapeStyle(Color.white.opacity(0.2)))
                     )
                 
                 // プラン名
@@ -252,7 +247,7 @@ struct PlatinumPaywallView: View {
             .overlay(
                 RoundedRectangle(cornerRadius: 16)
                     .stroke(
-                        isSelected ? AnyShapeStyle(platinumGradient) : AnyShapeStyle(Color.white.opacity(0.2)),
+                        isSelected ? AnyShapeStyle(unlimitedGradient) : AnyShapeStyle(Color.white.opacity(0.2)),
                         lineWidth: isSelected ? 2 : 1
                     )
             )
@@ -269,11 +264,11 @@ struct PlatinumPaywallView: View {
             }
         }) {
             HStack(spacing: 8) {
-                if platinumManager.isPurchasing {
+                if unlimitedManager.isPurchasing {
                     ProgressView()
                         .tint(.white)
                 } else {
-                    Text("Platinumにアップグレード")
+                    Text("Unlimitedにアップグレード")
                         .font(.system(size: 17, weight: .semibold))
                 }
             }
@@ -282,12 +277,12 @@ struct PlatinumPaywallView: View {
             .padding(.vertical, 16)
             .background(
                 RoundedRectangle(cornerRadius: 14)
-                    .fill(platinumGradient)
+                    .fill(unlimitedGradient)
             )
             .shadow(color: .white.opacity(0.3), radius: 10)
         }
-        .disabled(platinumManager.isPurchasing || selectedProduct == nil)
-        .opacity(platinumManager.isPurchasing || selectedProduct == nil ? 0.6 : 1)
+        .disabled(unlimitedManager.isPurchasing || selectedProduct == nil)
+        .opacity(unlimitedManager.isPurchasing || selectedProduct == nil ? 0.6 : 1)
     }
     
     // MARK: - Restore Button
@@ -311,7 +306,7 @@ struct PlatinumPaywallView: View {
             .foregroundColor(.white.opacity(0.6))
             .padding(.vertical, 8)
         }
-        .disabled(isRestoring || platinumManager.isPurchasing)
+        .disabled(isRestoring || unlimitedManager.isPurchasing)
     }
     
     // MARK: - Actions
@@ -320,16 +315,16 @@ struct PlatinumPaywallView: View {
         guard let product = selectedProduct else { return }
         
         do {
-            try await platinumManager.purchase(product)
+            try await unlimitedManager.purchase(product)
         } catch {
-            // エラーハンドリング（エラーメッセージはPlatinumManagerで管理）
+            // エラーハンドリング（エラーメッセージはUnlimitedManagerで管理）
             print("❌ Purchase failed: \(error)")
         }
     }
     
     private func restorePurchases() async {
         isRestoring = true
-        await platinumManager.restorePurchases()
+        await unlimitedManager.restorePurchases()
         isRestoring = false
     }
 }
@@ -337,5 +332,5 @@ struct PlatinumPaywallView: View {
 // MARK: - Preview
 
 #Preview {
-    PlatinumPaywallView()
+    UnlimitedPaywallView()
 }

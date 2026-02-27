@@ -11,12 +11,12 @@ import SwiftData
 struct MainTabView: View {
     @Query(sort: \Passbook.sortOrder) private var passbooks: [Passbook]
     @Query(sort: \ReadingList.updatedAt) private var readingLists: [ReadingList]
-    private var platinumManager: PlatinumManager { PlatinumManager.shared }
+    private var unlimitedManager: UnlimitedManager { UnlimitedManager.shared }
     @State private var selectedPassbook: Passbook?
     @State private var showPassbookSelector = false
     @State private var showAddReadingList = false
     @State private var showProAlert = false
-    @State private var showPlatinumPaywall = false
+    @State private var showUnlimitedPaywall = false
     
     /// 各タブのナビゲーションパス
     @State private var accountListNavPath = NavigationPath()
@@ -188,7 +188,7 @@ struct MainTabView: View {
                         // Myリストタブの場合はMenu表示
                         Menu {
                             Button(action: {
-                                if readingLists.count >= 3 && !platinumManager.isPlatinum {
+                                if readingLists.count >= 3 && !unlimitedManager.isUnlimited {
                                     showProAlert = true
                                 } else {
                                     showAddReadingList = true
@@ -246,16 +246,16 @@ struct MainTabView: View {
         .sheet(isPresented: $showAddReadingList) {
             AddReadingListView()
         }
-        .sheet(isPresented: $showPlatinumPaywall) {
-            PlatinumPaywallView()
+        .sheet(isPresented: $showUnlimitedPaywall) {
+            UnlimitedPaywallView()
         }
         .overlay {
             if showProAlert {
-                PlatinumAlertView(
-                    message: "4つ以上の読了リストを作成するにはPlatinum版が必要です。",
+                UnlimitedAlertView(
+                    message: "4つ以上の読了リストを作成するにはUnlimited版が必要です。",
                     onConfirm: {
                         showProAlert = false
-                        showPlatinumPaywall = true
+                        showUnlimitedPaywall = true
                     },
                     onCancel: {
                         showProAlert = false

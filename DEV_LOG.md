@@ -419,6 +419,15 @@ git push origin main
 ## 開発履歴
 
 ### 2026-02-27
+- ✅ **有料プラン名を「Platinum」から「Unlimited」に全面変更**
+  - PlatinumManager → UnlimitedManager（ファイル名・クラス名変更）
+  - PlatinumPaywallView → UnlimitedPaywallView（ファイル名・構造体名変更）
+  - PlatinumAlertView → UnlimitedAlertView（ファイル名・構造体名変更）
+  - isPlatinum → isUnlimited（プロパティ名変更）
+  - UI表示テキストをすべて「Unlimited」に統一（バッジ、ボタン、アラートメッセージ等）
+  - Products.storekitの表示名を「Unlimited（年額）」「Unlimited（買い切り）」に変更
+  - 対象ファイル: UnlimitedManager, UnlimitedPaywallView, UnlimitedAlertView, AccountListView, PassbookSelectorView, MainTabView, MarkdownExporter, Products.storekit
+
 - ✅ **BookSearchView（本の検索ページ）のFABボタン非表示**
   - 検索ページではタブバーとFABボタンを非表示に（`.toolbar(.hidden, for: .tabBar)`）
 
