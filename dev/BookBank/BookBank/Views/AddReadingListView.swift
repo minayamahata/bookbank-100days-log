@@ -22,6 +22,7 @@ struct AddReadingListView: View {
     @State private var showError: Bool = false
     @State private var createdList: ReadingList?
     @State private var showBookSelector = false
+    @State private var isCompleting = false
     @FocusState private var isFocused: Bool
     
     /// デフォルトのリスト名を生成
@@ -53,7 +54,10 @@ struct AddReadingListView: View {
                 
                 Spacer()
                 
-                if allBooks.isEmpty {
+                if isCompleting {
+                    ProgressView()
+                        .tint(.secondary)
+                } else if allBooks.isEmpty {
                     VStack(spacing: 20) {
                         Text("まずは口座に本を登録しましょう")
                             .font(.body)
@@ -74,7 +78,6 @@ struct AddReadingListView: View {
                         }
                     }
                 } else {
-                    // メインコンテンツ
                     VStack(spacing: 32) {
                         Text("読了リストの名前はどうしますか？")
                             .font(.body)
@@ -132,16 +135,16 @@ struct AddReadingListView: View {
             Text("リストの作成に失敗しました")
         }
         .fullScreenCover(isPresented: $showBookSelector, onDismiss: {
-            // 本の追加画面が閉じたら、リストが空かどうかチェック
             if let list = createdList {
                 if list.books.isEmpty {
-                    // 本が追加されなかった場合はリストを削除
                     context.delete(list)
                     try? context.save()
-                    print("✅ Reading list creation cancelled and deleted (no books added)")
                 }
             }
-            dismiss()
+            isCompleting = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                dismiss()
+            }
         }) {
             if let list = createdList {
                 BookSelectorView(readingList: list)

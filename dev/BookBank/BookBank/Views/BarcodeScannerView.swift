@@ -87,7 +87,7 @@ struct BarcodeScannerView: View {
                                 .frame(width: 36, height: 36)
                                 .background(Circle().fill(Color.black.opacity(0.5)))
                         }
-                        .position(x: 38, y: geometry.safeAreaInsets.top + 16)
+                        .position(x: 38, y: geometry.safeAreaInsets.top + 50)
                     }
                 }
                 .ignoresSafeArea()

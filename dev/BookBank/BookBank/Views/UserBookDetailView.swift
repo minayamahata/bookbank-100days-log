@@ -49,7 +49,7 @@ struct UserBookDetailView: View {
         GeometryReader { geometry in
             ScrollView {
                 VStack(spacing: 0) {
-                    coverSection
+                    coverSection(screenWidth: geometry.size.width)
                     
                     // ボトムシート風コンテンツ
                     VStack(spacing: 24) {
@@ -111,21 +111,24 @@ struct UserBookDetailView: View {
     
     // MARK: - Subviews
 
-    private var coverSection: some View {
+    private func coverSection(screenWidth: CGFloat) -> some View {
         ZStack(alignment: .topTrailing) {
             // 背景（本の画像をぼかしたもの）
             if let imageURL = book.imageURL,
                let url = URL(string: imageURL) {
-                AsyncImage(url: url) { image in
-                    image
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .blur(radius: 30)
-                        .scaleEffect(1.2)
-                } placeholder: {
-                    Color.black
+                GeometryReader { geo in
+                    AsyncImage(url: url) { image in
+                        image
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                            .blur(radius: 30)
+                            .scaleEffect(1.2)
+                            .frame(width: geo.size.width, height: geo.size.height)
+                    } placeholder: {
+                        Color.black
+                            .frame(width: geo.size.width, height: geo.size.height)
+                    }
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .clipped()
                 .overlay(Color.black.opacity(0.3))
             } else {
@@ -139,7 +142,10 @@ struct UserBookDetailView: View {
                     image
                         .resizable()
                         .aspectRatio(contentMode: .fit)
-                        .frame(maxHeight: 160)
+                        .frame(
+                            maxWidth: screenWidth - 80,
+                            maxHeight: 160
+                        )
                         .clipShape(RoundedRectangle(cornerRadius: 2))
                         .shadow(color: Color.black.opacity(0.5), radius: 20, x: 0, y: 8)
                 } placeholder: {
@@ -157,6 +163,7 @@ struct UserBookDetailView: View {
         }
         .frame(height: 330)
         .frame(maxWidth: .infinity)
+        .clipped()
         .overlay(alignment: .bottomTrailing) {
             // お気に入りボタン（右下に配置、削除ボタンと右揃え）
             Button(action: {

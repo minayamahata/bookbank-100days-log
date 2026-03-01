@@ -232,6 +232,8 @@ struct AccountListView: View {
         endPoint: .bottomTrailing
     )
     
+    private static let goldColor = Color(red: 161/255, green: 151/255, blue: 93/255)
+    
     private var unlimitedBadgeSection: some View {
         HStack(spacing: 8) {
             ZStack {
@@ -239,19 +241,19 @@ struct AccountListView: View {
                     .renderingMode(.template)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
-                    .foregroundColor(.secondary.opacity(0.4))
+                    .foregroundColor(Self.goldColor.opacity(0.1))
                 
                 Image("icon-tab-account")
                     .renderingMode(.template)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(Self.goldColor)
             }
             .frame(width: 18, height: 18)
             
             Text("Unlimited")
                 .font(.system(size: 13, weight: .semibold))
-                .foregroundColor(.secondary)
+                .foregroundColor(Self.goldColor)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }

@@ -41,7 +41,8 @@ struct AddPassbookView: View {
     
     var body: some View {
         NavigationStack {
-            VStack(spacing: 24) {
+            ScrollView {
+                VStack(spacing: 24) {
                 // 入力フィールド
                 VStack(alignment: .leading, spacing: 12) {
                     Text("口座名")
@@ -227,8 +228,10 @@ struct AddPassbookView: View {
                     }
                 }
                 .padding(.horizontal)
-                
-                Spacer()
+                }
+            }
+            .onTapGesture {
+                UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
             }
             .navigationTitle("新しい口座")
             .navigationBarTitleDisplayMode(.inline)
