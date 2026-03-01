@@ -206,10 +206,11 @@ struct ReadingListDetailView: View {
                 },
                 onExportTitleOnly: {
                     showExportSheet = false
-                    prepareExport()
+                    prepareExport(type: .titleOnly)
                 },
                 onExportDetailed: {
-                    // Pro機能（将来実装）
+                    showExportSheet = false
+                    prepareExport(type: .detailed)
                 }
             )
         }
@@ -230,8 +231,8 @@ struct ReadingListDetailView: View {
     
     // MARK: - Export Helper
     
-    private func prepareExport() {
-        let markdown = generateReadingListMarkdown(readingList: readingList, exportType: .titleOnly)
+    private func prepareExport(type: ExportType) {
+        let markdown = generateReadingListMarkdown(readingList: readingList, exportType: type)
         exportDocument = MarkdownDocument(text: markdown)
         exportFileName = "\(readingList.title).md"
         showExporter = true
@@ -689,9 +690,9 @@ struct EditReadingListView: View {
                                         .frame(width: 24, height: 24)
                                         .overlay {
                                             if selectedColorIndex == index {
-                                                Circle()
-                                                    .stroke(Color.primary, lineWidth: 2)
-                                                    .frame(width: 30, height: 30)
+                                                Image(systemName: "checkmark")
+                                                    .font(.system(size: 12, weight: .bold))
+                                                    .foregroundColor(PassbookColor.color(for: index).contrastingTextColor)
                                             }
                                         }
                                         .frame(maxWidth: .infinity)
@@ -792,10 +793,11 @@ struct EditReadingListView: View {
                     },
                     onExportTitleOnly: {
                         showExportSheet = false
-                        prepareExport()
+                        prepareExport(type: .titleOnly)
                     },
                     onExportDetailed: {
-                        // Pro機能（将来実装）
+                        showExportSheet = false
+                        prepareExport(type: .detailed)
                     }
                 )
             }
@@ -815,8 +817,8 @@ struct EditReadingListView: View {
         }
     }
     
-    private func prepareExport() {
-        let markdown = generateReadingListMarkdown(readingList: readingList, exportType: .titleOnly)
+    private func prepareExport(type: ExportType) {
+        let markdown = generateReadingListMarkdown(readingList: readingList, exportType: type)
         exportDocument = MarkdownDocument(text: markdown)
         exportFileName = "\(readingList.title).md"
         showExporter = true

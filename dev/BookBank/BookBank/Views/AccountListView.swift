@@ -66,14 +66,14 @@ struct AccountListView: View {
                 AccountChartData(
                     name: passbook.name,
                     amount: 1,
-                    color: Color.gray.opacity(0.3)
+                    color: Color.gray.opacity(0.1)
                 )
             }
         } else {
             return [AccountChartData(
                 name: "empty",
                 amount: 1,
-                color: Color.gray.opacity(0.2)
+                color: Color.gray.opacity(0.08)
             )]
         }
     }
@@ -88,6 +88,7 @@ struct AccountListView: View {
             VStack(spacing: 20) {
                 if unlimitedManager.isUnlimited {
                     unlimitedBadgeSection
+                        .padding(.bottom, -12)
                 }
                 
                 // 円グラフ（中央に総資産表示）
@@ -185,24 +186,22 @@ struct AccountListView: View {
         }
         .background(
             GeometryReader { geometry in
-                ZStack {
+                ZStack(alignment: .top) {
                     Color.appGroupedBackground
                     
-                    // 光源PNG：上部中央に配置
                     Image("bg_glow")
                         .resizable()
                         .scaledToFit()
-                        .frame(width: geometry.size.width * 1)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                        .frame(width: geometry.size.width * 2.2)
                         .blendMode(.screen)
                         .opacity(1)
                     
-                    // ノイズテクスチャ：全体に重ねる
                     Image("bg_noise")
                         .resizable(resizingMode: .tile)
                         .blendMode(.overlay)
                         .opacity(0.2)
                 }
+                .frame(width: geometry.size.width, height: geometry.size.height)
             }
             .ignoresSafeArea()
         )
@@ -255,19 +254,19 @@ struct AccountListView: View {
                     .renderingMode(.template)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
-                    .foregroundStyle(Color(red: 200/255, green: 200/255, blue: 210/255).opacity(0.4))
+                    .foregroundColor(.secondary.opacity(0.4))
                 
                 Image("icon-tab-account")
                     .renderingMode(.template)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
-                    .foregroundStyle(Self.unlimitedGradient)
+                    .foregroundColor(.secondary)
             }
             .frame(width: 18, height: 18)
             
             Text("Unlimited")
                 .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(Self.unlimitedGradient)
+                .foregroundColor(.secondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -318,7 +317,7 @@ struct AccountListView: View {
                 passbookToEdit = passbook
             }) {
                 Image(systemName: "ellipsis")
-                    .font(.system(size: 10))
+                    .font(.system(size: 14))
                     .foregroundColor(.secondary)
                     .frame(width: 44, height: 44)
                     .contentShape(Rectangle())

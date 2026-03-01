@@ -64,15 +64,9 @@ struct BookshelfView: View {
         PassbookColor.color(for: passbook, in: customPassbooks)
     }
     
-    /// テーマカラーが黒（index 0）かどうか
+    /// テーマカラーが黒かどうか
     private var isBlackTheme: Bool {
-        if let colorIndex = passbook.colorIndex {
-            return colorIndex == 0
-        }
-        if let index = customPassbooks.firstIndex(where: { $0.persistentModelID == passbook.persistentModelID }) {
-            return index == 0
-        }
-        return false
+        PassbookColor.isBlackTheme(for: passbook, in: customPassbooks)
     }
     
     /// この口座の全書籍数

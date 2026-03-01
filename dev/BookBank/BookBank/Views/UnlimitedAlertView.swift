@@ -16,7 +16,7 @@ struct UnlimitedAlertView: View {
     var body: some View {
         ZStack {
             // 背景オーバーレイ
-            Color.black.opacity(0.4)
+            Color.black.opacity(0.5)
                 .ignoresSafeArea()
                 .onTapGesture {
                     onCancel()

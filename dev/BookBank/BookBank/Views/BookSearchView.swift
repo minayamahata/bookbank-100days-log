@@ -278,10 +278,6 @@ struct BookSearchView: View {
             } else if searchResults.isEmpty && hasSearched {
                 // 検索結果が0件の場合
                 VStack(spacing: 24) {
-                    Image(systemName: "magnifyingglass")
-                        .font(.system(size: 60))
-                        .foregroundColor(.gray)
-                    
                     Text("本が見つかりませんでした")
                         .font(.headline)
                         .foregroundColor(.secondary)
@@ -291,22 +287,17 @@ struct BookSearchView: View {
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
                     
-                    // 手動登録ボタン
                     Button(action: {
                         isShowingManualEntry = true
                     }) {
-                        HStack {
-                            Image(systemName: "pencil")
-                            Text("手動で登録する")
-                        }
-                        .font(.headline)
-                        .foregroundColor(.white)
-                        .padding()
-                        .frame(maxWidth: .infinity)
-                        .background(Color.blue)
-                        .cornerRadius(10)
+                        Text("手動で登録する")
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 32)
+                            .padding(.vertical, 14)
+                            .background(Capsule().fill(Color.blue))
                     }
-                    .padding(.horizontal, 32)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .padding()
@@ -446,10 +437,6 @@ struct BookSearchView: View {
             } else if hasSearched && searchResults.isEmpty {
                 // 検索結果が0件（フィルター前）
                 VStack(spacing: 24) {
-                    Image(systemName: "magnifyingglass")
-                        .font(.system(size: 60))
-                        .foregroundColor(.gray)
-                    
                     Text("本が見つかりませんでした")
                         .font(.headline)
                         .foregroundColor(.secondary)
@@ -459,22 +446,17 @@ struct BookSearchView: View {
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
                     
-                    // 手動登録ボタン
                     Button(action: {
                         isShowingManualEntry = true
                     }) {
-                        HStack {
-                            Image(systemName: "pencil")
-                            Text("手動で登録する")
-                        }
-                        .font(.headline)
-                        .foregroundColor(.white)
-                        .padding()
-                        .frame(maxWidth: .infinity)
-                        .background(Color.blue)
-                        .cornerRadius(10)
+                        Text("手動で登録する")
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 32)
+                            .padding(.vertical, 14)
+                            .background(Capsule().fill(Color.blue))
                     }
-                    .padding(.horizontal, 32)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .padding()

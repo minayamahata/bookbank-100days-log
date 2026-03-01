@@ -98,6 +98,7 @@ struct UserBookDetailView: View {
         } message: {
             Text("この操作は取り消せません。\n「\(book.title)」を削除してもよろしいですか？")
         }
+        .tint(.primary)
         .sheet(isPresented: $showMemoEditor) {
             MemoEditorView(memo: Binding(
                 get: { book.memo ?? "" },
@@ -253,7 +254,7 @@ struct UserBookDetailView: View {
 
                     if let memo = book.memo, !memo.isEmpty {
                         Text(memo)
-                            .font(.footnote)
+                            .font(.subheadline)
                             .foregroundColor(.primary)
                             .multilineTextAlignment(.leading)
                             .padding(20)

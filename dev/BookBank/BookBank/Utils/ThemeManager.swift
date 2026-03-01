@@ -71,7 +71,11 @@ class ThemeManager {
     }
 
     init() {
-        let savedValue = UserDefaults.standard.integer(forKey: "appTheme")
-        self.currentTheme = AppTheme(rawValue: savedValue) ?? .system
+        if UserDefaults.standard.object(forKey: "appTheme") != nil {
+            let savedValue = UserDefaults.standard.integer(forKey: "appTheme")
+            self.currentTheme = AppTheme(rawValue: savedValue) ?? .light
+        } else {
+            self.currentTheme = .light
+        }
     }
 }

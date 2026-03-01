@@ -13,10 +13,15 @@ struct AddPassbookView: View {
     @Environment(\.dismiss) private var dismiss
     @Query(sort: \Passbook.sortOrder) private var passbooks: [Passbook]
     
-    @State private var accountName: String = ""
-    @State private var selectedColorIndex: Int = 0
+    @State private var accountName: String = "小説"
+    @State private var selectedColorIndex: Int = 10
     @State private var showError: Bool = false
+    @State private var showColorPicker = false
+    @State private var customColor: Color = .blue
+    @State private var useCustomColor: Bool = false
+    @State private var showUnlimitedPaywall = false
     
+    private var unlimitedManager: UnlimitedManager { UnlimitedManager.shared }
     @Environment(\.colorScheme) private var colorScheme
     
     // おすすめ口座名
@@ -41,6 +46,7 @@ struct AddPassbookView: View {
                 VStack(alignment: .leading, spacing: 12) {
                     Text("口座名")
                         .font(.body)
+
                     
                     HStack(spacing: 8) {
                         TextField("小説", text: $accountName)
@@ -107,24 +113,116 @@ struct AddPassbookView: View {
                     Text("テーマカラー")
                         .font(.body)
                     
-                    HStack(spacing: 0) {
-                        ForEach(0..<PassbookColor.count, id: \.self) { index in
-                            Button {
-                                selectedColorIndex = index
-                            } label: {
-                                Circle()
-                                    .fill(PassbookColor.color(for: index))
-                                    .frame(width: 24, height: 24)
-                                    .overlay {
-                                        if selectedColorIndex == index {
-                                            Circle()
-                                                .stroke(Color.primary, lineWidth: 2)
-                                                .frame(width: 30, height: 30)
+                    let columns = 6
+                    let totalCount = PassbookColor.count + 1
+                    let rows = (totalCount + columns - 1) / columns
+                    
+                    VStack(alignment: .leading, spacing: 8) {
+                        ForEach(0..<rows, id: \.self) { row in
+                            HStack(spacing: 8) {
+                                ForEach(0..<columns, id: \.self) { col in
+                                    let index = row * columns + col
+                                    if index < PassbookColor.count {
+                                        Button {
+                                            selectedColorIndex = index
+                                            useCustomColor = false
+                                        } label: {
+                                            RoundedRectangle(cornerRadius: 4)
+                                                .fill(PassbookColor.color(for: index))
+                                                .frame(maxWidth: .infinity)
+                                                .frame(height: 46)
+                                                .overlay {
+                                                    if !useCustomColor && selectedColorIndex == index {
+                                                        RoundedRectangle(cornerRadius: 6)
+                                                            .stroke(Color.primary, lineWidth: 2)
+                                                            .padding(-3)
+                                                    }
+                                                }
                                         }
+                                        .buttonStyle(.plain)
+                                    } else if index == PassbookColor.count {
+                                        Button {
+                                            if unlimitedManager.isUnlimited {
+                                                showColorPicker = true
+                                            } else {
+                                                showUnlimitedPaywall = true
+                                            }
+                                        } label: {
+                                            ZStack {
+                                                RoundedRectangle(cornerRadius: 4)
+                                                    .fill(
+                                                        AngularGradient(
+                                                            colors: [.red, .orange, .yellow, .green, .blue, .purple, .red],
+                                                            center: .center
+                                                        )
+                                                    )
+                                                if !unlimitedManager.isUnlimited {
+                                                    RoundedRectangle(cornerRadius: 4)
+                                                        .fill(Color.black.opacity(0.5))
+                                                }
+                                                Image(systemName: "plus")
+                                                    .foregroundColor(.white)
+                                                    .font(.system(size: 14, weight: .bold))
+                                                    .shadow(color: .black.opacity(0.3), radius: 1)
+                                            }
+                                            .frame(maxWidth: .infinity)
+                                            .frame(height: 46)
+                                            .overlay {
+                                                if useCustomColor {
+                                                    RoundedRectangle(cornerRadius: 6)
+                                                        .stroke(Color.primary, lineWidth: 2)
+                                                        .padding(-3)
+                                                }
+                                            }
+                                        }
+                                        .buttonStyle(.plain)
+                                    } else {
+                                        Color.clear
+                                            .frame(maxWidth: .infinity)
+                                            .frame(height: 46)
                                     }
-                                    .frame(maxWidth: .infinity)
+                                }
                             }
-                            .buttonStyle(.plain)
+                        }
+                    }
+                    
+                    if useCustomColor {
+                        VStack(alignment: .trailing, spacing: 0) {
+                            Triangle()
+                                .fill(Color.primary.opacity(0.15))
+                                .frame(width: 12, height: 6)
+                                .padding(.trailing, 28)
+                            
+                            HStack(spacing: 12) {
+                                RoundedRectangle(cornerRadius: 4)
+                                    .fill(customColor)
+                                    .frame(width: 36, height: 36)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 6)
+                                            .stroke(Color.primary, lineWidth: 2)
+                                            .padding(-3)
+                                    )
+                                
+                                Text("カスタムカラー")
+                                    .font(.system(size: 14))
+                                    .foregroundColor(.primary)
+                                
+                                Spacer()
+                                
+                                Button("変更") {
+                                    showColorPicker = true
+                                }
+                                .font(.system(size: 14))
+                            }
+                            .padding(12)
+                            .background(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .fill(Color.primary.opacity(0.05))
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .stroke(Color.primary.opacity(0.15), lineWidth: 1)
+                            )
                         }
                     }
                 }
@@ -147,7 +245,16 @@ struct AddPassbookView: View {
             } message: {
                 Text("口座の作成に失敗しました")
             }
+            .sheet(isPresented: $showColorPicker) {
+                ColorPickerSheet(selectedColor: $customColor, onComplete: {
+                    useCustomColor = true
+                })
+            }
+            .sheet(isPresented: $showUnlimitedPaywall) {
+                UnlimitedPaywallView()
+            }
         }
+        .tint(.accentColor)
     }
     
     // MARK: - Private Methods
@@ -165,6 +272,9 @@ struct AddPassbookView: View {
             isActive: true
         )
         newPassbook.colorIndex = selectedColorIndex
+        if useCustomColor {
+            newPassbook.customColorHex = PassbookColor.hexString(from: customColor)
+        }
         
         context.insert(newPassbook)
         

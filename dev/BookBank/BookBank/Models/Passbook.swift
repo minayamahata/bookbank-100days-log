@@ -22,6 +22,9 @@ final class Passbook {
     
     /// テーマカラーのインデックス（nilの場合は自動割り当て）
     var colorIndex: Int?
+    
+    /// カスタムカラーのHEX文字列（Unlimited機能、nilの場合はcolorIndexを使用）
+    var customColorHex: String?
 
     /// 作成日時
     var createdAt: Date

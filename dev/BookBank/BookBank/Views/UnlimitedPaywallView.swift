@@ -16,153 +16,121 @@ struct UnlimitedPaywallView: View {
     @State private var selectedProduct: Product?
     @State private var isRestoring = false
     
-    private let unlimitedGradient = LinearGradient(
-        colors: [
-            Color(red: 180/255, green: 180/255, blue: 190/255),  // シルバー
-            Color(red: 220/255, green: 220/255, blue: 230/255),  // プラチナ
-            Color(red: 200/255, green: 200/255, blue: 210/255)
-        ],
-        startPoint: .topLeading,
-        endPoint: .bottomTrailing
-    )
-    
-    // 背景のダークグラデーション
-    private let darkBackground = LinearGradient(
-        colors: [
-            Color(red: 20/255, green: 20/255, blue: 25/255),
-            Color(red: 30/255, green: 30/255, blue: 40/255)
-        ],
-        startPoint: .top,
-        endPoint: .bottom
-    )
+    private let themeColor = Color(hex: "A1975D")
     
     var body: some View {
-        NavigationStack {
-            ZStack {
-                // 背景
-                darkBackground
-                    .ignoresSafeArea()
-                
-                ScrollView {
-                    VStack(spacing: 32) {
-                        // ヘッダー
-                        headerSection
-                        
-                        // 特典セクション
+        ZStack(alignment: .topTrailing) {
+            Color.black.ignoresSafeArea()
+            
+            ScrollView {
+                VStack(spacing: 0) {
+                    heroSection
+                    
+                    VStack(spacing: 24) {
                         featuresSection
-                        
-                        // プラン選択
                         plansSection
-                        
-                        // 購入ボタン
                         purchaseButton
-                        
-                        // 復元リンク
                         restoreButton
-                        
-                        Spacer(minLength: 20)
                     }
                     .padding(.horizontal, 20)
-                    .padding(.top, 40)
                     .padding(.bottom, 40)
                 }
             }
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button(action: { dismiss() }) {
-                        Image(systemName: "xmark")
-                            .foregroundColor(.white.opacity(0.7))
-                            .font(.system(size: 16))
-                    }
-                }
+            .ignoresSafeArea(edges: .top)
+            
+            Button(action: { dismiss() }) {
+                Image(systemName: "xmark")
+                    .foregroundColor(.white.opacity(0.7))
+                    .font(.system(size: 16))
+                    .frame(width: 44, height: 44)
             }
-            .onAppear {
-                // 初期選択: 年額プラン
-                if selectedProduct == nil {
-                    selectedProduct = unlimitedManager.yearlyProduct
-                }
-            }
-            .onChange(of: unlimitedManager.isUnlimited) { _, isUnlimited in
-                // 購入完了後に自動でdismiss
-                if isUnlimited {
-                    dismiss()
-                }
+            .padding(.top, 8)
+            .padding(.trailing, 12)
+        }
+        .onAppear {
+            selectLifetimeIfNeeded()
+        }
+        .onChange(of: unlimitedManager.lifetimeProduct) { _, _ in
+            selectLifetimeIfNeeded()
+        }
+        .onChange(of: unlimitedManager.isUnlimited) { _, isUnlimited in
+            if isUnlimited {
+                dismiss()
             }
         }
+        .preferredColorScheme(.dark)
     }
     
-    // MARK: - Header Section
+    // MARK: - Hero Section
     
-    private var headerSection: some View {
-        VStack(spacing: 16) {            
-            // タイトル
-            Text("Unlimited")
-                .font(.custom("Fearlessly Authentic", size: 42))
-                .foregroundStyle(unlimitedGradient)
-            
-            Text("知識は、最も美しい資産になる")
-                .font(.system(size: 16))
-                .foregroundColor(.white.opacity(0.7))
+    private var heroSection: some View {
+        VStack(spacing: 0) {
+            ZStack(alignment: .bottom) {
+                Image("bg_paywall")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(maxWidth: .infinity)
+                
+                LinearGradient(
+                    stops: [
+                        .init(color: .clear, location: 0),
+                        .init(color: .clear, location: 0.5),
+                        .init(color: .black.opacity(0.4), location: 0.75),
+                        .init(color: .black, location: 1.0)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                
+                VStack(spacing: 6) {
+                    Text("Unlimited")
+                        .font(.custom("Fearlessly Authentic", size: 42))
+                    .foregroundStyle(
+                        LinearGradient(
+                            stops: [
+                                .init(color: .white, location: 0),
+                                .init(color: .white, location: 0.7),
+                                .init(color: themeColor, location: 1.0)
+                            ],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+                    
+                    Text("世界の広がる方へ")
+                        .font(.system(size: 16))
+                        .foregroundColor(.white.opacity(0.7))
+                }
+                .padding(.bottom, 30)
+            }
         }
     }
     
     // MARK: - Features Section
     
     private var featuresSection: some View {
-        VStack(spacing: 16) {
-            featureRow(
-                icon: "building.columns",
-                title: "口座を無制限に作成",
-                description: "読書ジャンルや目的に応じて、好きなだけ口座を作成できます"
-            )
-            
-            featureRow(
-                icon: "list.bullet.rectangle",
-                title: "読了リストを無制限に作成",
-                description: "あなたの読書記録を自由に整理・共有できます"
-            )
-            
-            featureRow(
-                icon: "arrow.down.doc",
-                title: "詳細データのエクスポート",
-                description: "書籍の詳細情報を含むマークダウンをダウンロード"
-            )
+        VStack(alignment: .leading, spacing: 0) {
+            featureRow(title: "テーマカラーを自由に選べる")
+            featureRow(title: "無制限に口座を作成")
+            featureRow(title: "無制限に読了リストを作成")
+            featureRow(title: "本のデータダウンロード")
         }
+        .frame(maxWidth: .infinity)
     }
     
-    private func featureRow(icon: String, title: String, description: String) -> some View {
-        HStack(alignment: .top, spacing: 16) {
-            // アイコン
-            ZStack {
-                Circle()
-                    .fill(Color.white.opacity(0.1))
-                    .frame(width: 44, height: 44)
-                
-                Image(systemName: icon)
-                    .font(.system(size: 20))
-                    .foregroundColor(.white.opacity(0.9))
-            }
+    private func featureRow(title: String) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: "checkmark")
+                .font(.system(size: 13, weight: .bold))
+                .foregroundColor(themeColor)
+                .frame(width: 16)
             
-            // テキスト
-            VStack(alignment: .leading, spacing: 4) {
-                Text(title)
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(.white)
-                
-                Text(description)
-                    .font(.system(size: 13))
-                    .foregroundColor(.white.opacity(0.6))
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            
-            Spacer()
+            Text(title)
+                .font(.system(size: 16, weight: .medium))
+                .foregroundColor(.white)
         }
-        .padding(16)
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color.white.opacity(0.05))
-        )
+        .padding(.horizontal, 16)
+        .padding(.vertical, 6)
     }
     
     // MARK: - Plans Section
@@ -175,22 +143,21 @@ struct UnlimitedPaywallView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             
             HStack(spacing: 12) {
-                // 年額プラン
                 if let yearly = unlimitedManager.yearlyProduct {
                     planCard(
                         product: yearly,
-                        badge: "おすすめ",
-                        subtext: "月あたり82円",
+                        subtextIcon: "icon-tab-bookshelf",
+                        subtext: "文庫本 約1冊分",
                         isSelected: selectedProduct?.id == yearly.id
                     )
                 }
                 
-                // 買い切りプラン
                 if let lifetime = unlimitedManager.lifetimeProduct {
                     planCard(
                         product: lifetime,
-                        badge: "一生使える",
-                        subtext: nil,
+                        badge: "おすすめ",
+                        subtextIcon: "icon-tab-bookshelf",
+                        subtext: "ビジネス書 約1冊分",
                         isSelected: selectedProduct?.id == lifetime.id
                     )
                 }
@@ -198,23 +165,11 @@ struct UnlimitedPaywallView: View {
         }
     }
     
-    private func planCard(product: Product, badge: String, subtext: String?, isSelected: Bool) -> some View {
+    private func planCard(product: Product, badge: String? = nil, subtextIcon: String? = nil, subtext: String?, isSelected: Bool) -> some View {
         Button(action: {
             selectedProduct = product
         }) {
-            VStack(spacing: 12) {
-                // バッジ
-                Text(badge)
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 4)
-                    .background(
-                        Capsule()
-                            .fill(isSelected ? AnyShapeStyle(unlimitedGradient) : AnyShapeStyle(Color.white.opacity(0.2)))
-                    )
-                
-                // プラン名
+            VStack(spacing: 16) {
                 Text(product.displayName)
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(.white)
@@ -222,35 +177,60 @@ struct UnlimitedPaywallView: View {
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
                 
-                // 価格
-                Text(product.displayPrice)
-                    .font(.system(size: 24, weight: .bold))
-                    .foregroundColor(.white)
+                HStack(alignment: .lastTextBaseline, spacing: 2) {
+                    Text("\(Int(truncating: product.price as NSDecimalNumber).formatted())")
+                        .font(.system(size: 24, weight: .bold))
+                    Text("円")
+                        .font(.system(size: 14, weight: .medium))
+                }
+                .foregroundColor(isSelected ? themeColor : .white)
                 
-                // サブテキスト
-                if let subtext = subtext {
-                    Text(subtext)
-                        .font(.system(size: 11))
-                        .foregroundColor(.white.opacity(0.6))
+                if let subtext {
+                    HStack(spacing: 6) {
+                        if let subtextIcon {
+                            Image(subtextIcon)
+                                .renderingMode(.template)
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 12, height: 12)
+                        }
+                        Text(subtext)
+                            .font(.system(size: 12))
+                    }
+                    .foregroundColor(.white.opacity(0.5))
                 } else {
-                    Text(" ")
-                        .font(.system(size: 11))
+                    Spacer().frame(height: 14)
                 }
             }
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 20)
+            .padding(.top, 20)
+            .padding(.bottom, 16)
             .padding(.horizontal, 12)
             .background(
                 RoundedRectangle(cornerRadius: 16)
-                    .fill(Color.white.opacity(isSelected ? 0.1 : 0.05))
+                    .fill(Color.white.opacity(isSelected ? 0.08 : 0.04))
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 16)
                     .stroke(
-                        isSelected ? AnyShapeStyle(unlimitedGradient) : AnyShapeStyle(Color.white.opacity(0.2)),
+                        isSelected ? themeColor : Color.white.opacity(0.15),
                         lineWidth: isSelected ? 2 : 1
                     )
             )
+            .overlay(alignment: .topTrailing) {
+                if let badge {
+                    Text(badge)
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundColor(isSelected ? .black : .white)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 4)
+                        .background(
+                            Capsule()
+                                .fill(isSelected ? themeColor : Color(white: 0.3))
+                        )
+                        .offset(x: 0, y: -12)
+                }
+            }
         }
         .buttonStyle(.plain)
     }
@@ -266,20 +246,19 @@ struct UnlimitedPaywallView: View {
             HStack(spacing: 8) {
                 if unlimitedManager.isPurchasing {
                     ProgressView()
-                        .tint(.white)
+                        .tint(.black)
                 } else {
                     Text("Unlimitedにアップグレード")
                         .font(.system(size: 17, weight: .semibold))
                 }
             }
-            .foregroundColor(.white)
+            .foregroundColor(.black)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 16)
             .background(
                 RoundedRectangle(cornerRadius: 14)
-                    .fill(unlimitedGradient)
+                    .fill(themeColor)
             )
-            .shadow(color: .white.opacity(0.3), radius: 10)
         }
         .disabled(unlimitedManager.isPurchasing || selectedProduct == nil)
         .opacity(unlimitedManager.isPurchasing || selectedProduct == nil ? 0.6 : 1)
@@ -296,14 +275,14 @@ struct UnlimitedPaywallView: View {
             HStack(spacing: 6) {
                 if isRestoring {
                     ProgressView()
-                        .tint(.white.opacity(0.6))
+                        .tint(.white.opacity(0.5))
                         .scaleEffect(0.8)
                 } else {
-                    Text("購入を復元")
+                    Text("ご購入済みの方はこちら")
                         .font(.system(size: 14))
                 }
             }
-            .foregroundColor(.white.opacity(0.6))
+            .foregroundColor(.white.opacity(0.5))
             .padding(.vertical, 8)
         }
         .disabled(isRestoring || unlimitedManager.isPurchasing)
@@ -311,13 +290,18 @@ struct UnlimitedPaywallView: View {
     
     // MARK: - Actions
     
+    private func selectLifetimeIfNeeded() {
+        if selectedProduct == nil {
+            selectedProduct = unlimitedManager.lifetimeProduct ?? unlimitedManager.yearlyProduct
+        }
+    }
+    
     private func purchaseSelectedPlan() async {
         guard let product = selectedProduct else { return }
         
         do {
             try await unlimitedManager.purchase(product)
         } catch {
-            // エラーハンドリング（エラーメッセージはUnlimitedManagerで管理）
             print("❌ Purchase failed: \(error)")
         }
     }

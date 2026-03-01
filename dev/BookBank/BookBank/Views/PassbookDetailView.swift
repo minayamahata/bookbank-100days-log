@@ -75,15 +75,9 @@ struct PassbookDetailView: View {
         PassbookColor.color(for: passbook, in: customPassbooks)
     }
     
-    /// テーマカラーが黒（index 0）かどうか
+    /// テーマカラーが黒かどうか
     private var isBlackTheme: Bool {
-        if let colorIndex = passbook.colorIndex {
-            return colorIndex == 0
-        }
-        if let index = customPassbooks.firstIndex(where: { $0.persistentModelID == passbook.persistentModelID }) {
-            return index == 0
-        }
-        return false
+        PassbookColor.isBlackTheme(for: passbook, in: customPassbooks)
     }
     
     // MARK: - Initialization
@@ -301,7 +295,7 @@ struct PassbookDetailView: View {
     private var listContent: some View {
         LazyVStack(spacing: 6) {
             if userBooks.isEmpty {
-                Text("最近どんな本を読んだ？")
+                Text("最近どんな本を読みましたか？")
                     .font(.body)
                     .foregroundColor(.secondary)
                     .frame(maxWidth: .infinity)

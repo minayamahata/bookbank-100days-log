@@ -1,6 +1,6 @@
 # BookBank 開発ログ
 
-最終更新: 2026年02月27日
+最終更新: 2026年03月01日
 
 ---
 
@@ -417,6 +417,71 @@ git push origin main
 ---
 
 ## 開発履歴
+
+### 2026-03-01
+- ✅ **初期設定の変更（デフォルトテーマ）**
+  - デフォルトテーマカラーをゴールド（#918658）に変更（OnboardingView、AddPassbookView）
+  - デフォルトの外観モードをライトモードに変更（ThemeManager）
+  - 読了リスト作成時のデフォルトカラーもゴールドに統一（AddReadingListView）
+
+- ✅ **黒テーマ判定の修正（全ビュー統一）**
+  - 色順変更後に残っていた `colorIndex == 0` の古い判定を修正
+  - PassbookDetailView、BookshelfView、MainTabView、StatisticsViewを `PassbookColor.isBlackTheme()` に統一
+  - 初めて口座を作成した時に背景が黒になる問題を修正
+
+- ✅ **読了リスト作成画面の改善（AddReadingListView）**
+  - 本が1冊も登録されていない場合は「まずは口座に本を登録しましょう」メッセージを表示
+  - テーマカラーのtintで「本を登録する」カプセル型ボタンを追加
+  - ボタンタップで通帳タブに自動遷移（MainTabView連携）
+  - テーマカラーをMainTabView → ReadingListView → AddReadingListViewに伝播
+
+- ✅ **口座を管理ページの改善（PassbookSelectorView）**
+  - 「このアプリについて」リンクを追加（https://ayame-inc.jp/products/bookbank）
+  - 「新しい口座を追加」ボタンを下部固定エリアからScrollView内に移動（口座一覧ページと統一）
+
+- ✅ **口座一覧ページの背景改善（AccountListView）**
+  - bg_glowの配置をThemedBackgroundViewと同じ設定に統一（width 2.2倍、上部揃え）
+
+- ✅ **読了リストページの背景追加（ReadingListView）**
+  - bg_glowとbg_noiseをThemedBackgroundViewと同じ設定で配置
+
+- ✅ **本の検索画面の改善（BookSearchView）**
+  - 検索結果0件時の虫眼鏡アイコンを削除
+  - 手動登録ボタンをカプセル型に変更、鉛筆アイコンを削除
+
+- ✅ **バーコードスキャナーのガイド枠ずれ修正（BarcodeScannerView）**
+  - ScanAreaOverlayとCornerBracketShapeの配置を統一（VStack→ZStack中央配置）
+
+- ✅ **メモ欄のフォントサイズ変更（UserBookDetailView）**
+  - .footnote（13pt）から.subheadline（15pt）に変更
+
+- ✅ **Unlimited関連の色統一**
+  - ダウンロード形式選択ページのUnlimitedバッジ・ボタンを#A1975Dに変更（MarkdownExporter）
+  - Markdownプレビューカードのダークモード背景色を明るく調整（ヘッダー#323232、コード本体#232323）
+
+- ✅ **UnlimitedPaywallViewの大幅リデザイン**
+  - テーマカラー#A1975D、bg_paywall.png背景、ダークモード固定
+  - 価格表示を「980円」形式に変更、機能アイコンをcheckmarkに統一
+  - 買い切りプランをデフォルト選択、「おすすめ」バッジ追加
+  - Unlimitedタイトルに白→ゴールドのグラデーション適用
+
+- ✅ **カスタムカラーピッカーの改善**
+  - カスタムカラー選択時に吹き出しデザインで視覚的に強調（Triangle shape）
+  - デフォルトカラーパレットにゴールド（#918658）と緑（#145F00）を追加
+  - カラーグリッドを5列→6列に変更
+  - カラー順序を赤→オレンジ→黄色→黄緑→シアン→緑→青→紫→ピンク→黒→ゴールドに変更
+
+- ✅ **口座一覧・口座管理の三点リーダーサイズ拡大**
+  - ellipsisアイコンを10pt→14ptに変更
+
+- ✅ **詳細エクスポート機能の実装**
+  - PassbookSelectorView、ReadingListDetailViewの「詳細情報をダウンロード」ボタンを有効化
+
+- ✅ **その他の改善**
+  - 口座一覧のUnlimitedバッジを上方に配置、色をグラデーションからシステムセカンダリカラーに変更
+  - 空チャートのグレー色を薄く調整
+  - 金額グラフのY軸が0冊時に1になる問題を修正（StatisticsView）
+  - 読了リスト詳細のテーマカラー選択をチェックマーク方式に変更
 
 ### 2026-02-27
 - ✅ **有料プラン名を「Platinum」から「Unlimited」に全面変更**

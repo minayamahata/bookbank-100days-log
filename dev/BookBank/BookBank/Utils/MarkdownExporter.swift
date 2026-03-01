@@ -180,12 +180,12 @@ struct ExportSheetView: View {
     // VSCode風のカラー（ダークモード時は黒）
     private let codeBackground = Color(UIColor { traits in
         traits.userInterfaceStyle == .dark
-            ? UIColor.black  // ダークモード: 黒
+            ? UIColor(red: 35/255, green: 35/255, blue: 35/255, alpha: 1)  // ダークモード: #232323
             : UIColor(red: 45/255, green: 45/255, blue: 45/255, alpha: 1)  // ライトモード: #2D2D2D
     })
     private let headerBackground = Color(UIColor { traits in
         traits.userInterfaceStyle == .dark
-            ? UIColor(red: 30/255, green: 30/255, blue: 30/255, alpha: 1)  // ダークモード: #1E1E1E
+            ? UIColor(red: 50/255, green: 50/255, blue: 50/255, alpha: 1)  // ダークモード: #323232
             : UIColor(red: 55/255, green: 55/255, blue: 55/255, alpha: 1)  // ライトモード: #373737
     })
     private let headingColor = Color(red: 86/255, green: 156/255, blue: 214/255)  // #569CD6 (青)
@@ -193,11 +193,12 @@ struct ExportSheetView: View {
     private let textColor = Color(red: 212/255, green: 212/255, blue: 212/255)  // #D4D4D4
     private let propertyColor = Color(red: 156/255, green: 220/255, blue: 254/255)  // #9CDCFE (水色)
     
-    // Proグラデーション
+    private let unlimitedColor = Color(hex: "A1975D")
+    
     private let proGradient = LinearGradient(
         colors: [
-            Color(red: 34/255, green: 128/255, blue: 226/255),  // #2280e2
-            Color(red: 253/255, green: 112/255, blue: 32/255)   // #fd7020
+            Color(hex: "A1975D"),
+            Color(hex: "A1975D")
         ],
         startPoint: .leading,
         endPoint: .trailing
@@ -247,7 +248,7 @@ struct ExportSheetView: View {
                                     .foregroundColor(.white)
                                     .padding(.horizontal, 6)
                                     .padding(.vertical, 2)
-                                    .background(proGradient)
+                                    .background(unlimitedColor)
                                     .clipShape(Capsule())
                             }
                         }

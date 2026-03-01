@@ -57,16 +57,22 @@ struct BarcodeScannerView: View {
 
                 // スキャンガイドとUI
                 ZStack {
-                    // 中央にガイドを配置（ScanAreaOverlayと同じ位置）
-                    VStack(spacing: 16) {
-                        CornerBracketShape()
-                            .stroke(Color.white, lineWidth: 1)
-                            .frame(width: 280, height: 80)
-                        
+                    // ガイド枠（ScanAreaOverlayと同じ中央位置）
+                    CornerBracketShape()
+                        .stroke(Color.white, lineWidth: 1)
+                        .frame(width: 280, height: 80)
+                    
+                    // ガイドテキスト（枠の下に配置）
+                    GeometryReader { geometry in
                         Text("バーコードをこの枠内に合わせてください")
                             .font(.subheadline)
                             .foregroundColor(.white)
                             .shadow(color: .black, radius: 2, x: 0, y: 1)
+                            .frame(maxWidth: .infinity)
+                            .position(
+                                x: geometry.size.width / 2,
+                                y: geometry.size.height / 2 + 40 + 16 + 10
+                            )
                     }
                     
                     // 上部のクローズボタン

@@ -10,9 +10,13 @@ import SwiftData
 
 /// 読了リスト作成画面（ステップ形式）
 struct AddReadingListView: View {
+    var themeColor: Color = .accentColor
+    var onNavigateToPassbook: (() -> Void)?
+    
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
     @Query private var existingLists: [ReadingList]
+    @Query private var allBooks: [UserBook]
     
     @State private var title: String = ""
     @State private var showError: Bool = false
@@ -49,47 +53,66 @@ struct AddReadingListView: View {
                 
                 Spacer()
                 
-                // メインコンテンツ
-                VStack(spacing: 32) {
-                    // タイトル
-                    Text("読了リストの名前はどうしますか？")
-                        .font(.subheadline)
-                        .multilineTextAlignment(.center)
-                        .foregroundColor(.primary)
-                    
-                    // 入力フィールド
-                    TextField("", text: $title)
-                        .font(.system(size: 20))
-                        .foregroundColor(.primary)
-                        .multilineTextAlignment(.center)
-                        .focused($isFocused)
-                        .padding(.horizontal, 20)
-                        .padding(.vertical, 14)
-                        .background(
-                            RoundedRectangle(cornerRadius: 8)
-                                .fill(Color.appCardBackground)
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 8)
-                                .stroke(Color.primary.opacity(0.2), lineWidth: 1)
-                        )
-                        .padding(.horizontal, 32)
-                    
-                    // 作成ボタン
-                    Button(action: {
-                        createReadingList()
-                    }) {
-                        Text("作成する")
-                            .font(.subheadline)
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 32)
+                if allBooks.isEmpty {
+                    VStack(spacing: 20) {
+                        Text("まずは口座に本を登録しましょう")
+                            .font(.body)
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+                        
+                        Button(action: {
+                            dismiss()
+                            onNavigateToPassbook?()
+                        }) {
+                            Text("本を登録する")
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 32)
+                                .padding(.vertical, 14)
+                                .background(Capsule().fill(themeColor))
+                        }
+                    }
+                } else {
+                    // メインコンテンツ
+                    VStack(spacing: 32) {
+                        Text("読了リストの名前はどうしますか？")
+                            .font(.body)
+                            .multilineTextAlignment(.center)
+                            .foregroundColor(.primary)
+                        
+                        TextField("", text: $title)
+                            .font(.system(size: 20))
+                            .foregroundColor(.primary)
+                            .multilineTextAlignment(.center)
+                            .focused($isFocused)
+                            .padding(.horizontal, 20)
                             .padding(.vertical, 14)
                             .background(
-                                Capsule()
-                                    .fill(title.isEmpty ? Color.gray : Color.blue)
+                                RoundedRectangle(cornerRadius: 8)
+                                    .fill(Color.appCardBackground)
                             )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(Color.primary.opacity(0.2), lineWidth: 1)
+                            )
+                            .padding(.horizontal, 32)
+                        
+                        Button(action: {
+                            createReadingList()
+                        }) {
+                            Text("作成する")
+                                .font(.subheadline)
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 32)
+                                .padding(.vertical, 14)
+                                .background(
+                                    Capsule()
+                                        .fill(title.isEmpty ? Color.gray : Color.blue)
+                                )
+                        }
+                        .disabled(title.isEmpty)
                     }
-                    .disabled(title.isEmpty)
                 }
                 
                 Spacer()
@@ -97,9 +120,8 @@ struct AddReadingListView: View {
             }
         }
         .onAppear {
-            // デフォルト名を設定
+            guard !allBooks.isEmpty else { return }
             title = defaultTitle
-            // キーボードを表示
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                 isFocused = true
             }
@@ -133,6 +155,7 @@ struct AddReadingListView: View {
         guard !title.isEmpty else { return }
         
         let newList = ReadingList(title: title)
+        newList.colorIndex = 10
         context.insert(newList)
         
         do {

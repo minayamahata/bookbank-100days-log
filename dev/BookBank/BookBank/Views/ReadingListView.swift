@@ -10,6 +10,9 @@ import SwiftData
 
 /// 読了リスト一覧画面
 struct ReadingListView: View {
+    var themeColor: Color = .accentColor
+    var onNavigateToPassbook: (() -> Void)?
+    
     @Environment(\.modelContext) private var context
     @Query(sort: \ReadingList.updatedAt, order: .reverse) private var readingLists: [ReadingList]
     
@@ -51,7 +54,27 @@ struct ReadingListView: View {
                 .padding(.vertical, 20)
             }
         }
-        .background(Color.appGroupedBackground)
+        .background(
+            GeometryReader { geometry in
+                ZStack(alignment: .top) {
+                    Color.appGroupedBackground
+                    
+                    Image("bg_glow")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: geometry.size.width * 2.2)
+                        .blendMode(.screen)
+                        .opacity(1)
+                    
+                    Image("bg_noise")
+                        .resizable(resizingMode: .tile)
+                        .blendMode(.overlay)
+                        .opacity(0.2)
+                }
+                .frame(width: geometry.size.width, height: geometry.size.height)
+            }
+            .ignoresSafeArea()
+        )
         .navigationTitle("読了リスト")
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(for: ReadingList.self) { list in
@@ -63,7 +86,7 @@ struct ReadingListView: View {
             }
         }
         .sheet(isPresented: $showAddList) {
-            AddReadingListView()
+            AddReadingListView(themeColor: themeColor, onNavigateToPassbook: onNavigateToPassbook)
         }
         .alert("リストを削除", isPresented: $showDeleteAlert) {
             Button("キャンセル", role: .cancel) {}
@@ -134,7 +157,7 @@ struct ReadingListView: View {
                 RoundedRectangle(cornerRadius: 16)
                     .fill(Color.appCardBackground)
                 RoundedRectangle(cornerRadius: 16)
-                    .fill(PassbookColor.color(for: list.colorIndex ?? 0).opacity(0.2))
+                    .fill(PassbookColor.color(for: list.colorIndex ?? 0).opacity(0.3))
             }
         )
         .clipShape(RoundedRectangle(cornerRadius: 16))

@@ -56,16 +56,10 @@ struct StatisticsView: View {
         return .blue  // 総合口座は青
     }
     
-    /// テーマカラーが黒（index 0）かどうか
+    /// テーマカラーが黒かどうか
     private var isBlackTheme: Bool {
         guard let passbook = passbook else { return false }
-        if let colorIndex = passbook.colorIndex {
-            return colorIndex == 0
-        }
-        if let index = customPassbooks.firstIndex(where: { $0.persistentModelID == passbook.persistentModelID }) {
-            return index == 0
-        }
-        return false
+        return PassbookColor.isBlackTheme(for: passbook, in: customPassbooks)
     }
     
     /// 対象口座の書籍（口座指定がない場合は全書籍）
@@ -292,8 +286,7 @@ struct YearlyChartContent: View {
     
     /// 金額グラフの最大値（Y軸ドメイン用）
     private var maxAmount: Int {
-        let maxValue = chartData.map { $0.amount }.max() ?? 0
-        return max(maxValue, 1)
+        chartData.map { $0.amount }.max() ?? 0
     }
     
     // MARK: - Chart Computed Properties
@@ -355,7 +348,7 @@ struct YearlyChartContent: View {
         }
         .padding(.horizontal)
         .padding(.top)
-        .padding(.bottom, 62)
+        .padding(.bottom, 30)
     }
     
     // MARK: - Subviews
@@ -404,7 +397,7 @@ struct YearlyChartContent: View {
                 .foregroundColor(.secondary)
             HStack(alignment: .lastTextBaseline, spacing: 1) {
                 Text(value)
-                    .font(.title2)
+                    .font(.title)
                     .fontWeight(.medium)
                     .foregroundStyle(
                         LinearGradient(

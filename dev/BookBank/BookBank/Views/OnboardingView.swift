@@ -209,9 +209,10 @@ struct OnboardingView: View {
         let newPassbook = Passbook(
             name: accountName,
             type: .custom,
-            sortOrder: 1, // 総合口座の次
+            sortOrder: 1,
             isActive: true
         )
+        newPassbook.colorIndex = 10
 
         context.insert(newPassbook)
 

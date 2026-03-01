@@ -54,16 +54,10 @@ struct MainTabView: View {
         return .blue
     }
     
-    /// 現在の口座が黒テーマ（colorIndex == 0）かどうか
+    /// 現在の口座が黒テーマかどうか
     private var isBlackTheme: Bool {
         guard let passbook = currentPassbook else { return false }
-        if let colorIndex = passbook.colorIndex {
-            return colorIndex == 0
-        }
-        if let index = customPassbooks.firstIndex(where: { $0.persistentModelID == passbook.persistentModelID }) {
-            return index == 0
-        }
-        return false
+        return PassbookColor.isBlackTheme(for: passbook, in: customPassbooks)
     }
     
     var body: some View {
@@ -166,7 +160,9 @@ struct MainTabView: View {
                 
                 // Myリストタブ
                 NavigationStack(path: $readingListNavPath) {
-                    ReadingListView()
+                    ReadingListView(themeColor: currentThemeColor) {
+                        selectedTab = 1
+                    }
                         .navigationDestination(for: BookSearchDestination.self) { destination in
                             BookSearchView(passbook: destination.passbook, allowPassbookChange: true)
                         }
@@ -244,7 +240,9 @@ struct MainTabView: View {
             }
         }
         .sheet(isPresented: $showAddReadingList) {
-            AddReadingListView()
+            AddReadingListView(themeColor: currentThemeColor) {
+                selectedTab = 1
+            }
         }
         .sheet(isPresented: $showUnlimitedPaywall) {
             UnlimitedPaywallView()

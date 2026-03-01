@@ -29,37 +29,53 @@ extension Color {
     }
 }
 
+/// 吹き出し用の三角形シェイプ
+struct Triangle: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: rect.midX, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+        path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
+        path.closeSubpath()
+        return path
+    }
+}
+
 /// 口座のテーマカラーを管理するユーティリティ
 struct PassbookColor {
-    /// 利用可能なテーマカラー（最初の色はライト/ダークモードで切り替わる）
+    /// 利用可能なテーマカラー（黒は最後に配置）
     static let colors: [Color] = [
+        Color(hex: "D23823"),  // 赤
+        Color(hex: "E88759"),  // オレンジ
+        Color(hex: "DDC214"),  // 黄色
+        Color(hex: "85ca0d"),  // 黄緑
+        Color(hex: "1cbcac"),  // シアン
+        Color(hex: "38b844"),  // 緑
+        Color(hex: "0549d5"),  // 青
+        Color(hex: "7F5CCF"),  // 紫
+        Color(hex: "ec759c"),  // ピンク
         // ライトモード: #292826（黒）、ダークモード: #FFFFFF（白）
         Color(UIColor { traitCollection in
             traitCollection.userInterfaceStyle == .dark
                 ? UIColor(red: 1, green: 1, blue: 1, alpha: 1)  // 白
                 : UIColor(red: 0x29/255.0, green: 0x28/255.0, blue: 0x26/255.0, alpha: 1)  // 黒
         }),
-        Color(hex: "e11717"),  // 赤
-        Color(hex: "f87221"),  // オレンジ
-        Color(hex: "ecd11e"),  // 黄色
-        Color(hex: "85ca0d"),  // 緑
-        Color(hex: "1cbcac"),  // シアン
-        Color(hex: "0549d5"),  // 青
-        Color(hex: "7317e3"),  // 紫
-        Color(hex: "e748a0"),  // ピンク
+        Color(hex: "918658"),  // ゴールド
     ]
     
     /// HEXカラー文字列（API送信用）
     static let hexStrings: [String] = [
-        "#292826",  // デフォルト（黒）
-        "#e11717",  // 赤
-        "#f87221",  // オレンジ
-        "#ecd11e",  // 黄色
-        "#85ca0d",  // 緑
+        "#D23823",  // 赤
+        "#E88759",  // オレンジ
+        "#DDC214",  // 黄色
+        "#85ca0d",  // 黄緑
         "#1cbcac",  // シアン
+        "#38b844",  // 緑
         "#0549d5",  // 青
-        "7317e3",  // 紫
-        "#e748a0",  // ピンク
+        "#7F5CCF",  // 紫
+        "#ec759c",  // ピンク
+        "#292826",  // 黒
+        "#918658",  // ゴールド
     ]
     
     /// インデックスに対応するHEXカラー文字列を取得
@@ -82,29 +98,42 @@ struct PassbookColor {
         color(for: passbook.sortOrder)
     }
     
-    /// 口座リスト内での位置に基づいて色を取得（colorIndexがある場合はそれを優先）
+    /// 口座リスト内での位置に基づいて色を取得（customColorHex → colorIndex → リスト位置の優先順）
     static func color(for passbook: Passbook, in passbooks: [Passbook]) -> Color {
-        // colorIndexが設定されている場合はそれを使用
+        if let hex = passbook.customColorHex, !hex.isEmpty {
+            return Color(hex: hex)
+        }
         if let colorIndex = passbook.colorIndex {
             return color(for: colorIndex)
         }
-        // そうでなければリスト内の位置で決定
         if let index = passbooks.firstIndex(where: { $0.persistentModelID == passbook.persistentModelID }) {
             return color(for: index)
         }
         return .gray
     }
     
-    /// 口座が黒テーマ（最初の色）かどうかを判定
+    /// 黒テーマのインデックス（ピンクの次、ゴールドの前）
+    static let blackThemeIndex: Int = 9
+    
+    /// 口座が黒テーマかどうかを判定
     static func isBlackTheme(for passbook: Passbook, in passbooks: [Passbook]) -> Bool {
-        // colorIndexが設定されている場合
-        if let colorIndex = passbook.colorIndex {
-            return colorIndex == 0
+        if passbook.customColorHex != nil {
+            return false
         }
-        // そうでなければリスト内の位置で判定
+        if let colorIndex = passbook.colorIndex {
+            return colorIndex == blackThemeIndex
+        }
         if let index = passbooks.firstIndex(where: { $0.persistentModelID == passbook.persistentModelID }) {
-            return index == 0
+            return (index % colors.count) == blackThemeIndex
         }
         return false
+    }
+    
+    /// Color → HEX文字列に変換
+    static func hexString(from color: Color) -> String {
+        let uiColor = UIColor(color)
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        uiColor.getRed(&r, green: &g, blue: &b, alpha: &a)
+        return String(format: "#%02X%02X%02X", Int(r * 255), Int(g * 255), Int(b * 255))
     }
 }
