@@ -56,45 +56,41 @@ struct BarcodeScannerView: View {
                     .ignoresSafeArea()
 
                 // スキャンガイドとUI
-                ZStack {
-                    // ガイド枠（ScanAreaOverlayと同じ中央位置）
-                    CornerBracketShape()
-                        .stroke(Color.white, lineWidth: 1)
-                        .frame(width: 280, height: 80)
-                    
-                    // ガイドテキスト（枠の下に配置）
-                    GeometryReader { geometry in
+                GeometryReader { geometry in
+                    ZStack {
+                        // ガイド枠（ScanAreaOverlayと同じ全画面中央位置）
+                        CornerBracketShape()
+                            .stroke(Color.white, lineWidth: 1)
+                            .frame(width: 280, height: 80)
+                            .position(
+                                x: geometry.size.width / 2,
+                                y: geometry.size.height / 2
+                            )
+                        
+                        // ガイドテキスト（枠の下に配置）
                         Text("バーコードをこの枠内に合わせてください")
                             .font(.subheadline)
                             .foregroundColor(.white)
                             .shadow(color: .black, radius: 2, x: 0, y: 1)
-                            .frame(maxWidth: .infinity)
                             .position(
                                 x: geometry.size.width / 2,
                                 y: geometry.size.height / 2 + 40 + 16 + 10
                             )
-                    }
-                    
-                    // 上部のクローズボタン
-                    VStack {
-                        HStack {
-                            Button(action: {
-                                dismiss()
-                            }) {
-                                Image(systemName: "xmark")
-                                    .font(.system(size: 18))
-                                    .foregroundColor(.white)
-                                    .frame(width: 36, height: 36)
-                                    .background(Circle().fill(Color.black.opacity(0.5)))
-                            }
-                            .padding(.leading, 20)
-                            .padding(.top, 16)
-                            
-                            Spacer()
+                        
+                        // 上部のクローズボタン
+                        Button(action: {
+                            dismiss()
+                        }) {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 18))
+                                .foregroundColor(.white)
+                                .frame(width: 36, height: 36)
+                                .background(Circle().fill(Color.black.opacity(0.5)))
                         }
-                        Spacer()
+                        .position(x: 38, y: geometry.safeAreaInsets.top + 16)
                     }
                 }
+                .ignoresSafeArea()
             } else if cameraPermission == .denied || cameraPermission == .restricted {
                 // カメラ権限がない場合
                 VStack(spacing: 24) {

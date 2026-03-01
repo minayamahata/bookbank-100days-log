@@ -17,7 +17,6 @@ struct AccountListView: View {
     
     @State private var passbookToEdit: Passbook?
     @State private var showAddPassbook = false
-    @State private var showProAlert = false
     @State private var showUnlimitedPaywall = false
     
     /// 口座選択時のコールバック
@@ -166,7 +165,7 @@ struct AccountListView: View {
                 // 新しい口座を追加ボタン
                 Button(action: {
                     if customPassbooks.count >= 3 && !unlimitedManager.isUnlimited {
-                        showProAlert = true
+                        showUnlimitedPaywall = true
                     } else {
                         showAddPassbook = true
                     }
@@ -220,20 +219,6 @@ struct AccountListView: View {
         }
         .sheet(isPresented: $showUnlimitedPaywall) {
             UnlimitedPaywallView()
-        }
-        .overlay {
-            if showProAlert {
-                UnlimitedAlertView(
-                    message: "4つ以上の口座を作成するにはUnlimited版が必要です。",
-                    onConfirm: {
-                        showProAlert = false
-                        showUnlimitedPaywall = true
-                    },
-                    onCancel: {
-                        showProAlert = false
-                    }
-                )
-            }
         }
     }
     

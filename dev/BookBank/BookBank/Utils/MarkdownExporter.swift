@@ -174,13 +174,12 @@ struct ExportSheetView: View {
     let onExportDetailed: () -> Void
     
     private var unlimitedManager: UnlimitedManager { UnlimitedManager.shared }
-    @State private var showUnlimitedAlert = false
     @State private var showUnlimitedPaywall = false
     
     // VSCode風のカラー（ダークモード時は黒）
     private let codeBackground = Color(UIColor { traits in
         traits.userInterfaceStyle == .dark
-            ? UIColor(red: 35/255, green: 35/255, blue: 35/255, alpha: 1)  // ダークモード: #232323
+            ? UIColor.black  // ダークモード: #000000
             : UIColor(red: 45/255, green: 45/255, blue: 45/255, alpha: 1)  // ライトモード: #2D2D2D
     })
     private let headerBackground = Color(UIColor { traits in
@@ -222,14 +221,15 @@ struct ExportSheetView: View {
                                 Spacer()
                                 Image("icon-download")
                                     .renderingMode(.template)
-                                Text("タイトルと著者名のみでダウンロード")
+                                Text("ダウンロードする")
                                 Spacer()
                             }
                             .font(.system(size: 15))
+                            .foregroundColor(Color(UIColor.systemBackground))
                             .padding(.vertical, 18)
                             .background(
                                 RoundedRectangle(cornerRadius: 12)
-                                    .stroke(Color.primary.opacity(0.3), lineWidth: 1)
+                                    .fill(Color(UIColor.label))
                             )
                         }
                         .buttonStyle(.plain)
@@ -260,25 +260,22 @@ struct ExportSheetView: View {
                             if unlimitedManager.isUnlimited {
                                 onExportDetailed()
                             } else {
-                                showUnlimitedAlert = true
+                                showUnlimitedPaywall = true
                             }
                         }) {
                             HStack(spacing: 8) {
                                 Spacer()
                                 Image("icon-download")
                                     .renderingMode(.template)
-                                Text(unlimitedManager.isUnlimited ? "詳細情報でダウンロード" : "詳細情報でダウンロード（Unlimited）")
+                                Text("ダウンロードする")
                                 Spacer()
                             }
                             .font(.system(size: 15))
+                            .foregroundColor(unlimitedManager.isUnlimited ? Color(UIColor.systemBackground) : .white)
                             .padding(.vertical, 18)
                             .background(
                                 RoundedRectangle(cornerRadius: 12)
-                                    .fill(unlimitedManager.isUnlimited ? AnyShapeStyle(Color.primary.opacity(0.1)) : AnyShapeStyle(proGradient.opacity(0.1)))
-                            )
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 12)
-                                    .stroke(unlimitedManager.isUnlimited ? AnyShapeStyle(Color.primary.opacity(0.3)) : AnyShapeStyle(proGradient), lineWidth: 1)
+                                    .fill(unlimitedManager.isUnlimited ? AnyShapeStyle(Color(UIColor.label)) : AnyShapeStyle(unlimitedColor))
                             )
                         }
                         .buttonStyle(.plain)
@@ -291,20 +288,6 @@ struct ExportSheetView: View {
             .navigationBarTitleDisplayMode(.inline)
             .sheet(isPresented: $showUnlimitedPaywall) {
                 UnlimitedPaywallView()
-            }
-            .overlay {
-                if showUnlimitedAlert {
-                    UnlimitedAlertView(
-                        message: "詳細情報を含むダウンロードはUnlimited版の機能です。",
-                        onConfirm: {
-                            showUnlimitedAlert = false
-                            showUnlimitedPaywall = true
-                        },
-                        onCancel: {
-                            showUnlimitedAlert = false
-                        }
-                    )
-                }
             }
         }
         .presentationDetents([.medium, .large])

@@ -113,7 +113,7 @@ struct UnlimitedPaywallView: View {
             featureRow(title: "テーマカラーを自由に選べる")
             featureRow(title: "無制限に口座を作成")
             featureRow(title: "無制限に読了リストを作成")
-            featureRow(title: "本のデータダウンロード")
+            featureRow(title: "本の詳細データダウンロード")
         }
         .frame(maxWidth: .infinity)
     }

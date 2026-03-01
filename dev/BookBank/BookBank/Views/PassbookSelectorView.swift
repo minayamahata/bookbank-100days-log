@@ -20,7 +20,6 @@ struct PassbookSelectorView: View {
     
     @State private var passbookToEdit: Passbook?
     @State private var showAddPassbook = false
-    @State private var showProAlert = false
     @State private var showUnlimitedPaywall = false
     
     // カスタム口座を取得
@@ -51,7 +50,7 @@ struct PassbookSelectorView: View {
                     // 新しい口座を追加ボタン
                     Button(action: {
                         if customPassbooks.count >= 3 && !unlimitedManager.isUnlimited {
-                            showProAlert = true
+                            showUnlimitedPaywall = true
                         } else {
                             showAddPassbook = true
                         }
@@ -133,20 +132,6 @@ struct PassbookSelectorView: View {
         }
         .sheet(isPresented: $showUnlimitedPaywall) {
             UnlimitedPaywallView()
-        }
-        .overlay {
-            if showProAlert {
-                UnlimitedAlertView(
-                    message: "4つ以上の口座を作成するにはUnlimited版が必要です。",
-                    onConfirm: {
-                        showProAlert = false
-                        showUnlimitedPaywall = true
-                    },
-                    onCancel: {
-                        showProAlert = false
-                    }
-                )
-            }
         }
     }
     
@@ -547,6 +532,7 @@ struct EditPassbookView: View {
                     Text("「\(editingName)」を削除してもよろしいですか？\n\nこの操作は取り消せません。")
                 }
             }
+            .tint(.primary)
             .sheet(isPresented: $showExportSheet) {
                 ExportSheetView(
                     title: passbook.name,
