@@ -30,7 +30,14 @@ struct UnlimitedPaywallView: View {
                         featuresSection
                         plansSection
                         purchaseButton
-                        restoreButton
+                        
+                        Text("年額プランは1年ごとに自動更新されます。\n解約は設定アプリからいつでも可能です。")
+                            .font(.system(size: 14))
+                            .foregroundColor(.white.opacity(0.5))
+                            .multilineTextAlignment(.center)
+                            .padding(.top, 13)
+                        
+                        footerLinks
                     }
                     .padding(.horizontal, 20)
                     .padding(.bottom, 40)
@@ -82,7 +89,7 @@ struct UnlimitedPaywallView: View {
                     endPoint: .bottom
                 )
                 
-                VStack(spacing: 6) {
+                VStack(spacing: 0) {
                     Text("Unlimited")
                         .font(.custom("Fearlessly Authentic", size: 42))
                     .foregroundStyle(
@@ -98,7 +105,7 @@ struct UnlimitedPaywallView: View {
                     )
                     
                     Text("世界の広がる方へ")
-                        .font(.system(size: 16))
+                        .font(.system(size: 14))
                         .foregroundColor(.white.opacity(0.7))
                 }
                 .padding(.bottom, 30)
@@ -142,12 +149,13 @@ struct UnlimitedPaywallView: View {
                 .foregroundColor(.white.opacity(0.7))
                 .frame(maxWidth: .infinity, alignment: .leading)
             
-            HStack(spacing: 12) {
+            HStack(alignment: .top, spacing: 12) {
                 if let yearly = unlimitedManager.yearlyProduct {
                     planCard(
                         product: yearly,
                         subtextIcon: "icon-tab-bookshelf",
                         subtext: "文庫本 約1冊分",
+                        autoRenewNote: true,
                         isSelected: selectedProduct?.id == yearly.id
                     )
                 }
@@ -158,14 +166,16 @@ struct UnlimitedPaywallView: View {
                         badge: "おすすめ",
                         subtextIcon: "icon-tab-bookshelf",
                         subtext: "ビジネス書 約1冊分",
+                        autoRenewNote: false,
                         isSelected: selectedProduct?.id == lifetime.id
                     )
                 }
             }
+            .fixedSize(horizontal: false, vertical: true)
         }
     }
     
-    private func planCard(product: Product, badge: String? = nil, subtextIcon: String? = nil, subtext: String?, isSelected: Bool) -> some View {
+    private func planCard(product: Product, badge: String? = nil, subtextIcon: String? = nil, subtext: String?, autoRenewNote: Bool = false, isSelected: Bool) -> some View {
         Button(action: {
             selectedProduct = product
         }) {
@@ -179,11 +189,16 @@ struct UnlimitedPaywallView: View {
                 
                 HStack(alignment: .lastTextBaseline, spacing: 2) {
                     Text("\(Int(truncating: product.price as NSDecimalNumber).formatted())")
-                        .font(.system(size: 24, weight: .bold))
-                    Text("円")
+                        .font(.system(size: 26, weight: .bold))
+                    Text(autoRenewNote ? "円／年" : "円")
                         .font(.system(size: 14, weight: .medium))
                 }
                 .foregroundColor(isSelected ? themeColor : .white)
+                
+                Text("（※自動更新）")
+                    .font(.system(size: 12))
+                    .foregroundColor(autoRenewNote ? .white : .clear)
+                    .padding(.top, -16)
                 
                 if let subtext {
                     HStack(spacing: 6) {
@@ -195,9 +210,9 @@ struct UnlimitedPaywallView: View {
                                 .frame(width: 12, height: 12)
                         }
                         Text(subtext)
-                            .font(.system(size: 12))
+                            .font(.system(size: 13))
                     }
-                    .foregroundColor(.white.opacity(0.5))
+                    .foregroundColor(.white.opacity(0.6))
                 } else {
                     Spacer().frame(height: 14)
                 }
@@ -264,28 +279,33 @@ struct UnlimitedPaywallView: View {
         .opacity(unlimitedManager.isPurchasing || selectedProduct == nil ? 0.6 : 1)
     }
     
-    // MARK: - Restore Button
+    // MARK: - Footer Links
     
-    private var restoreButton: some View {
-        Button(action: {
-            Task {
-                await restorePurchases()
-            }
-        }) {
-            HStack(spacing: 6) {
+    private var footerLinks: some View {
+        HStack(spacing: 0) {
+            Button(action: {
+                Task { await restorePurchases() }
+            }) {
                 if isRestoring {
                     ProgressView()
                         .tint(.white.opacity(0.5))
                         .scaleEffect(0.8)
                 } else {
-                    Text("ご購入済みの方はこちら")
-                        .font(.system(size: 14))
+                    Text("購入を復元")
                 }
             }
-            .foregroundColor(.white.opacity(0.5))
-            .padding(.vertical, 8)
+            .disabled(isRestoring || unlimitedManager.isPurchasing)
+            
+            Text("|").padding(.horizontal, 10)
+            
+            Link("利用規約", destination: URL(string: "https://bookbank-share.vercel.app/terms")!)
+            
+            Text("|").padding(.horizontal, 10)
+            
+            Link("プライバシーポリシー", destination: URL(string: "https://bookbank-share.vercel.app/privacy")!)
         }
-        .disabled(isRestoring || unlimitedManager.isPurchasing)
+        .font(.system(size: 12))
+        .foregroundColor(.white.opacity(0.4))
     }
     
     // MARK: - Actions
