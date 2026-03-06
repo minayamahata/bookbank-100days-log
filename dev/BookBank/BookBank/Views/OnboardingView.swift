@@ -9,6 +9,8 @@ import SwiftUI
 import SwiftData
 
 struct OnboardingView: View {
+    var onComplete: (() -> Void)?
+    
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
 
@@ -218,10 +220,15 @@ struct OnboardingView: View {
 
         do {
             try context.save()
-            print("✅ First custom passbook created: \(accountName)")
-            dismiss()
+            if let onComplete {
+                onComplete()
+            } else {
+                dismiss()
+            }
         } catch {
+            #if DEBUG
             print("❌ Error creating first passbook: \(error)")
+            #endif
             showError = true
         }
     }

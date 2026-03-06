@@ -163,11 +163,12 @@ struct AddReadingListView: View {
         
         do {
             try context.save()
-            print("✅ New reading list created: \(title)")
             createdList = newList
             showBookSelector = true
         } catch {
+            #if DEBUG
             print("❌ Error creating reading list: \(error)")
+            #endif
             showError = true
         }
     }

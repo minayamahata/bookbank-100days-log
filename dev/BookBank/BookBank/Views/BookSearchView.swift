@@ -568,7 +568,9 @@ struct BookSearchView: View {
                 searchResults = []
                 filteredResults = []
                 isSearching = false
+                #if DEBUG
                 print("検索エラー: \(error)")
+                #endif
             }
         }
     }
@@ -593,7 +595,9 @@ struct BookSearchView: View {
                 updateFilteredResults()
                 isLoadingMore = false
             } catch {
+                #if DEBUG
                 print("追加読み込みエラー: \(error)")
+                #endif
                 isLoadingMore = false
                 canLoadMore = false
             }
@@ -630,7 +634,9 @@ struct BookSearchView: View {
                 }
             }
         } catch {
+            #if DEBUG
             print("Error saving book: \(error)")
+            #endif
         }
     }
     
@@ -690,7 +696,9 @@ struct BookSearchView: View {
                 filteredResults = []
                 isSearching = false
                 isSearchingByISBN = false
+                #if DEBUG
                 print("ISBN検索エラー: \(error)")
+                #endif
             }
         }
     }

@@ -327,7 +327,9 @@ struct BookSelectorView: View {
             try context.save()
             dismiss()
         } catch {
+            #if DEBUG
             print("❌ Failed to add books to reading list: \(error)")
+            #endif
         }
     }
     

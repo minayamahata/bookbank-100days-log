@@ -216,7 +216,9 @@ struct AddBookView: View {
             onSave?()
         } catch {
             // エラーハンドリング（現時点ではコンソール出力のみ）
+            #if DEBUG
             print("Error saving book: \(error)")
+            #endif
         }
     }
 }

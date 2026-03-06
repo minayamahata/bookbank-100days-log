@@ -222,9 +222,13 @@ struct ReadingListDetailView: View {
         ) { result in
             switch result {
             case .success:
+                #if DEBUG
                 print("✅ Export succeeded")
+                #endif
             case .failure(let error):
+                #if DEBUG
                 print("❌ Export failed: \(error)")
+                #endif
             }
         }
     }
@@ -591,7 +595,9 @@ struct ReadingListDetailView: View {
         do {
             try context.save()
         } catch {
+            #if DEBUG
             print("❌ Failed to remove book from list: \(error)")
+            #endif
         }
     }
     
@@ -602,7 +608,9 @@ struct ReadingListDetailView: View {
             try context.save()
             dismiss()
         } catch {
+            #if DEBUG
             print("❌ Failed to delete reading list: \(error)")
+            #endif
         }
     }
     
@@ -809,9 +817,13 @@ struct EditReadingListView: View {
             ) { result in
                 switch result {
                 case .success:
+                    #if DEBUG
                     print("✅ Export succeeded")
+                    #endif
                 case .failure(let error):
+                    #if DEBUG
                     print("❌ Export failed: \(error)")
+                    #endif
                 }
             }
         }
@@ -840,7 +852,9 @@ struct EditReadingListView: View {
             try context.save()
             dismiss()
         } catch {
+            #if DEBUG
             print("❌ Failed to save reading list: \(error)")
+            #endif
         }
     }
     
@@ -850,7 +864,9 @@ struct EditReadingListView: View {
             try context.save()
             dismiss()
         } catch {
+            #if DEBUG
             print("❌ Failed to delete reading list: \(error)")
+            #endif
         }
     }
 }
@@ -1038,7 +1054,9 @@ struct ReorderBooksView: View {
             try context.save()
             dismiss()
         } catch {
+            #if DEBUG
             print("❌ Failed to save reordered books: \(error)")
+            #endif
         }
     }
 }

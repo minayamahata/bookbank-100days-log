@@ -31,7 +31,7 @@ struct UnlimitedPaywallView: View {
                         plansSection
                         purchaseButton
                         
-                        Text("年額プランは1年ごとに自動更新されます。\n解約は設定アプリからいつでも可能です。")
+                        Text("年額プランは1年ごとに自動更新されます。\n解約はいつでも可能です。")
                             .font(.system(size: 14))
                             .foregroundColor(.white.opacity(0.5))
                             .multilineTextAlignment(.center)
@@ -154,8 +154,8 @@ struct UnlimitedPaywallView: View {
                     planCard(
                         product: yearly,
                         subtextIcon: "icon-tab-bookshelf",
-                        subtext: "文庫本 約1冊分",
-                        autoRenewNote: true,
+                        subtext: "ビジネス書 約2冊分",
+                        isYearly: true,
                         isSelected: selectedProduct?.id == yearly.id
                     )
                 }
@@ -163,10 +163,9 @@ struct UnlimitedPaywallView: View {
                 if let lifetime = unlimitedManager.lifetimeProduct {
                     planCard(
                         product: lifetime,
-                        badge: "おすすめ",
+                        badge: "リリース記念限定価格",
                         subtextIcon: "icon-tab-bookshelf",
-                        subtext: "ビジネス書 約1冊分",
-                        autoRenewNote: false,
+                        subtext: "ビジネス書 約5冊分",
                         isSelected: selectedProduct?.id == lifetime.id
                     )
                 }
@@ -175,7 +174,7 @@ struct UnlimitedPaywallView: View {
         }
     }
     
-    private func planCard(product: Product, badge: String? = nil, subtextIcon: String? = nil, subtext: String?, autoRenewNote: Bool = false, isSelected: Bool) -> some View {
+    private func planCard(product: Product, badge: String? = nil, subtextIcon: String? = nil, subtext: String?, isYearly: Bool = false, isSelected: Bool) -> some View {
         Button(action: {
             selectedProduct = product
         }) {
@@ -190,15 +189,10 @@ struct UnlimitedPaywallView: View {
                 HStack(alignment: .lastTextBaseline, spacing: 2) {
                     Text("\(Int(truncating: product.price as NSDecimalNumber).formatted())")
                         .font(.system(size: 26, weight: .bold))
-                    Text(autoRenewNote ? "円／年" : "円")
+                    Text(isYearly ? "円／年" : "円")
                         .font(.system(size: 14, weight: .medium))
                 }
                 .foregroundColor(isSelected ? themeColor : .white)
-                
-                Text("（※自動更新）")
-                    .font(.system(size: 12))
-                    .foregroundColor(autoRenewNote ? .white : .clear)
-                    .padding(.top, -16)
                 
                 if let subtext {
                     HStack(spacing: 6) {
@@ -218,7 +212,7 @@ struct UnlimitedPaywallView: View {
                 }
             }
             .frame(maxWidth: .infinity)
-            .padding(.top, 20)
+            .padding(.top, 28)
             .padding(.bottom, 16)
             .padding(.horizontal, 12)
             .background(
@@ -232,10 +226,10 @@ struct UnlimitedPaywallView: View {
                         lineWidth: isSelected ? 2 : 1
                     )
             )
-            .overlay(alignment: .topTrailing) {
+            .overlay(alignment: .top) {
                 if let badge {
                     Text(badge)
-                        .font(.system(size: 11, weight: .bold))
+                        .font(.system(size: 12, weight: .bold))
                         .foregroundColor(isSelected ? .black : .white)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 4)
@@ -322,7 +316,9 @@ struct UnlimitedPaywallView: View {
         do {
             try await unlimitedManager.purchase(product)
         } catch {
+            #if DEBUG
             print("❌ Purchase failed: \(error)")
+            #endif
         }
     }
     

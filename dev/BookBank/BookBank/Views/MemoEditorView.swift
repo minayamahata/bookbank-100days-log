@@ -86,7 +86,9 @@ struct MemoEditorView: View {
     
     /// 保存して閉じる
     private func saveAndDismiss() {
+        #if DEBUG
         print("💾 [メモモーダル] 保存して閉じる: \"\(editedText)\"")
+        #endif
         onSave(editedText)
         dismiss()
     }
@@ -95,7 +97,5 @@ struct MemoEditorView: View {
 #Preview {
     @Previewable @State var memo = "サンプルメモ"
     
-    MemoEditorView(memo: $memo) { newMemo in
-        print("保存: \(newMemo)")
-    }
+    MemoEditorView(memo: $memo) { _ in }
 }

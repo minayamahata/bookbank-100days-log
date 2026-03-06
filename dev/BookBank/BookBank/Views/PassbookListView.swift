@@ -68,7 +68,9 @@ struct PassbookListView: View {
         do {
             try context.save()
         } catch {
+            #if DEBUG
             print("❌ Error deleting passbook: \(error)")
+            #endif
         }
     }
 }

@@ -85,11 +85,6 @@ struct AccountListView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 20) {
-                if unlimitedManager.isUnlimited {
-                    unlimitedBadgeSection
-                        .padding(.bottom, -12)
-                }
-                
                 // 円グラフ（中央に総資産表示）
                 ZStack {
                     Chart(chartData) { data in
@@ -129,21 +124,27 @@ struct AccountListView: View {
                     .chartLegend(.hidden)
                     
                     // 中央の総資産表示
-                    VStack(spacing: 8) {
+                    VStack(spacing: 4) {
+                        if unlimitedManager.isUnlimited {
+                            unlimitedBadgeSection
+                        }
+                        
                         Text("総資産")
-                            .font(.headline)
+                            .font(.callout)
+                            .fontWeight(.regular)
                             .foregroundColor(.primary)
                         
                         HStack(alignment: .lastTextBaseline, spacing: 1) {
                             Text("\(totalAmount.formatted())")
-                                .font(.system(size: 22))
+                                .font(.system(size: 26))
+                                .fontWeight(.medium)
                             Text("円")
                                 .font(.system(size: 14))
                         }
                         .foregroundColor(.primary)
                         
                         Text("\(totalBookCount)冊")
-                            .font(.caption)
+                            .font(.footnote)
                             .foregroundColor(.secondary)
                     }
                 }
@@ -235,27 +236,10 @@ struct AccountListView: View {
     private static let goldColor = Color(red: 161/255, green: 151/255, blue: 93/255)
     
     private var unlimitedBadgeSection: some View {
-        HStack(spacing: 8) {
-            ZStack {
-                Image("icon-tab-account-fill")
-                    .renderingMode(.template)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .foregroundColor(Self.goldColor.opacity(0.1))
-                
-                Image("icon-tab-account")
-                    .renderingMode(.template)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .foregroundColor(Self.goldColor)
-            }
-            .frame(width: 18, height: 18)
-            
-            Text("Unlimited")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundColor(Self.goldColor)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        Text("Unlimited")
+            .font(.custom("Fearlessly Authentic", size: 16))
+            .foregroundColor(.primary)
+            .frame(maxWidth: .infinity, alignment: .center)
     }
     
     // 口座行のビュー

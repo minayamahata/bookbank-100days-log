@@ -418,7 +418,5 @@ struct CornerBracketShape: Shape {
 // MARK: - Preview
 
 #Preview {
-    BarcodeScannerView { isbn in
-        print("Scanned ISBN: \(isbn)")
-    }
+    BarcodeScannerView { _ in }
 }

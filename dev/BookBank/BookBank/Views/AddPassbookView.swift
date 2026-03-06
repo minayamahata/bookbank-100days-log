@@ -283,10 +283,11 @@ struct AddPassbookView: View {
         
         do {
             try context.save()
-            print("✅ New passbook created: \(accountName)")
             dismiss()
         } catch {
+            #if DEBUG
             print("❌ Error creating passbook: \(error)")
+            #endif
             showError = true
         }
     }

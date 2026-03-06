@@ -223,7 +223,9 @@ struct ReadingListView: View {
         do {
             try context.save()
         } catch {
+            #if DEBUG
             print("❌ Failed to delete reading list: \(error)")
+            #endif
         }
     }
 }

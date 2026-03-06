@@ -55,7 +55,9 @@ class RakutenBooksService {
             throw RakutenBooksError.invalidURL
         }
         
+        #if DEBUG
         print("🔍 キーワード検索: \(keyword)")
+        #endif
         return try await performRequest(url: url, filterKeyword: keyword)
     }
     
@@ -81,7 +83,9 @@ class RakutenBooksService {
             throw RakutenBooksError.invalidURL
         }
         
+        #if DEBUG
         print("🔍 ISBN検索: \(cleanISBN)")
+        #endif
         return try await performRequest(url: url, filterKeyword: nil)
     }
     
@@ -92,7 +96,9 @@ class RakutenBooksService {
     ///   - url: リクエストURL
     ///   - filterKeyword: タイトルまたは著者名に含まれるべきキーワード（nilの場合はフィルタリングしない）
     private func performRequest(url: URL, filterKeyword: String?) async throws -> [RakutenBook] {
+        #if DEBUG
         print("📡 API Request: \(url.absoluteString)")
+        #endif
         
         let (data, response) = try await URLSession.shared.data(from: url)
         
@@ -105,16 +111,18 @@ class RakutenBooksService {
             throw RakutenBooksError.httpError(statusCode: httpResponse.statusCode)
         }
         
-        // デバッグ用：レスポンスを出力
+        #if DEBUG
         if let jsonString = String(data: data, encoding: .utf8) {
             print("📥 API Response (first 500 chars): \(String(jsonString.prefix(500)))")
         }
+        #endif
         
-        // JSONデコード（formatVersion=2形式）
         let decoder = JSONDecoder()
         let searchResponse = try decoder.decode(RakutenBooksTotalSearchResponse.self, from: data)
         
+        #if DEBUG
         print("✅ API Response: \(searchResponse.Items.count)件の書籍を取得")
+        #endif
         
         // 書籍データを抽出してRakutenBookに変換（本・コミックのみ）
         let books = searchResponse.Items.compactMap { item -> RakutenBook? in

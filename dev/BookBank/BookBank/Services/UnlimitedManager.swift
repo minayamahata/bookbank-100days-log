@@ -130,7 +130,9 @@ final class UnlimitedManager {
             // 年額を先に表示
             products.sort { $0.id < $1.id }
         } catch {
+            #if DEBUG
             print("❌ Failed to load products: \(error)")
+            #endif
             errorMessage = "商品情報の取得に失敗しました"
         }
     }
@@ -161,7 +163,9 @@ final class UnlimitedManager {
                     }
                 }
             } catch {
+                #if DEBUG
                 print("❌ Failed to verify transaction: \(error)")
+                #endif
             }
         }
         
@@ -182,7 +186,9 @@ final class UnlimitedManager {
                     // トランザクションを完了
                     await transaction.finish()
                 } catch {
+                    #if DEBUG
                     print("❌ Transaction listener error: \(error)")
+                    #endif
                 }
             }
         }

@@ -22,6 +22,8 @@ struct PassbookSelectorView: View {
     @State private var showAddPassbook = false
     @State private var showUnlimitedPaywall = false
     
+    private static let goldColor = Color(red: 161/255, green: 151/255, blue: 93/255)
+    
     // カスタム口座を取得
     private var customPassbooks: [Passbook] {
         passbooks.filter { $0.type == .custom && $0.isActive }
@@ -72,51 +74,66 @@ struct PassbookSelectorView: View {
             
             // 下部に配置：サブスクリプション / 利用規約 / プライバシーポリシー / このアプリについて
             VStack(spacing: 0) {
+                Spacer().frame(height: 8)
+                
                 // 年額プランの場合のみ表示（lifetimeは解約不要のため非表示）
                 if unlimitedManager.isUnlimited && unlimitedManager.hasActiveYearlySubscription {
                     Button(action: openSubscriptionManagement) {
                         HStack {
                             Text("サブスクリプションを管理")
-                                .font(.subheadline)
+                                .font(.footnote)
                             Spacer()
                         }
                         .foregroundColor(.primary)
                         .padding(.horizontal, 20)
-                        .padding(.vertical, 10)
+                        .padding(.vertical, 8)
+                    }
+                }
+                
+                if !unlimitedManager.isUnlimited {
+                    Button(action: { showUnlimitedPaywall = true }) {
+                        HStack {
+                            Text("Unlimitedにアップグレード")
+                                .font(.footnote)
+                            Spacer()
+                        }
+                        .foregroundColor(.primary)
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 8)
                     }
                 }
                 
                 Button(action: { openURL("https://bookbank-share.vercel.app/terms") }) {
                     HStack {
                         Text("利用規約")
-                            .font(.subheadline)
+                            .font(.footnote)
                         Spacer()
                     }
                     .foregroundColor(.primary)
                     .padding(.horizontal, 20)
-                    .padding(.vertical, 14)
+                    .padding(.vertical, 8)
                 }
                 
                 Button(action: { openURL("https://bookbank-share.vercel.app/privacy") }) {
                     HStack {
                         Text("プライバシーポリシー")
-                            .font(.subheadline)
+                            .font(.footnote)
                         Spacer()
                     }
                     .foregroundColor(.primary)
                     .padding(.horizontal, 20)
-                    .padding(.vertical, 14)
+                    .padding(.vertical, 8)
                 }
                 
                 Button(action: { openURL("https://ayame-inc.jp/products/bookbank") }) {
                     HStack {
                         Text("このアプリについて")
-                            .font(.subheadline)
+                            .font(.footnote)
                         Spacer()
                     }
                     .foregroundColor(.primary)
                     .padding(.horizontal, 20)
-                    .padding(.vertical, 14)
+                    .padding(.vertical, 8)
                 }
             }
             .background(Color.appCardBackground)
@@ -574,12 +591,14 @@ struct EditPassbookView: View {
                 contentType: .plainText,
                 defaultFilename: exportFileName
             ) { result in
+                #if DEBUG
                 switch result {
                 case .success:
                     print("✅ Export succeeded")
                 case .failure(let error):
                     print("❌ Export failed: \(error)")
                 }
+                #endif
             }
             .sheet(isPresented: $showColorPicker) {
                 ColorPickerSheet(selectedColor: $customColor, onComplete: {

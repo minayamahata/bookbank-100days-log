@@ -292,18 +292,14 @@ struct UserBookDetailView: View {
     
     /// メモを保存（モーダルから呼ばれる）
     private func saveMemo(_ newMemo: String) {
-        let startTime = Date()
-        print("💾 [メモ] 保存開始: \"\(newMemo)\"")
-        
-        // ローカルに保存（SwiftData）
         book.memo = newMemo.isEmpty ? nil : newMemo
         
         do {
             try context.save()
-            let elapsed = Date().timeIntervalSince(startTime) * 1000
-            print("✅ [メモ] 保存完了 (\(String(format: "%.1f", elapsed))ms)")
         } catch {
+            #if DEBUG
             print("❌ [メモ] 保存エラー: \(error.localizedDescription)")
+            #endif
         }
     }
     

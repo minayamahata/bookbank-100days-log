@@ -163,10 +163,15 @@ struct PassbookDetailView: View {
             }
         }
         .id(passbook.persistentModelID)
-        .navigationTitle("通帳")
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.hidden, for: .navigationBar)
         .toolbar(collapseProgress > 0.5 ? .hidden : .visible, for: .navigationBar)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                Text("通帳")
+                    .font(.system(size: 17))
+            }
+        }
         .animation(.easeInOut(duration: 0.2), value: collapseProgress > 0.5)
     }
     

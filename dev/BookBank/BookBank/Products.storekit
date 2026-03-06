@@ -5,7 +5,7 @@
   ],
   "products" : [
     {
-      "displayPrice" : "1500",
+      "displayPrice" : "9000",
       "familyShareable" : false,
       "internalID" : "lifetime001",
       "localizations" : [
@@ -94,7 +94,7 @@
           "codeOffers" : [
 
           ],
-          "displayPrice" : "980",
+          "displayPrice" : "3600",
           "familyShareable" : false,
           "groupNumber" : 1,
           "internalID" : "yearly001",
