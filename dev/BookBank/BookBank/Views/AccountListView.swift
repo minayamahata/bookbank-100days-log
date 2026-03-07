@@ -151,11 +151,11 @@ struct AccountListView: View {
                 .frame(height: 260)
                 
                 // 口座リスト
-                VStack(spacing: 10) {
+                VStack(spacing: 6) {
                     ForEach(customPassbooks) { passbook in
-                        Button {
+                        Button(action: {
                             onPassbookSelected?(passbook)
-                        } label: {
+                        }) {
                             accountRow(passbook: passbook)
                         }
                         .buttonStyle(.plain)

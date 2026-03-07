@@ -86,7 +86,7 @@ class ShareService {
         }
         
         // ReadingListをAPIリクエスト形式に変換
-        let bookItems = readingList.books.map { book in
+        let bookItems = readingList.orderedBooks.map { book in
             ShareBookItem(
                 title: book.title,
                 author: book.author ?? "",

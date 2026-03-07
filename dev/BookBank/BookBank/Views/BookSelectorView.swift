@@ -275,11 +275,13 @@ struct BookSelectorView: View {
                 // 選択状態アイコン
                 if isAlreadyInList {
                     Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 20))
+                        .resizable()
+                        .frame(width: 20, height: 20)
                         .foregroundColor(.gray)
                 } else if isSelected {
                     Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 20))
+                        .resizable()
+                        .frame(width: 20, height: 20)
                         .foregroundColor(.blue)
                 } else {
                     Circle()
@@ -321,6 +323,7 @@ struct BookSelectorView: View {
             }
         }
         
+        readingList.saveBookOrder(readingList.books)
         readingList.updatedAt = Date()
         
         do {

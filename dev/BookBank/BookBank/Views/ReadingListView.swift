@@ -165,7 +165,7 @@ struct ReadingListView: View {
     
     /// 5カラム×最大2行サムネイル（最大10冊、本の比率 2:3）
     private func rowThumbnail(for list: ReadingList, width: CGFloat) -> some View {
-        let books = Array(list.books.prefix(10))
+        let books = Array(list.orderedBooks.prefix(10))
         let topRowBooks = Array(books.prefix(5))
         let bottomRowBooks = books.count > 5 ? Array(books.dropFirst(5)) : []
         let spacing: CGFloat = 4

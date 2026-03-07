@@ -57,13 +57,13 @@ struct ReadingListDetailView: View {
         PassbookColor.color(for: readingList.colorIndex ?? 0)
     }
     
-    /// テーマカラーが黒（index 0）かどうか
+    /// テーマカラーが黒かどうか
     private var isBlackTheme: Bool {
-        (readingList.colorIndex ?? 0) == 0
+        (readingList.colorIndex ?? 0) == PassbookColor.blackThemeIndex
     }
-    
+
     // MARK: - Body
-    
+
     var body: some View {
         ZStack {
             // テーマカラーに応じた背景
@@ -393,7 +393,7 @@ struct ReadingListDetailView: View {
     
     /// グリッドの高さを計算
     private var thumbnailGridHeight: CGFloat {
-        let books = Array(readingList.books.prefix(10))
+        let books = Array(readingList.orderedBooks.prefix(10))
         let totalRows = books.count > 5 ? 2 : 1
         let estimatedCellWidth: CGFloat = 60
         let cellHeight = estimatedCellWidth * 1.5
@@ -402,7 +402,7 @@ struct ReadingListDetailView: View {
     }
     
     private func thumbnailGridContent(width: CGFloat) -> some View {
-        let books = Array(readingList.books.prefix(10))
+        let books = Array(readingList.orderedBooks.prefix(10))
         let topRowBooks = Array(books.prefix(5))
         let bottomRowBooks = books.count > 5 ? Array(books.dropFirst(5)) : []
         let spacing: CGFloat = 4
@@ -464,7 +464,7 @@ struct ReadingListDetailView: View {
                 .padding(.vertical, 40)
             } else {
                 LazyVStack(spacing: 6) {
-                    ForEach(readingList.books) { book in
+                    ForEach(readingList.orderedBooks) { book in
                         bookRow(book: book)
                     }
                 }
@@ -590,6 +590,7 @@ struct ReadingListDetailView: View {
     
     private func removeBookFromList(_ book: UserBook) {
         readingList.books.removeAll { $0.persistentModelID == book.persistentModelID }
+        readingList.saveBookOrder(readingList.books)
         readingList.updatedAt = Date()
         
         do {
@@ -977,8 +978,8 @@ struct ReorderBooksView: View {
             }
         }
         .onAppear {
-            books = readingList.books
-            originalBooks = readingList.books
+            books = readingList.orderedBooks
+            originalBooks = readingList.orderedBooks
         }
         .overlay {
             if showDiscardAlert {
@@ -1046,8 +1047,8 @@ struct ReorderBooksView: View {
     }
     
     private func saveChanges() {
-        // 本の順序を更新
         readingList.books = books
+        readingList.saveBookOrder(books)
         readingList.updatedAt = Date()
         
         do {
@@ -1189,9 +1190,9 @@ struct SharePreviewSheet: View {
         PassbookColor.color(for: readingList.colorIndex ?? 0)
     }
     
-    /// テーマカラーが黒（index 0）かどうか
+    /// テーマカラーが黒かどうか
     private var isBlackTheme: Bool {
-        (readingList.colorIndex ?? 0) == 0
+        (readingList.colorIndex ?? 0) == PassbookColor.blackThemeIndex
     }
     
     var body: some View {
@@ -1336,7 +1337,7 @@ struct SharePreviewSheet: View {
                 
                 // 本のリスト（最大4冊）
                 VStack(spacing: 6) {
-                    let displayBooks = Array(readingList.books.prefix(4))
+                    let displayBooks = Array(readingList.orderedBooks.prefix(4))
                     ForEach(displayBooks) { book in
                         bookRow(book: book)
                     }
@@ -1367,7 +1368,7 @@ struct SharePreviewSheet: View {
     // MARK: - Preview Thumbnail Grid
     
     private var previewThumbnailGrid: some View {
-        let books = Array(readingList.books.prefix(10))
+        let books = Array(readingList.orderedBooks.prefix(10))
         let hasSecondRow = books.count > 5
         let spacing: CGFloat = 4
         let rowSpacing: CGFloat = 8

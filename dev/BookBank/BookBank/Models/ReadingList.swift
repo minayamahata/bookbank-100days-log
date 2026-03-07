@@ -30,6 +30,9 @@ final class ReadingList {
     /// テーマカラーのインデックス（nilの場合はデフォルト色）
     var colorIndex: Int?
     
+    /// 本の並び順を保持するJSON文字列（各本の stableID を配列で保持）
+    var bookOrderData: String?
+    
     // MARK: - Relationships
     
     /// リストに含まれる本（参照）
@@ -46,6 +49,7 @@ final class ReadingList {
         self.listDescription = listDescription
         self.createdAt = Date()
         self.updatedAt = Date()
+        self.bookOrderData = nil
         self.books = []
     }
 }
@@ -53,6 +57,52 @@ final class ReadingList {
 // MARK: - Computed Properties
 
 extension ReadingList {
+    /// 本の安定した識別子を生成（title + createdAt のハッシュ）
+    static func stableID(for book: UserBook) -> String {
+        "\(book.title)_\(book.createdAt.timeIntervalSince1970)"
+    }
+    
+    /// bookOrderData をデコードして ID 配列を取得
+    private var bookOrderIDs: [String] {
+        guard let data = bookOrderData?.data(using: .utf8),
+              let ids = try? JSONDecoder().decode([String].self, from: data) else {
+            return []
+        }
+        return ids
+    }
+    
+    /// bookOrder に基づいてソートされた本のリスト
+    var orderedBooks: [UserBook] {
+        let ids = bookOrderIDs
+        guard !ids.isEmpty else { return books }
+        let idToBook = Dictionary(
+            books.map { (Self.stableID(for: $0), $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
+        var ordered: [UserBook] = []
+        var usedIDs = Set<String>()
+        for id in ids {
+            if let book = idToBook[id] {
+                ordered.append(book)
+                usedIDs.insert(id)
+            }
+        }
+        for book in books {
+            if !usedIDs.contains(Self.stableID(for: book)) {
+                ordered.append(book)
+            }
+        }
+        return ordered
+    }
+    
+    /// 本の並び順を保存
+    func saveBookOrder(_ orderedBooks: [UserBook]) {
+        let ids = orderedBooks.map { Self.stableID(for: $0) }
+        if let data = try? JSONEncoder().encode(ids) {
+            bookOrderData = String(data: data, encoding: .utf8)
+        }
+    }
+    
     /// リスト内の書籍数
     var bookCount: Int {
         books.count

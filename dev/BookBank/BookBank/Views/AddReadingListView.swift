@@ -135,14 +135,14 @@ struct AddReadingListView: View {
             Text("リストの作成に失敗しました")
         }
         .fullScreenCover(isPresented: $showBookSelector, onDismiss: {
-            if let list = createdList {
-                if list.books.isEmpty {
-                    context.delete(list)
-                    try? context.save()
-                }
-            }
             isCompleting = true
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                if let list = createdList {
+                    if list.books.isEmpty {
+                        context.delete(list)
+                        try? context.save()
+                    }
+                }
                 dismiss()
             }
         }) {

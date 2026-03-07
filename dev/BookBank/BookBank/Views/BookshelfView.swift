@@ -326,7 +326,7 @@ struct BookshelfView: View {
         VStack(alignment: .leading, spacing: 12) {
             // 月ヘッダー
             HStack {
-                Text("\(year)年\(month)月")
+                Text(verbatim: "\(year)年\(month)月")
                     .font(.title3)
                     .fontWeight(.semibold)
                     .foregroundColor(.white)
