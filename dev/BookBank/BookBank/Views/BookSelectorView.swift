@@ -316,6 +316,7 @@ struct BookSelectorView: View {
     
     private func addSelectedBooks() {
         let booksToAdd = allBooks.filter { selectedBookIDs.contains($0.persistentModelID) }
+        let currentOrdered = readingList.orderedBooks
         
         for book in booksToAdd {
             if !readingList.books.contains(where: { $0.persistentModelID == book.persistentModelID }) {
@@ -323,7 +324,10 @@ struct BookSelectorView: View {
             }
         }
         
-        readingList.saveBookOrder(readingList.books)
+        let newOrder = currentOrdered + booksToAdd.filter { newBook in
+            !currentOrdered.contains(where: { $0.persistentModelID == newBook.persistentModelID })
+        }
+        readingList.saveBookOrder(newOrder)
         readingList.updatedAt = Date()
         
         do {

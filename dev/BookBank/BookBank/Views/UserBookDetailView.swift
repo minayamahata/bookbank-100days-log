@@ -72,6 +72,7 @@ struct UserBookDetailView: View {
                             topTrailingRadius: 40
                         )
                     )
+                    .offset(y: -40)
                 }
             }
         }
@@ -161,7 +162,7 @@ struct UserBookDetailView: View {
             }
 
         }
-        .frame(height: 330)
+        .frame(height: 370)
         .frame(maxWidth: .infinity)
         .clipped()
         .overlay(alignment: .bottomTrailing) {
@@ -182,7 +183,7 @@ struct UserBookDetailView: View {
                             .fill(Color.white)
                     )
             }
-            .padding(.bottom, 30)
+            .padding(.bottom, 70)
             .padding(.trailing, 16)
         }
     }
