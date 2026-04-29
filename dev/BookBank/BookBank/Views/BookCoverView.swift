@@ -24,7 +24,13 @@ struct BookCoverView: View {
         GeometryReader { geometry in
             ZStack(alignment: .bottomTrailing) {
                 // 本の表紙
-                if let imageURL = book.imageURL,
+                if let coverImage = book.coverUIImage {
+                    Image(uiImage: coverImage)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(width: geometry.size.width, height: geometry.size.width * 1.5)
+                        .clipped()
+                } else if let imageURL = book.imageURL,
                    let url = URL(string: imageURL) {
                     CachedAsyncImage(
                         url: url,

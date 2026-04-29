@@ -19,6 +19,7 @@ struct UserBookDetailView: View {
 
     @State private var showMemoEditor = false
     @State private var showDeleteAlert = false
+    @State private var showEditBook = false
 
     private var customPassbooks: [Passbook] {
         allPassbooks.filter { $0.type == .custom && $0.isActive }
@@ -82,7 +83,14 @@ struct UserBookDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.hidden, for: .navigationBar)
         .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                Button(action: {
+                    showEditBook = true
+                }) {
+                    Image(systemName: "pencil")
+                }
+                .tint(.white)
+                
                 Button(action: {
                     showDeleteAlert = true
                 }) {
@@ -100,6 +108,9 @@ struct UserBookDetailView: View {
             Text("この操作は取り消せません。\n「\(book.title)」を削除してもよろしいですか？")
         }
         .tint(.primary)
+        .sheet(isPresented: $showEditBook) {
+            EditBookView(book: book)
+        }
         .sheet(isPresented: $showMemoEditor) {
             MemoEditorView(memo: Binding(
                 get: { book.memo ?? "" },
@@ -115,7 +126,18 @@ struct UserBookDetailView: View {
     private func coverSection(screenWidth: CGFloat) -> some View {
         ZStack(alignment: .topTrailing) {
             // 背景（本の画像をぼかしたもの）
-            if let imageURL = book.imageURL,
+            if let coverImage = book.coverUIImage {
+                GeometryReader { geo in
+                    Image(uiImage: coverImage)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .blur(radius: 30)
+                        .scaleEffect(1.2)
+                        .frame(width: geo.size.width, height: geo.size.height)
+                }
+                .clipped()
+                .overlay(Color.black.opacity(0.3))
+            } else if let imageURL = book.imageURL,
                let url = URL(string: imageURL) {
                 GeometryReader { geo in
                     AsyncImage(url: url) { image in
@@ -137,7 +159,19 @@ struct UserBookDetailView: View {
             }
 
             // 本のカバー画像（前面）
-            if let imageURL = book.imageURL,
+            if let coverImage = book.coverUIImage {
+                Image(uiImage: coverImage)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(
+                        maxWidth: screenWidth - 80,
+                        maxHeight: 160
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: 2))
+                    .shadow(color: Color.black.opacity(0.5), radius: 20, x: 0, y: 8)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .offset(y: 20)
+            } else if let imageURL = book.imageURL,
                let url = URL(string: imageURL) {
                 AsyncImage(url: url) { image in
                     image
@@ -228,6 +262,10 @@ struct UserBookDetailView: View {
                 }
 
                 DetailInfoRow(label: "登録日", value: formatDate(book.registeredAt))
+
+                if let finishedAt = book.finishedAt {
+                    DetailInfoRow(label: "読了日", value: formatDate(finishedAt))
+                }
 
                 if let publisher = book.publisher {
                     DetailInfoRow(label: "出版社", value: publisher)

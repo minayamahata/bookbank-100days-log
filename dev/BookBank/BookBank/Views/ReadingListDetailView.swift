@@ -414,7 +414,13 @@ struct ReadingListDetailView: View {
             // 上段（1〜5冊目）
             HStack(spacing: spacing) {
                 ForEach(topRowBooks) { book in
-                    if let imageURL = book.imageURL {
+                    if let coverImage = book.coverUIImage {
+                        Image(uiImage: coverImage)
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                            .frame(width: cellWidth, height: cellHeight)
+                            .clipShape(RoundedRectangle(cornerRadius: 2))
+                    } else if let imageURL = book.imageURL {
                         CachedAsyncImage(
                             url: URL(string: imageURL),
                             width: cellWidth,
@@ -429,7 +435,13 @@ struct ReadingListDetailView: View {
             if !bottomRowBooks.isEmpty {
                 HStack(spacing: spacing) {
                     ForEach(bottomRowBooks) { book in
-                        if let imageURL = book.imageURL {
+                        if let coverImage = book.coverUIImage {
+                            Image(uiImage: coverImage)
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                                .frame(width: cellWidth, height: cellHeight)
+                                .clipShape(RoundedRectangle(cornerRadius: 2))
+                        } else if let imageURL = book.imageURL {
                             CachedAsyncImage(
                                 url: URL(string: imageURL),
                                 width: cellWidth,
@@ -481,7 +493,13 @@ struct ReadingListDetailView: View {
         NavigationLink(destination: UserBookDetailView(book: book)) {
             HStack(alignment: .center, spacing: 12) {
                 // 本の表紙
-                if let imageURL = book.imageURL,
+                if let coverImage = book.coverUIImage {
+                    Image(uiImage: coverImage)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(width: 47, height: 70)
+                        .clipShape(RoundedRectangle(cornerRadius: 2))
+                } else if let imageURL = book.imageURL,
                    let url = URL(string: imageURL) {
                     CachedAsyncImage(url: url, width: 47, height: 70)
                         .clipShape(RoundedRectangle(cornerRadius: 2))
@@ -553,7 +571,13 @@ struct ReadingListDetailView: View {
             GeometryReader { geometry in
                 ZStack(alignment: .topTrailing) {
                     // 本の表紙
-                    if let imageURL = book.imageURL,
+                    if let coverImage = book.coverUIImage {
+                        Image(uiImage: coverImage)
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                            .frame(width: geometry.size.width, height: geometry.size.width * 1.5)
+                            .clipped()
+                    } else if let imageURL = book.imageURL,
                        let url = URL(string: imageURL) {
                         CachedAsyncImage(
                             url: url,
@@ -914,7 +938,13 @@ struct ReorderBooksView: View {
                         .buttonStyle(.plain)
                         
                         // 本の表紙
-                        if let imageURL = book.imageURL,
+                        if let coverImage = book.coverUIImage {
+                            Image(uiImage: coverImage)
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                                .frame(width: 50, height: 75)
+                                .clipShape(RoundedRectangle(cornerRadius: 2))
+                        } else if let imageURL = book.imageURL,
                            let url = URL(string: imageURL) {
                             CachedAsyncImage(url: url, width: 50, height: 75)
                                 .clipShape(RoundedRectangle(cornerRadius: 2))
@@ -1403,7 +1433,13 @@ struct SharePreviewSheet: View {
     
     private func previewBookThumbnail(book: UserBook, width: CGFloat, height: CGFloat) -> some View {
         Group {
-            if let imageURL = book.imageURL, let url = URL(string: imageURL) {
+            if let coverImage = book.coverUIImage {
+                Image(uiImage: coverImage)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: width, height: height)
+                    .clipShape(RoundedRectangle(cornerRadius: 2))
+            } else if let imageURL = book.imageURL, let url = URL(string: imageURL) {
                 CachedAsyncImage(url: url, width: width, height: height)
                     .clipShape(RoundedRectangle(cornerRadius: 2))
             } else {
@@ -1417,7 +1453,13 @@ struct SharePreviewSheet: View {
     private func bookRow(book: UserBook) -> some View {
         HStack(spacing: 12) {
             // サムネイル
-            if let imageURL = book.imageURL,
+            if let coverImage = book.coverUIImage {
+                Image(uiImage: coverImage)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: 36, height: 54)
+                    .clipShape(RoundedRectangle(cornerRadius: 2))
+            } else if let imageURL = book.imageURL,
                let url = URL(string: imageURL) {
                 CachedAsyncImage(url: url, width: 36, height: 54)
                     .clipShape(RoundedRectangle(cornerRadius: 2))

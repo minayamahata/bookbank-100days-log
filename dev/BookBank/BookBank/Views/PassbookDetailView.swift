@@ -310,7 +310,13 @@ struct PassbookDetailView: View {
                     NavigationLink(destination: UserBookDetailView(book: book)) {
                         HStack(alignment: .center, spacing: 12) {
                             // サムネイル
-                            if let imageURL = book.imageURL,
+                            if let coverImage = book.coverUIImage {
+                                Image(uiImage: coverImage)
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fill)
+                                    .frame(width: 47, height: 70)
+                                    .clipShape(RoundedRectangle(cornerRadius: 2))
+                            } else if let imageURL = book.imageURL,
                                let url = URL(string: imageURL) {
                                 CachedAsyncImage(
                                     url: url,

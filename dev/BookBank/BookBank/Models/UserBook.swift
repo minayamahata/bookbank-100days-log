@@ -1,5 +1,6 @@
 import Foundation
 import SwiftData
+import UIKit
 
 /// ユーザーが登録した書籍モデル
 /// 書籍マスター情報とユーザー固有情報を統合
@@ -32,6 +33,10 @@ final class UserBook {
     /// 表紙画像URL（大サイズ - リスト表示では縮小表示）
     var imageURL: String?
     
+    /// 手動登録時の表紙画像データ（ライブラリ選択またはカメラ撮影）
+    @Attribute(.externalStorage)
+    var coverImageData: Data?
+    
     /// 発行形態（例：単行本、文庫本、電子書籍など）
     var bookFormat: String?
     
@@ -52,6 +57,9 @@ final class UserBook {
     /// 登録時点の価格（資産計算用）
     /// 登録時に price からコピーされる
     var priceAtRegistration: Int?
+
+    /// 読了日（任意）
+    var finishedAt: Date?
 
     /// 書籍登録日時（ユーザーが登録した日）
     var registeredAt: Date
@@ -82,6 +90,7 @@ final class UserBook {
         seriesName: String? = nil,
         price: Int? = nil,
         imageURL: String? = nil,
+        coverImageData: Data? = nil,
         bookFormat: String? = nil,
         pageCount: Int? = nil,
         source: BookSource = .manual,
@@ -97,6 +106,7 @@ final class UserBook {
         self.seriesName = seriesName
         self.price = price
         self.imageURL = imageURL
+        self.coverImageData = coverImageData
         self.bookFormat = bookFormat
         self.pageCount = pageCount
         self.source = source
@@ -138,5 +148,18 @@ extension UserBook {
     var hasISBN13: Bool {
         guard let isbn = isbn else { return false }
         return isbn.count == 13
+    }
+    
+    /// 表紙画像があるかどうか（URL or ローカルデータ）
+    var hasCoverImage: Bool {
+        if let url = imageURL, !url.isEmpty { return true }
+        if let data = coverImageData, !data.isEmpty { return true }
+        return false
+    }
+    
+    /// ローカル保存の表紙画像をUIImageとして取得
+    var coverUIImage: UIImage? {
+        guard let data = coverImageData else { return nil }
+        return UIImage(data: data)
     }
 }

@@ -176,7 +176,13 @@ struct ReadingListView: View {
         return VStack(spacing: rowSpacing) {
             HStack(spacing: spacing) {
                 ForEach(topRowBooks) { book in
-                    if let imageURL = book.imageURL {
+                    if let coverImage = book.coverUIImage {
+                        Image(uiImage: coverImage)
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                            .frame(width: cellWidth, height: cellHeight)
+                            .clipShape(RoundedRectangle(cornerRadius: 2))
+                    } else if let imageURL = book.imageURL {
                         CachedAsyncImage(
                             url: URL(string: imageURL),
                             width: cellWidth,
@@ -190,7 +196,13 @@ struct ReadingListView: View {
             if !bottomRowBooks.isEmpty {
                 HStack(spacing: spacing) {
                     ForEach(bottomRowBooks) { book in
-                        if let imageURL = book.imageURL {
+                        if let coverImage = book.coverUIImage {
+                            Image(uiImage: coverImage)
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                                .frame(width: cellWidth, height: cellHeight)
+                                .clipShape(RoundedRectangle(cornerRadius: 2))
+                        } else if let imageURL = book.imageURL {
                             CachedAsyncImage(
                                 url: URL(string: imageURL),
                                 width: cellWidth,

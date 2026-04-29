@@ -342,7 +342,13 @@ struct BookshelfView: View {
             LazyVGrid(columns: calendarColumns, spacing: 4) {
                 ForEach(books) { book in
                     NavigationLink(destination: UserBookDetailView(book: book)) {
-                        if let imageURL = book.imageURL,
+                        if let coverImage = book.coverUIImage {
+                            Image(uiImage: coverImage)
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                                .frame(width: 50, height: 75)
+                                .clipShape(RoundedRectangle(cornerRadius: 2))
+                        } else if let imageURL = book.imageURL,
                            let url = URL(string: imageURL) {
                             CachedAsyncImage(url: url, width: 50, height: 75)
                                 .clipShape(RoundedRectangle(cornerRadius: 2))
