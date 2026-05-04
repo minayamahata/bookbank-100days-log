@@ -8,6 +8,22 @@
 import SwiftUI
 import SwiftData
 
+@Observable
+class FloatingButtonState {
+    var isHidden = false
+}
+
+private struct FloatingButtonStateKey: EnvironmentKey {
+    static let defaultValue = FloatingButtonState()
+}
+
+extension EnvironmentValues {
+    var floatingButtonState: FloatingButtonState {
+        get { self[FloatingButtonStateKey.self] }
+        set { self[FloatingButtonStateKey.self] = newValue }
+    }
+}
+
 struct MainTabView: View {
     @Query(sort: \Passbook.sortOrder) private var passbooks: [Passbook]
     @Query(sort: \ReadingList.updatedAt) private var readingLists: [ReadingList]
@@ -16,6 +32,7 @@ struct MainTabView: View {
     @State private var showPassbookSelector = false
     @State private var showAddReadingList = false
     @State private var showUnlimitedPaywall = false
+    @State private var floatingButtonState = FloatingButtonState()
     
     /// 各タブのナビゲーションパス
     @State private var accountListNavPath = NavigationPath()
@@ -174,8 +191,8 @@ struct MainTabView: View {
             .tint(currentThemeColor)
             
             // プラスボタン（右下に配置、タブバーの上）- リキッドグラス風
-            // 口座タブ(0)では非表示
-            if !isNavigating && selectedTab != 0 {
+            // 口座タブ(0)、ナビゲーション中、詳細画面表示中は非表示
+            if !isNavigating && !floatingButtonState.isHidden && selectedTab != 0 {
                 HStack {
                     Spacer()
                     
@@ -238,6 +255,7 @@ struct MainTabView: View {
                 }
             }
         }
+        .environment(\.floatingButtonState, floatingButtonState)
         .sheet(isPresented: $showAddReadingList) {
             AddReadingListView(themeColor: currentThemeColor) {
                 selectedTab = 1
@@ -330,7 +348,46 @@ struct BookSearchDestination: Hashable {
 }
 
 #Preview {
-    MainTabView()
-        .environment(ThemeManager())
-        .modelContainer(for: [Passbook.self, UserBook.self, Subscription.self])
+    do {
+        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(
+            for: Passbook.self, UserBook.self, Subscription.self, ReadingList.self,
+            configurations: config
+        )
+        
+        let passbook = Passbook(name: "読書", type: .custom, sortOrder: 0)
+        container.mainContext.insert(passbook)
+        
+        let book1 = UserBook(
+            title: "SwiftUI実践入門",
+            author: "山田太郎",
+            isbn: "9784123456789",
+            publisher: "技術評論社",
+            publishedYear: 2024,
+            price: 3200,
+            imageURL: nil,
+            source: .manual,
+            passbook: passbook
+        )
+        container.mainContext.insert(book1)
+        
+        let book2 = UserBook(
+            title: "Swift Design Patterns",
+            author: "佐藤花子",
+            isbn: "9784987654321",
+            publisher: "翔泳社",
+            publishedYear: 2025,
+            price: 2800,
+            imageURL: nil,
+            source: .manual,
+            passbook: passbook
+        )
+        container.mainContext.insert(book2)
+        
+        return MainTabView()
+            .environment(ThemeManager())
+            .modelContainer(container)
+    } catch {
+        return Text("Preview error: \(error.localizedDescription)")
+    }
 }

@@ -4,7 +4,7 @@ import PhotosUI
 import AVFoundation
 
 /// 本の編集画面
-/// 手動登録の本は全フィールド編集可能、API登録の本は読了日のみ編集可能
+/// 手動登録の本は全フィールド編集可能、API登録の本は登録日のみ編集可能
 struct EditBookView: View {
     
     // MARK: - Environment
@@ -40,8 +40,8 @@ struct EditBookView: View {
     @State private var priceText: String = ""
     @State private var selectedImage: UIImage?
     @State private var imageChanged = false
-    @State private var finishedAt: Date?
-    @State private var hasFinishedDate = false
+    @State private var registeredAt: Date = Date()
+    @State private var selectedPassbookID: PersistentIdentifier?
     
     @State private var selectedPhotoItem: PhotosPickerItem?
     @State private var showPhotoPicker = false
@@ -62,9 +62,9 @@ struct EditBookView: View {
         let titleChanged = title.trimmingCharacters(in: .whitespaces) != (book.title)
         let authorChanged = author.trimmingCharacters(in: .whitespaces) != (book.author ?? "")
         let priceChanged = priceText != (book.price.map { String($0) } ?? "")
-        let finishedChanged = finishedAt != book.finishedAt
-        let hasDateChanged = hasFinishedDate != (book.finishedAt != nil)
-        return titleChanged || authorChanged || priceChanged || imageChanged || finishedChanged || hasDateChanged
+        let dateChanged = !Calendar.current.isDate(registeredAt, inSameDayAs: book.registeredAt)
+        let passbookChanged = selectedPassbookID != book.passbook?.persistentModelID
+        return titleChanged || authorChanged || priceChanged || imageChanged || dateChanged || passbookChanged
     }
     
     private var canSave: Bool {
@@ -85,6 +85,53 @@ struct EditBookView: View {
                 // 表紙画像
                 coverImageSection
                 
+                // 登録日
+                Section {
+                    Button {
+                        withAnimation {
+                            showDatePicker.toggle()
+                        }
+                    } label: {
+                        HStack {
+                            Text("登録日")
+                                .foregroundColor(.primary)
+                            Spacer()
+                            Text(formatDate(registeredAt))
+                                .foregroundColor(themeColor)
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    
+                    if showDatePicker {
+                        DatePicker(
+                            "",
+                            selection: $registeredAt,
+                            in: ...Date(),
+                            displayedComponents: .date
+                        )
+                        .datePickerStyle(.graphical)
+                        .tint(themeColor)
+                        .labelsHidden()
+                    }
+                }
+                .listSectionSpacing(8)
+                
+                // 登録口座
+                if selectedPassbookID != nil {
+                    Section {
+                        Picker("登録口座", selection: $selectedPassbookID) {
+                            ForEach(customPassbooks) { passbook in
+                                Text(passbook.name)
+                                    .tag(passbook.persistentModelID as PersistentIdentifier?)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .tint(themeColor)
+                    }
+                    .listSectionSpacing(8)
+                }
+                
                 // 書籍情報
                 Section {
                     // タイトル
@@ -95,11 +142,11 @@ struct EditBookView: View {
                                 Text("*").foregroundColor(.red)
                             }
                         }
-                        .font(.caption)
                         .foregroundColor(.primary)
                         .frame(width: 70, alignment: .leading)
                         
                         TextField("タイトルを入力", text: $title)
+                            .multilineTextAlignment(.trailing)
                             .autocorrectionDisabled()
                             .focused($focusedField, equals: .title)
                             .disabled(!isManual)
@@ -109,11 +156,11 @@ struct EditBookView: View {
                     // 著者名
                     HStack {
                         Text("著者名")
-                            .font(.caption)
                             .foregroundColor(.primary)
                             .frame(width: 70, alignment: .leading)
                         
                         TextField("著者名を入力", text: $author)
+                            .multilineTextAlignment(.trailing)
                             .autocorrectionDisabled()
                             .focused($focusedField, equals: .author)
                             .disabled(!isManual)
@@ -128,18 +175,20 @@ struct EditBookView: View {
                                 Text("*").foregroundColor(.red)
                             }
                         }
-                        .font(.caption)
                         .foregroundColor(.primary)
                         .frame(width: 70, alignment: .leading)
                         
-                        HStack {
-                            Text("¥")
-                                .foregroundColor(.secondary)
+                        HStack(spacing: 2) {
+                            Spacer()
                             TextField("価格を入力", text: $priceText)
+                                .multilineTextAlignment(.trailing)
                                 .keyboardType(.numberPad)
                                 .focused($focusedField, equals: .price)
                                 .disabled(!isManual)
                                 .foregroundColor(isManual ? .primary : .secondary)
+                                .fixedSize()
+                            Text("円")
+                                .foregroundColor(.secondary)
                         }
                     }
                     
@@ -158,44 +207,7 @@ struct EditBookView: View {
                         }
                     }
                 }
-                
-                // 読了日
-                Section {
-                    Toggle("読了日を記録する", isOn: $hasFinishedDate)
-                        .tint(themeColor)
-                    
-                    if hasFinishedDate {
-                        Button {
-                            withAnimation {
-                                showDatePicker.toggle()
-                            }
-                        } label: {
-                            HStack {
-                                Text("読了日")
-                                    .foregroundColor(.primary)
-                                Spacer()
-                                Text(formatDate(finishedAt ?? Date()))
-                                    .foregroundColor(themeColor)
-                            }
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                        
-                        if showDatePicker {
-                            DatePicker(
-                                "",
-                                selection: Binding(
-                                    get: { finishedAt ?? Date() },
-                                    set: { finishedAt = $0 }
-                                ),
-                                displayedComponents: .date
-                            )
-                            .datePickerStyle(.graphical)
-                            .tint(themeColor)
-                            .labelsHidden()
-                        }
-                    }
-                }
+                .listSectionSpacing(8)
                 
                 // メモ
                 Section {
@@ -223,6 +235,7 @@ struct EditBookView: View {
                     .buttonStyle(.plain)
                 }
             }
+            .font(.subheadline)
             .scrollDismissesKeyboard(.interactively)
             .navigationTitle("本の編集")
             .navigationBarTitleDisplayMode(.inline)
@@ -276,8 +289,8 @@ struct EditBookView: View {
                 title = book.title
                 author = book.author ?? ""
                 priceText = book.price.map { String($0) } ?? ""
-                finishedAt = book.finishedAt
-                hasFinishedDate = book.finishedAt != nil
+                registeredAt = book.registeredAt
+                selectedPassbookID = book.passbook?.persistentModelID
                 if let coverImage = book.coverUIImage {
                     selectedImage = coverImage
                 }
@@ -410,7 +423,7 @@ struct EditBookView: View {
             }
         }
         .listRowBackground(Color.clear)
-        .listRowInsets(EdgeInsets(top: 8, leading: 20, bottom: 8, trailing: 20))
+        .listRowInsets(EdgeInsets(top: 8, leading: 20, bottom: 24, trailing: 20))
     }
     
     // MARK: - Helpers
@@ -418,9 +431,9 @@ struct EditBookView: View {
     private func readOnlyRow(label: String, value: String) -> some View {
         HStack {
             Text(label)
-                .font(.caption)
                 .foregroundColor(.primary)
                 .frame(width: 70, alignment: .leading)
+            Spacer()
             Text(value)
                 .foregroundColor(.secondary)
         }
@@ -498,7 +511,10 @@ struct EditBookView: View {
             }
         }
         
-        book.finishedAt = hasFinishedDate ? (finishedAt ?? Date()) : nil
+        book.registeredAt = registeredAt
+        if let id = selectedPassbookID {
+            book.passbook = customPassbooks.first { $0.persistentModelID == id }
+        }
         book.updatedAt = Date()
         
         do {
@@ -517,7 +533,7 @@ struct EditBookView: View {
 #Preview("手動登録の本") {
     do {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
-        let container = try ModelContainer(for: Passbook.self, UserBook.self, ReadingList.self, configurations: config)
+        let container = try ModelContainer(for: Passbook.self, UserBook.self, Subscription.self, ReadingList.self, configurations: config)
         
         let passbook = Passbook(name: "漫画", type: .custom, sortOrder: 1)
         container.mainContext.insert(passbook)
@@ -541,7 +557,7 @@ struct EditBookView: View {
 #Preview("API取得の本") {
     do {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
-        let container = try ModelContainer(for: Passbook.self, UserBook.self, ReadingList.self, configurations: config)
+        let container = try ModelContainer(for: Passbook.self, UserBook.self, Subscription.self, ReadingList.self, configurations: config)
         
         let passbook = Passbook(name: "技術書", type: .custom, sortOrder: 1)
         container.mainContext.insert(passbook)
@@ -560,7 +576,6 @@ struct EditBookView: View {
             source: .api,
             passbook: passbook
         )
-        book.finishedAt = Date()
         container.mainContext.insert(book)
         
         return EditBookView(book: book)

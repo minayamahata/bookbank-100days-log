@@ -58,10 +58,7 @@ final class UserBook {
     /// 登録時に price からコピーされる
     var priceAtRegistration: Int?
 
-    /// 読了日（任意）
-    var finishedAt: Date?
-
-    /// 書籍登録日時（ユーザーが登録した日）
+    /// 書籍登録日時（ユーザーが登録した日、編集可能）
     var registeredAt: Date
 
     /// 作成日時

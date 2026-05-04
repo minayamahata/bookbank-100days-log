@@ -306,7 +306,7 @@ struct PassbookDetailView: View {
                     .frame(maxWidth: .infinity)
                     .padding()
             } else {
-                ForEach(userBooks) { book in
+                ForEach(Array(userBooks.enumerated()), id: \.element.id) { index, book in
                     NavigationLink(destination: UserBookDetailView(book: book)) {
                         HStack(alignment: .center, spacing: 12) {
                             // サムネイル
@@ -336,8 +336,8 @@ struct PassbookDetailView: View {
                             }
 
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(formatDate(book.registeredAt))
-                                    .font(.system(size: 10))
+                                Text("#\(userBooks.count - index)  \(formatDate(book.registeredAt))")
+                                    .font(.system(size: 11))
                                     .foregroundColor(.secondary)
 
                                 Text(book.title)
@@ -357,16 +357,12 @@ struct PassbookDetailView: View {
                             if let price = book.priceAtRegistration {
                                 HStack(alignment: .lastTextBaseline, spacing: 1) {
                                     Text("\(price.formatted())")
-                                        .font(.subheadline)
+                                        .font(.headline)
                                     Text("円")
                                         .font(.caption2)
                                 }
                                 .foregroundColor(themeColor)
                             }
-
-                            Image(systemName: "chevron.right")
-                                .font(.caption2)
-                                .foregroundColor(.secondary)
                         }
                         .padding(.horizontal, 10)
                         .padding(.vertical, 8)

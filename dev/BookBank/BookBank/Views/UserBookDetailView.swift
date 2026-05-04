@@ -12,6 +12,7 @@ struct UserBookDetailView: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.floatingButtonState) private var floatingButtonState
     
     @Bindable var book: UserBook
 
@@ -83,14 +84,7 @@ struct UserBookDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.hidden, for: .navigationBar)
         .toolbar {
-            ToolbarItemGroup(placement: .topBarTrailing) {
-                Button(action: {
-                    showEditBook = true
-                }) {
-                    Image(systemName: "pencil")
-                }
-                .tint(.white)
-                
+            ToolbarItem(placement: .topBarTrailing) {
                 Button(action: {
                     showDeleteAlert = true
                 }) {
@@ -98,6 +92,26 @@ struct UserBookDetailView: View {
                 }
                 .tint(.white)
             }
+        }
+        .overlay(alignment: .bottomTrailing) {
+            Button(action: {
+                showEditBook = true
+            }) {
+                HStack(spacing: 6) {
+                    Image(systemName: "pencil")
+                        .font(.system(size: 14))
+                    Text("編集")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                }
+                .foregroundColor(colorScheme == .dark && isBlackTheme ? .black : .white)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 14)
+                .glassEffect(.regular.tint(colorScheme == .dark && isBlackTheme ? .white : themeColor))
+                .clipShape(Capsule())
+            }
+            .padding(.trailing, 16)
+            .padding(.bottom, 22)
         }
         .alert("本を削除しますか？", isPresented: $showDeleteAlert) {
             Button("キャンセル", role: .cancel) { }
@@ -119,6 +133,8 @@ struct UserBookDetailView: View {
                 saveMemo(newMemo)
             }
         }
+        .onAppear { floatingButtonState.isHidden = true }
+        .onDisappear { floatingButtonState.isHidden = false }
     }
     
     // MARK: - Subviews
@@ -164,7 +180,7 @@ struct UserBookDetailView: View {
                     .resizable()
                     .aspectRatio(contentMode: .fit)
                     .frame(
-                        maxWidth: screenWidth - 80,
+                        maxWidth: max(screenWidth - 80, 0),
                         maxHeight: 160
                     )
                     .clipShape(RoundedRectangle(cornerRadius: 2))
@@ -178,7 +194,7 @@ struct UserBookDetailView: View {
                         .resizable()
                         .aspectRatio(contentMode: .fit)
                         .frame(
-                            maxWidth: screenWidth - 80,
+                            maxWidth: max(screenWidth - 80, 0),
                             maxHeight: 160
                         )
                         .clipShape(RoundedRectangle(cornerRadius: 2))
@@ -262,10 +278,6 @@ struct UserBookDetailView: View {
                 }
 
                 DetailInfoRow(label: "登録日", value: formatDate(book.registeredAt))
-
-                if let finishedAt = book.finishedAt {
-                    DetailInfoRow(label: "読了日", value: formatDate(finishedAt))
-                }
 
                 if let publisher = book.publisher {
                     DetailInfoRow(label: "出版社", value: publisher)
