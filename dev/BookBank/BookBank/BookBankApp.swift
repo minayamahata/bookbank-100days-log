@@ -43,7 +43,8 @@ struct BookBankApp: App {
             Passbook.self,
             UserBook.self,
             Subscription.self,
-            ReadingList.self
+            ReadingList.self,
+            MonthlyMemo.self
         ])
         
         // ModelContainerの設定

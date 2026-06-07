@@ -200,9 +200,9 @@ struct PassbookDetailView: View {
             // 金額表示
             HStack(alignment: .lastTextBaseline, spacing: 2) {
                 Text("\(totalValue.formatted())")
-                    .font(.system(size: 17, weight: .semibold))
+                    .font(.system(size: 18, weight: .semibold))
                 Text("円")
-                    .font(.system(size: 11, weight: .medium))
+                    .font(.system(size: 12, weight: .medium))
             }
             .foregroundStyle(
                 LinearGradient(
@@ -341,13 +341,14 @@ struct PassbookDetailView: View {
                                     .foregroundColor(.secondary)
 
                                 Text(book.title)
-                                    .font(.subheadline)
+                                    .font(.callout)
+                                    .fontWeight(.medium)
                                     .foregroundColor(.primary)
                                     .lineLimit(2)
 
                                 if !book.displayAuthor.isEmpty {
                                     Text(book.displayAuthor)
-                                        .font(.caption2)
+                                        .font(.caption)
                                         .foregroundColor(.secondary)
                                 }
                             }

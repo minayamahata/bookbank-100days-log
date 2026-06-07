@@ -24,6 +24,10 @@ struct BookshelfView: View {
     /// この口座に紐づく書籍を取得
     @Query private var allUserBooks: [UserBook]
     
+    // MARK: - Environment
+    
+    @Environment(\.modelContext) private var context
+    
     // MARK: - State
     
     /// お気に入りフィルター
@@ -34,6 +38,12 @@ struct BookshelfView: View {
     
     /// カレンダー表示モード
     @State private var showCalendarView = false
+    
+    /// 月別メモ編集用
+    @State private var showMonthlyMemo = false
+    @State private var memoTargetYear = 0
+    @State private var memoTargetMonth = 0
+    @State private var memoText = ""
     
     /// この口座に紐づく書籍のみをフィルタリング
     private var userBooks: [UserBook] {
@@ -99,8 +109,8 @@ struct BookshelfView: View {
         GridItem(.flexible(), spacing: 8)
     ]
     
-    // カレンダー用の7カラムグリッド
-    private let calendarColumns = Array(repeating: GridItem(.flexible(), spacing: 4), count: 7)
+    // カレンダー用の5カラムグリッド
+    private let calendarColumns = Array(repeating: GridItem(.flexible(), spacing: 4), count: 5)
     
     /// 月別にグループ化した書籍データ
     private var booksByMonth: [(year: Int, month: Int, books: [UserBook])] {
@@ -171,6 +181,19 @@ struct BookshelfView: View {
         .background(ThemedBackgroundView(themeColor: themeColor, isBlackTheme: isBlackTheme))
         .navigationTitle("本棚")
         .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $showMonthlyMemo) {
+            MemoEditorView(memo: Binding(
+                get: { memoText },
+                set: { _ in }
+            )) { newText in
+                MonthlyMemoRepository.save(
+                    year: memoTargetYear,
+                    month: memoTargetMonth,
+                    text: newText,
+                    context: context
+                )
+            }
+        }
     }
     
     // MARK: - Filter Section
@@ -336,6 +359,19 @@ struct BookshelfView: View {
                     .foregroundColor(.white.opacity(0.6))
                 
                 Spacer()
+                
+                Button {
+                    memoTargetYear = year
+                    memoTargetMonth = month
+                    memoText = MonthlyMemoRepository.fetch(year: year, month: month, context: context)?.text ?? ""
+                    showMonthlyMemo = true
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: 16))
+                        .foregroundColor(.white.opacity(0.6))
+                        .frame(width: 32, height: 32)
+                        .contentShape(Rectangle())
+                }
             }
             
             // 7カラムグリッドで本を並べる
