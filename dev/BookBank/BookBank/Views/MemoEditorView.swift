@@ -55,9 +55,9 @@ struct MemoEditorView: View {
                     }
                 }
                 
-                // 右：完了ボタン
+                // 右：保存ボタン
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("完了") {
+                    Button("保存") {
                         saveAndDismiss()
                     }
                 }
@@ -70,6 +70,7 @@ struct MemoEditorView: View {
             } message: {
                 Text("編集中の内容は保存されません。")
             }
+            .interactiveDismissDisabled(hasChanges)
             .onAppear {
                 // 画面表示時に自動フォーカス
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
