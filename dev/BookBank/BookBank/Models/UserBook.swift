@@ -58,6 +58,9 @@ final class UserBook {
     /// 登録時に price からコピーされる
     var priceAtRegistration: Int?
 
+    /// 登録時点の通貨コード（ISO 4217、例: JPY）
+    var currencyCode: String?
+
     /// 書籍登録日時（ユーザーが登録した日、編集可能）
     var registeredAt: Date
 
@@ -93,7 +96,8 @@ final class UserBook {
         source: BookSource = .manual,
         memo: String? = nil,
         isFavorite: Bool = false,
-        passbook: Passbook? = nil
+        passbook: Passbook? = nil,
+        currencyCode: String? = nil
     ) {
         self.title = title
         self.author = author
@@ -110,6 +114,7 @@ final class UserBook {
         self.memo = memo
         self.isFavorite = isFavorite
         self.priceAtRegistration = price
+        self.currencyCode = currencyCode
         self.registeredAt = Date()
         self.createdAt = Date()
         self.updatedAt = Date()
@@ -135,7 +140,7 @@ extension UserBook {
         author ?? ""
     }
 
-    /// 表示用の価格文字列
+    /// 表示用の価格文字列（レガシー・換算表示は FormattedPriceText を使用）
     var displayPrice: String? {
         guard let price = priceAtRegistration else { return nil }
         return "¥\(price.formatted())"
@@ -158,5 +163,27 @@ extension UserBook {
     var coverUIImage: UIImage? {
         guard let data = coverImageData else { return nil }
         return UIImage(data: data)
+    }
+
+    /// 保存されている通貨（未設定は JPY）
+    var storedCurrency: AppCurrency {
+        AppCurrency(code: currencyCode) ?? .jpy
+    }
+
+    /// 表示通貨に換算した金額
+    @MainActor
+    func displayAmount(in target: AppCurrency, exchangeRates: ExchangeRateService) -> Int? {
+        guard let amount = priceAtRegistration else { return nil }
+        return exchangeRates.convert(amount, from: storedCurrency, to: target)
+    }
+}
+
+extension Collection where Element == UserBook {
+    /// 表示通貨での合計
+    @MainActor
+    func totalDisplayAmount(in target: AppCurrency, exchangeRates: ExchangeRateService) -> Int {
+        reduce(0) { partial, book in
+            partial + (book.displayAmount(in: target, exchangeRates: exchangeRates) ?? 0)
+        }
     }
 }

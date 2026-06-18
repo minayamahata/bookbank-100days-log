@@ -28,7 +28,7 @@ struct MemoEditorView: View {
             ZStack(alignment: .topLeading) {
                 // プレースホルダー
                 if editedText.isEmpty {
-                    Text("メモを入力...")
+                    Text("book.memo.placeholder")
                         .foregroundColor(.secondary)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 12)
@@ -41,12 +41,12 @@ struct MemoEditorView: View {
                     .focused($isFocused)
             }
             .padding(.horizontal, 20)
-            .navigationTitle("メモ")
+            .navigationTitle("book.memo")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 // 左：キャンセルボタン
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("キャンセル") {
+                    Button("common.cancel") {
                         if hasChanges {
                             showCancelAlert = true
                         } else {
@@ -57,18 +57,18 @@ struct MemoEditorView: View {
                 
                 // 右：保存ボタン
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("保存") {
+                    Button("common.save") {
                         saveAndDismiss()
                     }
                 }
             }
-            .alert("変更を破棄しますか？", isPresented: $showCancelAlert) {
-                Button("破棄", role: .destructive) {
+            .alert("memo.discard.title", isPresented: $showCancelAlert) {
+                Button("common.discard", role: .destructive) {
                     dismiss()
                 }
-                Button("キャンセル", role: .cancel) { }
+                Button("common.cancel", role: .cancel) { }
             } message: {
-                Text("編集中の内容は保存されません。")
+                Text("memo.discard.message")
             }
             .interactiveDismissDisabled(hasChanges)
             .onAppear {

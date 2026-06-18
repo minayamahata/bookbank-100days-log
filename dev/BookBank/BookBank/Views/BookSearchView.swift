@@ -9,9 +9,16 @@ import SwiftUI
 import SwiftData
 
 /// 検索結果の並べ替えオプション
-enum SortOption: String, CaseIterable {
-    case newestFirst = "発売日が新しい順"
-    case oldestFirst = "発売日が古い順"
+enum SortOption: CaseIterable {
+    case newestFirst
+    case oldestFirst
+
+    var titleKey: LocalizedStringKey {
+        switch self {
+        case .newestFirst: return "book.sort.newest"
+        case .oldestFirst: return "book.sort.oldest"
+        }
+    }
 }
 
 /// 本の検索画面
@@ -232,7 +239,7 @@ struct BookSearchView: View {
                 Image(systemName: "magnifyingglass")
                     .foregroundColor(.secondary)
                 
-                TextField("タイトルまたは著者名", text: $searchText)
+                TextField("book.search.placeholder", text: $searchText)
                     .font(.system(size: 14))
                     .textFieldStyle(.plain)
                     .focused($isSearchFocused)
@@ -271,18 +278,18 @@ struct BookSearchView: View {
                 // 検索中の表示
                 VStack(spacing: 16) {
                     ProgressView()
-                    Text(isSearchingByISBN ? "バーコードで検索中..." : "検索中...")
+                    Text(isSearchingByISBN ? "book.search.barcode_searching" : "book.search.searching")
                         .foregroundColor(.secondary)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if searchResults.isEmpty && hasSearched {
                 // 検索結果が0件の場合
                 VStack(spacing: 24) {
-                    Text("本が見つかりませんでした")
+                    Text("book.search.not_found")
                         .font(.headline)
                         .foregroundColor(.secondary)
                     
-                    Text("別のキーワードで検索するか、\n手動で登録してください")
+                    Text("book.search.try_other")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
@@ -290,7 +297,7 @@ struct BookSearchView: View {
                     Button(action: {
                         isShowingManualEntry = true
                     }) {
-                        Text("手動で登録する")
+                        Text("book.search.manual_register")
                             .font(.subheadline)
                             .fontWeight(.medium)
                             .foregroundColor(.white)
@@ -311,7 +318,7 @@ struct BookSearchView: View {
                             HStack(spacing: 4) {
                                 Image(systemName: showUnregisteredOnly ? "checkmark.square.fill" : "square")
                                     .foregroundColor(showUnregisteredOnly ? .blue : .secondary)
-                                Text("登録済みを除外")
+                                Text("book.search.exclude_registered")
                                     .font(.system(size: 13))
                             }
                         }
@@ -354,7 +361,7 @@ struct BookSearchView: View {
                                     }
                                     .frame(width: 16, height: 16)
                                     
-                                    Text(selectedPassbook?.name ?? "口座")
+                                    Text(selectedPassbook?.name ?? String(localized: "account.title"))
                                         .font(.system(size: 13))
                                         .foregroundColor(themeColor)
                                 }
@@ -370,9 +377,9 @@ struct BookSearchView: View {
                                     updateFilteredResults()
                                 }) {
                                     if selectedSortOption == option {
-                                        Label(option.rawValue, systemImage: "checkmark")
+                                        Label(option.titleKey, systemImage: "checkmark")
                                     } else {
-                                        Text(option.rawValue)
+                                        Text(option.titleKey)
                                     }
                                 }
                             }
@@ -385,7 +392,7 @@ struct BookSearchView: View {
                                     .frame(width: 14, height: 14)
                                     .foregroundColor(.primary)
                                 
-                                Text(selectedSortOption.rawValue)
+                                Text(selectedSortOption.titleKey)
                                     .font(.system(size: 13))
                                     .foregroundColor(.primary)
                             }
@@ -421,7 +428,7 @@ struct BookSearchView: View {
                                     ProgressView()
                                         .padding(.trailing, 8)
                                 }
-                                Text(isLoadingMore ? "読み込み中..." : "次の30件を読み込む")
+                                Text(isLoadingMore ? "common.loading" : "book.search.load_more")
                             }
                             .frame(maxWidth: .infinity)
                             .font(.subheadline)
@@ -437,11 +444,11 @@ struct BookSearchView: View {
             } else if hasSearched && searchResults.isEmpty {
                 // 検索結果が0件（フィルター前）
                 VStack(spacing: 24) {
-                    Text("本が見つかりませんでした")
+                    Text("book.search.not_found")
                         .font(.headline)
                         .foregroundColor(.secondary)
                     
-                    Text("別のキーワードで検索するか、\n手動で登録してください")
+                    Text("book.search.try_other")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
@@ -449,7 +456,7 @@ struct BookSearchView: View {
                     Button(action: {
                         isShowingManualEntry = true
                     }) {
-                        Text("手動で登録する")
+                        Text("book.search.manual_register")
                             .font(.subheadline)
                             .fontWeight(.medium)
                             .foregroundColor(.white)
@@ -467,11 +474,11 @@ struct BookSearchView: View {
                         .font(.system(size: 60))
                         .foregroundColor(.green)
                     
-                    Text("すべて登録済みです")
+                    Text("book.search.all_registered")
                         .font(.headline)
                         .foregroundColor(.secondary)
                     
-                    Text("この検索結果の本はすべて登録されています")
+                    Text("book.search.all_registered_message")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
@@ -482,7 +489,7 @@ struct BookSearchView: View {
                 Spacer()
             }
         }
-        .navigationTitle("本を検索")
+        .navigationTitle("book.search.title")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.hidden, for: .tabBar)
         .onAppear {
@@ -502,7 +509,7 @@ struct BookSearchView: View {
         .toolbar {
             // 手動登録ボタン
             ToolbarItem(placement: .primaryAction) {
-                Button("手動登録") {
+                Button("book.search.manual") {
                     isShowingManualEntry = true
                 }
                 .font(.footnote)
@@ -523,16 +530,16 @@ struct BookSearchView: View {
                 searchByISBN(isbn)
             }
         }
-        .alert("本が見つかりません", isPresented: .constant(errorMessage == "ISBN検索で本が見つかりませんでした")) {
-            Button("手動で登録") {
+        .alert("book.search.not_found.alert_title", isPresented: .constant(errorMessage == "ISBN検索で本が見つかりませんでした")) {
+            Button("book.search.manual_register") {
                 errorMessage = nil
                 isShowingManualEntry = true
             }
-            Button("閉じる", role: .cancel) {
+            Button("common.close", role: .cancel) {
                 errorMessage = nil
             }
         } message: {
-            Text("このISBNの本が楽天ブックスに登録されていません。手動で登録してください。")
+            Text("book.search.isbn_not_found")
         }
     }
     
@@ -713,7 +720,21 @@ struct ToastView: View {
     var isBlackTheme: Bool = false
     
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(CurrencyManager.self) private var currencyManager
+    @Environment(ExchangeRateService.self) private var exchangeRates
+    @Environment(LanguageManager.self) private var languageManager
     
+    /// 登録時価格は JPY 固定
+    private var formattedAmount: String {
+        MoneyDisplay.formattedPrice(
+            amount: amount,
+            sourceCurrency: .jpy,
+            displayCurrency: currencyManager.displayCurrency,
+            exchangeRates: exchangeRates,
+            locale: languageManager.resolvedLocale
+        ) ?? amount.formatted()
+    }
+
     /// テキストの色（黒テーマ+ダークモードでは黒、それ以外は白）
     private var textColor: Color {
         if isBlackTheme && colorScheme == .dark {
@@ -723,7 +744,7 @@ struct ToastView: View {
     }
 
     var body: some View {
-        Text("\(amount.formatted())円 入金しました！")
+        Text(L10n.format("book.search.deposit_toast", formattedAmount))
             .font(.system(size: 13))
             .foregroundColor(textColor)
             .padding(.horizontal, 20)
@@ -773,7 +794,7 @@ struct BookSearchResultRow: View {
                 
                 // 登録済みバッジ（画像の下部にオーバーレイ）
                 if isRegistered {
-                    Text("登録済み")
+                    Text("book.search.registered")
                         .font(.system(size: 9))
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
@@ -803,14 +824,9 @@ struct BookSearchResultRow: View {
             
             Spacer()
             
-            // 価格
-            HStack(alignment: .lastTextBaseline, spacing: 1) {
-                Text("\(result.itemPrice.formatted())")
-                    .font(.subheadline)
-                Text("円")
-                    .font(.caption2)
-            }
-            .foregroundColor(isRegistered ? .secondary : themeColor)
+            // 価格（楽天 API は JPY）
+            FormattedPriceText(amount: result.itemPrice, sourceCurrency: .jpy, font: .subheadline)
+                .foregroundColor(isRegistered ? .secondary : themeColor)
         }
         .opacity(isRegistered ? 0.6 : 1.0)
     }

@@ -40,11 +40,11 @@ enum ExportType {
 
 /// 口座のマークダウンを生成
 func generatePassbookMarkdown(passbook: Passbook, books: [UserBook], exportType: ExportType) -> String {
-    var markdown = "# 本棚ダウンロード\n\n"
+    var markdown = "\(String(localized: "export.passbook_header"))\n\n"
     
     // 口座情報
     let totalValue = books.reduce(0) { $0 + ($1.priceAtRegistration ?? 0) }
-    markdown += "## \(passbook.name)（\(books.count)冊 / \(totalValue.formatted())円）\n\n"
+    markdown += L10n.format("export.section_header", passbook.name, Int64(books.count), totalValue.formatted()) + "\n\n"
     
     // 本のリスト
     for book in books {
@@ -55,23 +55,23 @@ func generatePassbookMarkdown(passbook: Passbook, books: [UserBook], exportType:
             }
             markdown += "\n"
             if let author = book.author, !author.isEmpty {
-                markdown += "- 著者: \(author)\n"
+                markdown += "- \(String(localized: "export.md.author"))\(author)\n"
             }
             if let price = book.priceAtRegistration {
-                markdown += "- 金額: \(price.formatted())円\n"
+                markdown += "- \(String(localized: "export.md.price"))\(L10n.format("export.price_yen", price.formatted()))\n"
             }
             if let publisher = book.publisher, !publisher.isEmpty {
-                markdown += "- 出版社: \(publisher)\n"
+                markdown += "- \(String(localized: "export.md.publisher"))\(publisher)\n"
             }
-            markdown += "- 登録日: \(formatDate(book.registeredAt))\n"
+            markdown += "- \(String(localized: "export.md.registration_date"))\(formatDate(book.registeredAt))\n"
             if let isbn = book.isbn, !isbn.isEmpty {
-                markdown += "- ISBN: \(isbn)\n"
+                markdown += "- \(String(localized: "export.md.isbn"))\(isbn)\n"
             }
             if let imageURL = book.imageURL, !imageURL.isEmpty {
-                markdown += "- 表紙画像: \(imageURL)\n"
+                markdown += "- \(String(localized: "export.md.cover"))\(imageURL)\n"
             }
             if let memo = book.memo, !memo.isEmpty {
-                markdown += "- メモ:\n"
+                markdown += "- \(String(localized: "export.md.memo"))\n"
                 // メモを引用ブロックとして整形
                 let memoLines = memo.components(separatedBy: .newlines)
                 for line in memoLines {
@@ -96,12 +96,12 @@ func generatePassbookMarkdown(passbook: Passbook, books: [UserBook], exportType:
 
 /// 読了リストのマークダウンを生成
 func generateReadingListMarkdown(readingList: ReadingList, exportType: ExportType) -> String {
-    var markdown = "# 読了リストダウンロード\n\n"
+    var markdown = "\(String(localized: "export.readinglist_header"))\n\n"
     
     // リスト情報
     let books = readingList.books
     let totalValue = books.reduce(0) { $0 + ($1.priceAtRegistration ?? 0) }
-    markdown += "## \(readingList.title)（\(books.count)冊 / \(totalValue.formatted())円）\n\n"
+    markdown += L10n.format("export.section_header", readingList.title, Int64(books.count), totalValue.formatted()) + "\n\n"
     
     if let description = readingList.listDescription, !description.isEmpty {
         markdown += "> \(description)\n\n"
@@ -116,24 +116,23 @@ func generateReadingListMarkdown(readingList: ReadingList, exportType: ExportTyp
             }
             markdown += "\n"
             if let author = book.author, !author.isEmpty {
-                markdown += "- 著者: \(author)\n"
+                markdown += "- \(String(localized: "export.md.author"))\(author)\n"
             }
             if let price = book.priceAtRegistration {
-                markdown += "- 金額: \(price.formatted())円\n"
+                markdown += "- \(String(localized: "export.md.price"))\(L10n.format("export.price_yen", price.formatted()))\n"
             }
             if let publisher = book.publisher, !publisher.isEmpty {
-                markdown += "- 出版社: \(publisher)\n"
+                markdown += "- \(String(localized: "export.md.publisher"))\(publisher)\n"
             }
-            markdown += "- 登録日: \(formatDate(book.registeredAt))\n"
+            markdown += "- \(String(localized: "export.md.registration_date"))\(formatDate(book.registeredAt))\n"
             if let isbn = book.isbn, !isbn.isEmpty {
-                markdown += "- ISBN: \(isbn)\n"
+                markdown += "- \(String(localized: "export.md.isbn"))\(isbn)\n"
             }
             if let imageURL = book.imageURL, !imageURL.isEmpty {
-                markdown += "- 表紙画像: \(imageURL)\n"
+                markdown += "- \(String(localized: "export.md.cover"))\(imageURL)\n"
             }
             if let memo = book.memo, !memo.isEmpty {
-                markdown += "- メモ:\n"
-                // メモを引用ブロックとして整形
+                markdown += "- \(String(localized: "export.md.memo"))\n"
                 let memoLines = memo.components(separatedBy: .newlines)
                 for line in memoLines {
                     markdown += "  > \(line)\n"
@@ -141,7 +140,6 @@ func generateReadingListMarkdown(readingList: ReadingList, exportType: ExportTyp
             }
             markdown += "\n"
         } else {
-            // タイトルと著者名
             if let author = book.author, !author.isEmpty {
                 markdown += "- \(book.title) / \(author)\n"
             } else {
@@ -209,7 +207,7 @@ struct ExportSheetView: View {
                 VStack(spacing: 40) {
                     // タイトルと著者名のみプレビュー
                     VStack(alignment: .leading, spacing: 12) {
-                        Text("タイトルと著者名のみ")
+                        Text("export.title_only")
                             .font(.headline)
                         
                         // VSCode風コードブロック
@@ -221,7 +219,7 @@ struct ExportSheetView: View {
                                 Spacer()
                                 Image("icon-download")
                                     .renderingMode(.template)
-                                Text("ダウンロードする")
+                                Text("export.download")
                                 Spacer()
                             }
                             .font(.system(size: 15))
@@ -238,11 +236,11 @@ struct ExportSheetView: View {
                     // 詳細情報プレビュー
                     VStack(alignment: .leading, spacing: 12) {
                         HStack {
-                            Text("詳細情報を含める")
+                            Text("export.detailed")
                                 .font(.headline)
                             
                             if !unlimitedManager.isUnlimited {
-                                Text("Unlimited")
+                                Text("paywall.unlimited")
                                     .font(.caption2)
                                     .fontWeight(.semibold)
                                     .foregroundColor(.white)
@@ -267,7 +265,7 @@ struct ExportSheetView: View {
                                 Spacer()
                                 Image("icon-download")
                                     .renderingMode(.template)
-                                Text("ダウンロードする")
+                                Text("export.download")
                                 Spacer()
                             }
                             .font(.system(size: 15))
@@ -284,7 +282,7 @@ struct ExportSheetView: View {
                 .padding(.horizontal, 16)
                 .padding(.top, 8)
             }
-            .navigationTitle("ダウンロード形式を選択")
+            .navigationTitle("export.title")
             .navigationBarTitleDisplayMode(.inline)
             .sheet(isPresented: $showUnlimitedPaywall) {
                 UnlimitedPaywallView()
@@ -305,7 +303,7 @@ struct ExportSheetView: View {
                 Circle().fill(Color.yellow.opacity(0.8)).frame(width: 12, height: 12)
                 Circle().fill(Color.green.opacity(0.8)).frame(width: 12, height: 12)
                 Spacer()
-                Text("markdown")
+                Text("export.markdown_label")
                     .font(.system(size: 11, design: .monospaced))
                     .foregroundColor(.gray)
             }
@@ -328,7 +326,7 @@ struct ExportSheetView: View {
     private var titleOnlyAttributedContent: some View {
         VStack(alignment: .leading, spacing: 2) {
             // 見出し
-            Text("# \(title)（\(bookCount)冊 / \(totalValue.formatted())円）")
+            Text(L10n.format("export.preview_heading", title, Int64(bookCount), totalValue.formatted()))
                 .font(.system(size: 11, design: .monospaced))
                 .foregroundColor(headingColor)
             
@@ -357,7 +355,7 @@ struct ExportSheetView: View {
     private var detailedAttributedContent: some View {
         VStack(alignment: .leading, spacing: 2) {
             // 口座名ヘッダー（h1）
-            Text("# \(title)（\(bookCount)冊 / \(totalValue.formatted())円）")
+            Text(L10n.format("export.preview_heading", title, Int64(bookCount), totalValue.formatted()))
                 .font(.system(size: 11, design: .monospaced))
                 .foregroundColor(headingColor)
             
@@ -376,29 +374,29 @@ struct ExportSheetView: View {
                 .font(.system(size: 11, design: .monospaced))
                 
                 // プロパティ（すべて表示してフォーマットを示す）
-                propertyLine(marker: "- ", key: "著者: ", value: book.author ?? "著者名")
-                propertyLine(marker: "- ", key: "金額: ", value: book.price != nil ? "\(book.price!.formatted())円" : "1,000円")
-                propertyLine(marker: "- ", key: "出版社: ", value: book.publisher ?? "出版社名")
-                propertyLine(marker: "- ", key: "登録日: ", value: book.date)
-                propertyLine(marker: "- ", key: "ISBN: ", value: book.isbn ?? "9784000000000")
-                propertyLine(marker: "- ", key: "表紙画像: ", value: "https://...")
-                propertyLine(marker: "- ", key: "メモ: ", value: book.memo ?? "メモ内容")
+                propertyLine(marker: "- ", key: String(localized: "export.md.author"), value: book.author ?? String(localized: "export.sample.author"))
+                propertyLine(marker: "- ", key: String(localized: "export.md.price"), value: book.price != nil ? L10n.format("export.price_yen", book.price!.formatted()) : String(localized: "export.sample.price"))
+                propertyLine(marker: "- ", key: String(localized: "export.md.publisher"), value: book.publisher ?? String(localized: "export.sample.publisher"))
+                propertyLine(marker: "- ", key: String(localized: "export.md.registration_date"), value: book.date)
+                propertyLine(marker: "- ", key: String(localized: "export.md.isbn"), value: book.isbn ?? "9784000000000")
+                propertyLine(marker: "- ", key: String(localized: "export.md.cover"), value: "https://...")
+                propertyLine(marker: "- ", key: String(localized: "export.md.memo"), value: book.memo ?? String(localized: "export.sample.memo"))
                 
                 Text("")
                 Text("...")
                     .font(.system(size: 11, design: .monospaced))
                     .foregroundColor(.gray)
             } else {
-                Text("### サンプル本")
+                Text("export.sample.book")
                     .font(.system(size: 11, design: .monospaced))
                     .foregroundColor(headingColor)
-                propertyLine(marker: "- ", key: "著者: ", value: "著者名")
-                propertyLine(marker: "- ", key: "金額: ", value: "1,000円")
-                propertyLine(marker: "- ", key: "出版社: ", value: "出版社名")
-                propertyLine(marker: "- ", key: "登録日: ", value: "2024.01.01")
-                propertyLine(marker: "- ", key: "ISBN: ", value: "9784000000000")
-                propertyLine(marker: "- ", key: "表紙画像: ", value: "https://...")
-                propertyLine(marker: "- ", key: "メモ: ", value: "メモ内容")
+                propertyLine(marker: "- ", key: String(localized: "export.md.author"), value: String(localized: "export.sample.author"))
+                propertyLine(marker: "- ", key: String(localized: "export.md.price"), value: String(localized: "export.sample.price"))
+                propertyLine(marker: "- ", key: String(localized: "export.md.publisher"), value: String(localized: "export.sample.publisher"))
+                propertyLine(marker: "- ", key: String(localized: "export.md.registration_date"), value: "2024.01.01")
+                propertyLine(marker: "- ", key: String(localized: "export.md.isbn"), value: "9784000000000")
+                propertyLine(marker: "- ", key: String(localized: "export.md.cover"), value: "https://...")
+                propertyLine(marker: "- ", key: String(localized: "export.md.memo"), value: String(localized: "export.sample.memo"))
             }
         }
     }

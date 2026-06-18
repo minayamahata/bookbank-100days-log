@@ -13,6 +13,7 @@ struct UserBookDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.floatingButtonState) private var floatingButtonState
+    @Environment(LanguageManager.self) private var languageManager
     
     @Bindable var book: UserBook
 
@@ -48,6 +49,8 @@ struct UserBookDetailView: View {
     }
 
     var body: some View {
+        let _ = languageManager.currentLanguage
+
         GeometryReader { geometry in
             ScrollView {
                 VStack(spacing: 0) {
@@ -100,7 +103,7 @@ struct UserBookDetailView: View {
                 HStack(spacing: 6) {
                     Image(systemName: "pencil")
                         .font(.system(size: 14))
-                    Text("編集")
+                    Text("common.edit")
                         .font(.subheadline)
                         .fontWeight(.medium)
                 }
@@ -113,13 +116,13 @@ struct UserBookDetailView: View {
             .padding(.trailing, 16)
             .padding(.bottom, 22)
         }
-        .alert("本を削除しますか？", isPresented: $showDeleteAlert) {
-            Button("キャンセル", role: .cancel) { }
-            Button("削除", role: .destructive) {
+        .alert("book.delete.title", isPresented: $showDeleteAlert) {
+            Button("common.cancel", role: .cancel) { }
+            Button("common.delete", role: .destructive) {
                 deleteBook()
             }
         } message: {
-            Text("この操作は取り消せません。\n「\(book.title)」を削除してもよろしいですか？")
+            Text(L10n.format("book.delete.message", locale: languageManager.resolvedLocale, book.title))
         }
         .tint(.primary)
         .sheet(isPresented: $showEditBook) {
@@ -205,7 +208,7 @@ struct UserBookDetailView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .offset(y: 20)
             } else {
-                Text("画像なし")
+                Text("book.cover_none")
                     .font(.caption)
                     .foregroundColor(.secondary)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -250,16 +253,10 @@ struct UserBookDetailView: View {
                     .foregroundColor(.secondary)
             }
 
-            if let price = book.priceAtRegistration {
-                HStack(alignment: .lastTextBaseline, spacing: 2) {
-                    Text("\(price.formatted())")
-                        .font(.title3)
-                    Text("円")
-                        .font(.subheadline)
-                }
-                .fontWeight(.medium)
-                .foregroundColor(themeColor)
-                .frame(maxWidth: .infinity, alignment: .trailing)
+            if book.priceAtRegistration != nil {
+                BookPriceText(book: book, font: .title3, fontWeight: .medium)
+                    .foregroundColor(themeColor)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -274,25 +271,31 @@ struct UserBookDetailView: View {
             
             VStack(alignment: .leading, spacing: 8) {
                 if let passbookName = book.passbook?.name {
-                    DetailInfoRow(label: "登録口座", value: passbookName)
+                    DetailInfoRow(label: "account.registered", value: passbookName)
                 }
 
-                DetailInfoRow(label: "登録日", value: formatDate(book.registeredAt))
+                DetailInfoRow(label: "book.registration_date", value: formatDate(book.registeredAt))
 
                 if let publisher = book.publisher {
-                    DetailInfoRow(label: "出版社", value: publisher)
+                    DetailInfoRow(label: "book.publisher", value: publisher)
                 }
 
                 if let publishedYear = book.publishedYear {
-                    DetailInfoRow(label: "出版年", value: "\(publishedYear)年")
+                    DetailInfoRow(
+                        label: "book.published_year",
+                        value: L10n.format("book.year_suffix", locale: languageManager.resolvedLocale, Int64(publishedYear))
+                    )
                 }
 
                 if let bookFormat = book.bookFormat {
-                    DetailInfoRow(label: "発行形態", value: bookFormat)
+                    DetailInfoRow(label: "book.format", value: bookFormat)
                 }
 
                 if let pageCount = book.pageCount {
-                    DetailInfoRow(label: "ページ数", value: "\(pageCount)ページ")
+                    DetailInfoRow(
+                        label: "book.page_count",
+                        value: L10n.format("book.pages_suffix", locale: languageManager.resolvedLocale, Int64(pageCount))
+                    )
                 }
             }
             .font(.subheadline)
@@ -318,7 +321,7 @@ struct UserBookDetailView: View {
                             .padding(20)
                             .frame(maxWidth: .infinity, minHeight: 120, alignment: .topLeading)
                     } else {
-                        Text("メモはまだありません")
+                        Text("book.memo.empty")
                             .font(.subheadline)
                             .foregroundColor(.secondary)
                             .italic()
@@ -364,7 +367,7 @@ struct UserBookDetailView: View {
 
 // 詳細情報の行を表示するヘルパーView（ミニマル版）
 struct DetailInfoRow: View {
-    let label: String
+    let label: LocalizedStringKey
     let value: String
     
     var body: some View {

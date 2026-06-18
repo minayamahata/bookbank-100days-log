@@ -31,7 +31,7 @@ struct UnlimitedPaywallView: View {
                         plansSection
                         purchaseButton
                         
-                        Text("年額プランは1年ごとに自動更新されます。\n解約はいつでも可能です。")
+                        Text("paywall.auto_renew")
                             .font(.system(size: 14))
                             .foregroundColor(.white.opacity(0.5))
                             .multilineTextAlignment(.center)
@@ -90,7 +90,7 @@ struct UnlimitedPaywallView: View {
                 )
                 
                 VStack(spacing: 0) {
-                    Text("Unlimited")
+                    Text("paywall.unlimited")
                         .font(.custom("Fearlessly Authentic", size: 42))
                     .foregroundStyle(
                         LinearGradient(
@@ -104,7 +104,7 @@ struct UnlimitedPaywallView: View {
                         )
                     )
                     
-                    Text("世界の広がる方へ")
+                    Text("paywall.tagline")
                         .font(.system(size: 14))
                         .foregroundColor(.white.opacity(0.7))
                 }
@@ -117,22 +117,22 @@ struct UnlimitedPaywallView: View {
     
     private var featuresSection: some View {
         VStack(alignment: .leading, spacing: 0) {
-            featureRow(title: "テーマカラーを自由に選べる")
-            featureRow(title: "無制限に口座を作成")
-            featureRow(title: "無制限に読了リストを作成")
-            featureRow(title: "本の詳細データダウンロード")
+            featureRow(titleKey: "paywall.feature.theme")
+            featureRow(titleKey: "paywall.feature.passbooks")
+            featureRow(titleKey: "paywall.feature.reading_lists")
+            featureRow(titleKey: "paywall.feature.download")
         }
         .frame(maxWidth: .infinity)
     }
     
-    private func featureRow(title: String) -> some View {
+    private func featureRow(titleKey: LocalizedStringKey) -> some View {
         HStack(spacing: 12) {
             Image(systemName: "checkmark")
                 .font(.system(size: 13, weight: .bold))
                 .foregroundColor(themeColor)
                 .frame(width: 16)
             
-            Text(title)
+            Text(titleKey)
                 .font(.system(size: 16, weight: .medium))
                 .foregroundColor(.white)
         }
@@ -144,7 +144,7 @@ struct UnlimitedPaywallView: View {
     
     private var plansSection: some View {
         VStack(spacing: 12) {
-            Text("プランを選択")
+            Text("paywall.select_plan")
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundColor(.white.opacity(0.7))
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -154,7 +154,7 @@ struct UnlimitedPaywallView: View {
                     planCard(
                         product: yearly,
                         subtextIcon: "icon-tab-bookshelf",
-                        subtext: "ビジネス書 約2冊分",
+                        subtextKey: "paywall.yearly_subtext",
                         isYearly: true,
                         isSelected: selectedProduct?.id == yearly.id
                     )
@@ -163,9 +163,9 @@ struct UnlimitedPaywallView: View {
                 if let lifetime = unlimitedManager.lifetimeProduct {
                     planCard(
                         product: lifetime,
-                        badge: "リリース記念限定価格",
+                        badgeKey: "paywall.lifetime_badge",
                         subtextIcon: "icon-tab-bookshelf",
-                        subtext: "ビジネス書 約5冊分",
+                        subtextKey: "paywall.lifetime_subtext",
                         isSelected: selectedProduct?.id == lifetime.id
                     )
                 }
@@ -174,7 +174,7 @@ struct UnlimitedPaywallView: View {
         }
     }
     
-    private func planCard(product: Product, badge: String? = nil, subtextIcon: String? = nil, subtext: String?, isYearly: Bool = false, isSelected: Bool) -> some View {
+    private func planCard(product: Product, badgeKey: LocalizedStringKey? = nil, subtextIcon: String? = nil, subtextKey: LocalizedStringKey? = nil, isYearly: Bool = false, isSelected: Bool) -> some View {
         Button(action: {
             selectedProduct = product
         }) {
@@ -189,12 +189,12 @@ struct UnlimitedPaywallView: View {
                 HStack(alignment: .lastTextBaseline, spacing: 2) {
                     Text("\(Int(truncating: product.price as NSDecimalNumber).formatted())")
                         .font(.system(size: 26, weight: .bold))
-                    Text(isYearly ? "円／年" : "円")
+                    Text(isYearly ? "paywall.yen_per_year" : "common.yen")
                         .font(.system(size: 14, weight: .medium))
                 }
                 .foregroundColor(isSelected ? themeColor : .white)
                 
-                if let subtext {
+                if let subtextKey {
                     HStack(spacing: 6) {
                         if let subtextIcon {
                             Image(subtextIcon)
@@ -203,7 +203,7 @@ struct UnlimitedPaywallView: View {
                                 .scaledToFit()
                                 .frame(width: 12, height: 12)
                         }
-                        Text(subtext)
+                        Text(subtextKey)
                             .font(.system(size: 13))
                     }
                     .foregroundColor(.white.opacity(0.6))
@@ -227,8 +227,8 @@ struct UnlimitedPaywallView: View {
                     )
             )
             .overlay(alignment: .top) {
-                if let badge {
-                    Text(badge)
+                if let badgeKey {
+                    Text(badgeKey)
                         .font(.system(size: 12, weight: .bold))
                         .foregroundColor(isSelected ? .black : .white)
                         .padding(.horizontal, 10)
@@ -257,7 +257,7 @@ struct UnlimitedPaywallView: View {
                     ProgressView()
                         .tint(.black)
                 } else {
-                    Text("Unlimitedにアップグレード")
+                    Text("paywall.upgrade")
                         .font(.system(size: 17, weight: .semibold))
                 }
             }
@@ -285,18 +285,18 @@ struct UnlimitedPaywallView: View {
                         .tint(.white.opacity(0.5))
                         .scaleEffect(0.8)
                 } else {
-                    Text("購入を復元")
+                    Text("paywall.restore")
                 }
             }
             .disabled(isRestoring || unlimitedManager.isPurchasing)
             
             Text("|").padding(.horizontal, 10)
             
-            Link("利用規約", destination: URL(string: "https://bookbank-share.vercel.app/terms")!)
+            Link("service.terms", destination: URL(string: "https://bookbank-share.vercel.app/terms")!)
             
             Text("|").padding(.horizontal, 10)
             
-            Link("プライバシーポリシー", destination: URL(string: "https://bookbank-share.vercel.app/privacy")!)
+            Link("service.privacy", destination: URL(string: "https://bookbank-share.vercel.app/privacy")!)
         }
         .font(.system(size: 12))
         .foregroundColor(.white.opacity(0.4))

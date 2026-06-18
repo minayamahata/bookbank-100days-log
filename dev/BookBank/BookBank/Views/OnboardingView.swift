@@ -14,16 +14,15 @@ struct OnboardingView: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
 
-    @State private var accountName: String = "小説"
+    @State private var accountName: String = String(localized: "category.novel")
     @State private var showError: Bool = false
-    @State private var selectedCategory: String? = "小説"
+    @State private var selectedCategoryKey: String? = "category.novel"
 
-    // カテゴリタグ
-    private let categories = [
-        "小説", "ビジネス書", "マンガ", "参考書",
-        "雑誌", "旅行記", "エッセイ", "勉強用",
-        "レシピ", "写真集", "絵本", "子ども用",
-        "プレゼント", "積読"
+    private let categoryKeys = [
+        "category.novel", "category.business", "category.manga", "category.reference",
+        "category.magazine", "category.travel", "category.essay", "category.study",
+        "category.recipe", "category.photo", "category.picture_book", "category.children",
+        "category.gift", "category.tsundoku"
     ]
 
     var body: some View {
@@ -60,10 +59,10 @@ struct OnboardingView: View {
             UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
         }
         .preferredColorScheme(.dark)
-        .alert("エラー", isPresented: $showError) {
-            Button("OK", role: .cancel) {}
+        .alert("common.error", isPresented: $showError) {
+            Button("common.ok", role: .cancel) {}
         } message: {
-            Text("口座の作成に失敗しました")
+            Text("account.create.error")
         }
         .interactiveDismissDisabled()
     }
@@ -98,15 +97,15 @@ struct OnboardingView: View {
                 }
 
                 // BookBank タイトル
-                Text("BookBank")
+                Text("brand.bookbank")
                     .font(.custom("Fearlessly Authentic", size: 36))
                     .foregroundColor(.white)
             }
 
             // サブタイトル
             VStack(spacing: 0) {
-                Text("本を読む人だけの")
-                Text("読書銀行")
+                Text("onboarding.subtitle1")
+                Text("onboarding.subtitle2")
             }
             .font(.system(size: 24, weight: .light))
             .foregroundColor(.white)
@@ -120,13 +119,13 @@ struct OnboardingView: View {
     private var inputSection: some View {
         VStack(alignment: .leading, spacing: 16) {
             // 説明テキストと入力フィールド
-            Text("まずは通帳を作りましょう")
+            Text("onboarding.prompt")
                 .font(.system(size: 17, weight: .light))
                 .foregroundColor(.white)
 
             // 入力フィールド
             HStack(spacing: 8) {
-                TextField("小説", text: $accountName)
+                TextField("account.name_placeholder", text: $accountName)
                     .font(.system(size: 18, weight: .light))
                     .foregroundColor(.white)
                     .multilineTextAlignment(.center)
@@ -143,7 +142,7 @@ struct OnboardingView: View {
                         }
                     }
 
-                Text("口座")
+                Text("account.title")
                     .font(.system(size: 14))
                     .foregroundColor(.white)
             }
@@ -156,26 +155,26 @@ struct OnboardingView: View {
     // カテゴリタグをシンプルに配置
     private var categoryTagsView: some View {
         let rows: [[String]] = [
-            ["小説", "ビジネス書", "マンガ", "参考書"],
-            ["雑誌", "旅行記", "エッセイ", "勉強用"],
-            ["レシピ", "写真集", "絵本", "子ども用"],
-            ["プレゼント", "積読"]
+            Array(categoryKeys.prefix(4)),
+            Array(categoryKeys.dropFirst(4).prefix(4)),
+            Array(categoryKeys.dropFirst(8).prefix(4)),
+            Array(categoryKeys.dropFirst(12))
         ]
         
         return VStack(alignment: .leading, spacing: 8) {
             ForEach(rows, id: \.self) { row in
                 HStack(spacing: 8) {
-                    ForEach(row, id: \.self) { category in
+                    ForEach(row, id: \.self) { key in
                         CategoryTag(
-                            title: category,
-                            isSelected: selectedCategory == category
+                            titleKey: LocalizedStringKey(key),
+                            isSelected: selectedCategoryKey == key
                         ) {
-                            if selectedCategory == category {
-                                selectedCategory = nil
+                            if selectedCategoryKey == key {
+                                selectedCategoryKey = nil
                                 accountName = ""
                             } else {
-                                selectedCategory = category
-                                accountName = category
+                                selectedCategoryKey = key
+                                accountName = String(localized: String.LocalizationValue(key))
                             }
                         }
                     }
@@ -188,7 +187,7 @@ struct OnboardingView: View {
 
     private var openAccountButton: some View {
         Button(action: createAccount) {
-            Text("口座を開設")
+            Text("account.create")
                 .font(.system(size: 16))
                 .foregroundColor(accountName.isEmpty ? .white.opacity(0.5) : .white)
                 .frame(maxWidth: .infinity)
@@ -237,13 +236,13 @@ struct OnboardingView: View {
 // MARK: - Category Tag
 
 struct CategoryTag: View {
-    let title: String
+    let titleKey: LocalizedStringKey
     let isSelected: Bool
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            Text(title)
+            Text(titleKey)
                 .font(.system(size: 12))
                 .foregroundColor(isSelected ? .black : .white)
                 .lineLimit(1)

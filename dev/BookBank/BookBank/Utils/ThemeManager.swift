@@ -39,7 +39,16 @@ enum AppTheme: Int, CaseIterable {
     case light = 1
     case dark = 2
 
-    /// 表示名
+    /// String Catalog のキー
+    var titleKey: LocalizedStringKey {
+        switch self {
+        case .system: return "theme.automatic"
+        case .light: return "theme.light"
+        case .dark: return "theme.dark"
+        }
+    }
+
+    /// 表示名（非ローカライズ画面向け・後方互換）
     var displayName: String {
         switch self {
         case .system: return "システムモード"

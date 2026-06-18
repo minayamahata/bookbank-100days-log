@@ -45,7 +45,7 @@ struct ReadingListView: View {
                                 listToDelete = list
                                 showDeleteAlert = true
                             } label: {
-                                Label("削除", systemImage: "trash")
+                                Label("common.delete", systemImage: "trash")
                             }
                         }
                     }
@@ -75,7 +75,7 @@ struct ReadingListView: View {
             }
             .ignoresSafeArea()
         )
-        .navigationTitle("読了リスト")
+        .navigationTitle("readinglist.title")
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(for: ReadingList.self) { list in
             ReadingListDetailView(readingList: list)
@@ -83,16 +83,16 @@ struct ReadingListView: View {
         .sheet(isPresented: $showAddList) {
             AddReadingListView(themeColor: themeColor, onNavigateToPassbook: onNavigateToPassbook)
         }
-        .alert("リストを削除", isPresented: $showDeleteAlert) {
-            Button("キャンセル", role: .cancel) {}
-            Button("削除", role: .destructive) {
+        .alert("readinglist.delete.title", isPresented: $showDeleteAlert) {
+            Button("common.cancel", role: .cancel) {}
+            Button("common.delete", role: .destructive) {
                 if let list = listToDelete {
                     deleteList(list)
                 }
             }
         } message: {
             if let list = listToDelete {
-                Text("「\(list.title)」を削除しますか？\nリストに含まれる本は削除されません。")
+                Text(L10n.format("readinglist.delete.message", list.title))
             }
         }
         .tint(.primary)
@@ -103,7 +103,7 @@ struct ReadingListView: View {
     /// 空状態ビュー
     private var emptyStateView: some View {
         VStack(spacing: 16) {
-            Text("自分の本棚の中から\n読了リストを作りましょう")
+            Text("readinglist.create_prompt")
                 .font(.body)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
@@ -130,7 +130,7 @@ struct ReadingListView: View {
                     .lineLimit(1)
                 
                 HStack(spacing: 4) {
-                    Text("\(list.bookCount)冊")
+                    Text(L10n.format("common.books_count", Int64(list.bookCount)))
                         .font(.caption)
                         .foregroundColor(.secondary)
                     

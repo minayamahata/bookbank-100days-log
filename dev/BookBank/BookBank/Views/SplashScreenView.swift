@@ -46,13 +46,13 @@ struct SplashScreenView: View {
                 VStack {
                     // 上部: Imagination / Depth
                     HStack {
-                        Text("Imagination")
+                        Text("splash.imagination")
                             .font(.custom("Inter-Regular", size: 12))
                             .foregroundColor(.white)
 
                         Spacer()
 
-                        Text("Depth")
+                        Text("splash.depth")
                             .font(.custom("Inter-Regular", size: 12))
                             .foregroundColor(.white)
                     }
@@ -80,12 +80,12 @@ struct SplashScreenView: View {
 
                         // テキスト
                         VStack(spacing: 0) {
-                            Text("BookBank")
+                            Text("brand.bookbank")
                                 .font(.custom("Fearlessly Authentic", size: 42))
                                 .foregroundColor(.white)
                                 .opacity(showLogo ? 1 : 0)
 
-                            Text("your mind.")
+                            Text("splash.tagline")
                                 .font(.custom("Fearlessly Authentic Italic", size: 25))
                                 .foregroundColor(.white.opacity(0.7))
                                 .blendMode(.overlay)
@@ -98,13 +98,13 @@ struct SplashScreenView: View {
 
                     // 下部: Growth / Reverie
                     HStack {
-                        Text("Growth")
+                        Text("splash.growth")
                             .font(.custom("Inter-Regular", size: 12))
                             .foregroundColor(.white)
 
                         Spacer()
 
-                        Text("Reverie")
+                        Text("splash.reverie")
                             .font(.custom("Inter-Regular", size: 12))
                             .foregroundColor(.white)
                     }

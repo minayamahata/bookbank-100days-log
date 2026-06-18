@@ -21,6 +21,8 @@ struct AddBookView: View {
     
     /// モーダルを閉じるためのアクション
     @Environment(\.dismiss) private var dismiss
+
+    @Environment(CurrencyManager.self) private var currencyManager
     
     // MARK: - Properties
     
@@ -128,7 +130,7 @@ struct AddBookView: View {
                                     self.selectedPhotoItem = nil
                                 }
                             } label: {
-                                Text("写真を削除")
+                                Text("book.cover_delete")
                                     .font(.caption)
                             }
                         }
@@ -143,7 +145,7 @@ struct AddBookView: View {
                                 )
                                 .frame(width: 120, height: 180)
                                 .overlay {
-                                    Text("表紙画像")
+                                    Text("book.cover")
                                         .font(.subheadline)
                                         .foregroundColor(.secondary)
                                 }
@@ -153,7 +155,7 @@ struct AddBookView: View {
                                 Button {
                                     showPhotoPicker = true
                                 } label: {
-                                    Label("ライブラリから選択", systemImage: "photo.on.rectangle")
+                                    Label("book.library_select", systemImage: "photo.on.rectangle")
                                 }
                                 
                                 if UIImagePickerController.isSourceTypeAvailable(.camera) {
@@ -161,11 +163,11 @@ struct AddBookView: View {
                                         focusedField = nil
                                         requestCameraAccess()
                                     } label: {
-                                        Label("カメラで撮影", systemImage: "camera")
+                                        Label("book.camera_capture", systemImage: "camera")
                                     }
                                 }
                             } label: {
-                                Text("写真を登録する")
+                                Text("book.cover_register")
                                     .font(.subheadline)
                                     .padding(.horizontal, 16)
                                     .padding(.vertical, 8)
@@ -183,27 +185,27 @@ struct AddBookView: View {
                     // タイトル（必須）
                     VStack(alignment: .leading, spacing: 4) {
                         HStack {
-                            Text("本のタイトル")
+                            Text("book.title_label")
                             Text("*")
                                 .foregroundColor(.red)
                         }
                         .font(.caption)
                         .foregroundColor(.secondary)
 
-                        TextField("タイトルを入力", text: $title)
+                        TextField("book.title_placeholder", text: $title)
                             .autocorrectionDisabled()
                             .focused($focusedField, equals: .title)
                     }
 
                     // 著者名（任意）
-                    TextField("著者名", text: $author)
+                    TextField("book.author", text: $author)
                         .autocorrectionDisabled()
                         .focused($focusedField, equals: .author)
 
                     // 価格（必須）
                     VStack(alignment: .leading, spacing: 4) {
                         HStack {
-                            Text("価格")
+                            Text("book.price")
                             Text("*")
                                 .foregroundColor(.red)
                         }
@@ -213,7 +215,7 @@ struct AddBookView: View {
                         HStack {
                             Text("¥")
                                 .foregroundColor(.secondary)
-                            TextField("価格を入力（半角数字）", text: $priceText)
+                            TextField("book.price_placeholder", text: $priceText)
                                 .keyboardType(.numberPad)
                                 .focused($focusedField, equals: .price)
                         }
@@ -223,7 +225,7 @@ struct AddBookView: View {
                 // 口座選択（allowPassbookChangeがtrueの場合のみ表示）
                 if allowPassbookChange {
                     Section {
-                        Picker("口座", selection: $selectedPassbook) {
+                        Picker("account.title", selection: $selectedPassbook) {
                             ForEach(customPassbooks) { passbook in
                                 Text(passbook.name)
                                     .foregroundColor(.primary)
@@ -239,12 +241,12 @@ struct AddBookView: View {
             .onTapGesture {
                 focusedField = nil
             }
-            .navigationTitle("本の登録")
+            .navigationTitle("book.add.title")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 // キャンセルボタン
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("キャンセル") {
+                    Button("common.cancel") {
                         dismiss()
                     }
                     .foregroundColor(.primary)
@@ -252,7 +254,7 @@ struct AddBookView: View {
                 
                 // 保存ボタン
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("保存") {
+                    Button("common.save") {
                         saveBook()
                     }
                     .disabled(!canSave)
@@ -269,15 +271,15 @@ struct AddBookView: View {
                 }
                 .ignoresSafeArea()
             }
-            .alert("カメラへのアクセスが許可されていません", isPresented: $showCameraDeniedAlert) {
-                Button("設定を開く") {
+            .alert("book.camera.denied.title", isPresented: $showCameraDeniedAlert) {
+                Button("book.camera.open_settings") {
                     if let url = URL(string: UIApplication.openSettingsURLString) {
                         UIApplication.shared.open(url)
                     }
                 }
-                Button("キャンセル", role: .cancel) { }
+                Button("common.cancel", role: .cancel) { }
             } message: {
-                Text("本の表紙を撮影するには、「設定」からカメラへのアクセスを許可してください。")
+                Text("book.camera.denied.message")
             }
         }
     }
@@ -356,7 +358,8 @@ struct AddBookView: View {
             source: .manual,
             memo: nil,
             isFavorite: false,
-            passbook: targetPassbook
+            passbook: targetPassbook,
+            currencyCode: currencyManager.displayCurrency.code
         )
         
         context.insert(newBook)

@@ -11,6 +11,8 @@ struct EditBookView: View {
     
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
+    @Environment(LanguageManager.self) private var languageManager
+    @Environment(CurrencyManager.self) private var currencyManager
     
     // MARK: - Properties
     
@@ -80,6 +82,8 @@ struct EditBookView: View {
     // MARK: - Body
     
     var body: some View {
+        let _ = languageManager.currentLanguage
+
         NavigationStack {
             Form {
                 // 表紙画像
@@ -93,7 +97,7 @@ struct EditBookView: View {
                         }
                     } label: {
                         HStack {
-                            Text("登録日")
+                            Text("book.registration_date")
                                 .foregroundColor(.primary)
                             Spacer()
                             Text(formatDate(registeredAt))
@@ -120,7 +124,7 @@ struct EditBookView: View {
                 // 登録口座
                 if selectedPassbookID != nil {
                     Section {
-                        Picker("登録口座", selection: $selectedPassbookID) {
+                        Picker("account.registered", selection: $selectedPassbookID) {
                             ForEach(customPassbooks) { passbook in
                                 Text(passbook.name)
                                     .tag(passbook.persistentModelID as PersistentIdentifier?)
@@ -137,7 +141,7 @@ struct EditBookView: View {
                     // タイトル
                     HStack {
                         HStack(spacing: 2) {
-                            Text("タイトル")
+                            Text("book.field.title")
                             if isManual {
                                 Text("*").foregroundColor(.red)
                             }
@@ -145,7 +149,7 @@ struct EditBookView: View {
                         .foregroundColor(.primary)
                         .frame(width: 70, alignment: .leading)
                         
-                        TextField("タイトルを入力", text: $title)
+                        TextField("book.title_placeholder", text: $title)
                             .multilineTextAlignment(.trailing)
                             .autocorrectionDisabled()
                             .focused($focusedField, equals: .title)
@@ -155,11 +159,11 @@ struct EditBookView: View {
                     
                     // 著者名
                     HStack {
-                        Text("著者名")
+                        Text("book.author")
                             .foregroundColor(.primary)
                             .frame(width: 70, alignment: .leading)
                         
-                        TextField("著者名を入力", text: $author)
+                        TextField("book.author_placeholder", text: $author)
                             .multilineTextAlignment(.trailing)
                             .autocorrectionDisabled()
                             .focused($focusedField, equals: .author)
@@ -170,7 +174,7 @@ struct EditBookView: View {
                     // 価格
                     HStack {
                         HStack(spacing: 2) {
-                            Text("価格")
+                            Text("book.price")
                             if isManual {
                                 Text("*").foregroundColor(.red)
                             }
@@ -180,30 +184,36 @@ struct EditBookView: View {
                         
                         HStack(spacing: 2) {
                             Spacer()
-                            TextField("価格を入力", text: $priceText)
+                            TextField("book.price_placeholder_short", text: $priceText)
                                 .multilineTextAlignment(.trailing)
                                 .keyboardType(.numberPad)
                                 .focused($focusedField, equals: .price)
                                 .disabled(!isManual)
                                 .foregroundColor(isManual ? .primary : .secondary)
                                 .fixedSize()
-                            Text("円")
+                            Text(currencyManager.displayCurrency.code)
                                 .foregroundColor(.secondary)
                         }
                     }
                     
                     if !isManual {
                         if let publisher = book.publisher, !publisher.isEmpty {
-                            readOnlyRow(label: "出版社", value: publisher)
+                            readOnlyRow(label: "book.publisher", value: publisher)
                         }
                         if let year = book.publishedYear {
-                            readOnlyRow(label: "出版年", value: "\(year)年")
+                            readOnlyRow(
+                                label: "book.published_year",
+                                value: L10n.format("book.year_suffix", locale: languageManager.resolvedLocale, Int64(year))
+                            )
                         }
                         if let format = book.bookFormat, !format.isEmpty {
-                            readOnlyRow(label: "発行形態", value: format)
+                            readOnlyRow(label: "book.format", value: format)
                         }
                         if let pages = book.pageCount {
-                            readOnlyRow(label: "ページ数", value: "\(pages)ページ")
+                            readOnlyRow(
+                                label: "book.page_count",
+                                value: L10n.format("book.pages_suffix", locale: languageManager.resolvedLocale, Int64(pages))
+                            )
                         }
                     }
                 }
@@ -215,7 +225,7 @@ struct EditBookView: View {
                         showMemoEditor = true
                     } label: {
                         HStack {
-                            Text("メモ")
+                            Text("bookshelf.memo")
                                 .foregroundColor(.primary)
                             Spacer()
                             if let memo = book.memo, !memo.isEmpty {
@@ -223,7 +233,7 @@ struct EditBookView: View {
                                     .foregroundColor(.secondary)
                                     .lineLimit(1)
                             } else {
-                                Text("未記入")
+                                Text("book.memo.not_entered")
                                     .foregroundColor(.secondary)
                             }
                             Image(systemName: "chevron.right")
@@ -237,18 +247,18 @@ struct EditBookView: View {
             }
             .font(.subheadline)
             .scrollDismissesKeyboard(.interactively)
-            .navigationTitle("本の編集")
+            .navigationTitle("book.edit.title")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("キャンセル") {
+                    Button("common.cancel") {
                         dismiss()
                     }
                     .foregroundColor(.primary)
                 }
                 
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("保存") {
+                    Button("common.save") {
                         saveChanges()
                     }
                     .disabled(!canSave)
@@ -266,15 +276,15 @@ struct EditBookView: View {
                 }
                 .ignoresSafeArea()
             }
-            .alert("カメラへのアクセスが許可されていません", isPresented: $showCameraDeniedAlert) {
-                Button("設定を開く") {
+            .alert("book.camera.denied.title", isPresented: $showCameraDeniedAlert) {
+                Button("book.camera.open_settings") {
                     if let url = URL(string: UIApplication.openSettingsURLString) {
                         UIApplication.shared.open(url)
                     }
                 }
-                Button("キャンセル", role: .cancel) { }
+                Button("common.cancel", role: .cancel) { }
             } message: {
-                Text("本の表紙を撮影するには、「設定」からカメラへのアクセスを許可してください。")
+                Text("book.camera.denied.message")
             }
             .sheet(isPresented: $showMemoEditor) {
                 MemoEditorView(memo: Binding(
@@ -333,7 +343,7 @@ struct EditBookView: View {
                                 Button {
                                     showPhotoPicker = true
                                 } label: {
-                                    Label("ライブラリから選択", systemImage: "photo.on.rectangle")
+                                    Label("book.library_select", systemImage: "photo.on.rectangle")
                                 }
                                 
                                 if UIImagePickerController.isSourceTypeAvailable(.camera) {
@@ -341,11 +351,11 @@ struct EditBookView: View {
                                         focusedField = nil
                                         requestCameraAccess()
                                     } label: {
-                                        Label("カメラで撮影", systemImage: "camera")
+                                        Label("book.camera_capture", systemImage: "camera")
                                     }
                                 }
                             } label: {
-                                Text("編集")
+                                Text("common.edit")
                                     .font(.subheadline)
                                     .foregroundColor(.white)
                                     .padding(.horizontal, 20)
@@ -369,7 +379,7 @@ struct EditBookView: View {
                             )
                             .frame(width: 120, height: 180)
                             .overlay {
-                                Text("表紙画像")
+                                Text("book.cover")
                                     .font(.subheadline)
                                     .foregroundColor(.secondary)
                             }
@@ -379,7 +389,7 @@ struct EditBookView: View {
                             Button {
                                 showPhotoPicker = true
                             } label: {
-                                Label("ライブラリから選択", systemImage: "photo.on.rectangle")
+                                Label("book.library_select", systemImage: "photo.on.rectangle")
                             }
                             
                             if UIImagePickerController.isSourceTypeAvailable(.camera) {
@@ -387,11 +397,11 @@ struct EditBookView: View {
                                     focusedField = nil
                                     requestCameraAccess()
                                 } label: {
-                                    Label("カメラで撮影", systemImage: "camera")
+                                    Label("book.camera_capture", systemImage: "camera")
                                 }
                             }
                         } label: {
-                            Text("写真を登録する")
+                            Text("book.cover_register")
                                 .font(.subheadline)
                                 .padding(.horizontal, 16)
                                 .padding(.vertical, 8)
@@ -414,7 +424,7 @@ struct EditBookView: View {
                         .fill(Color.gray.opacity(0.1))
                         .frame(width: 120, height: 180)
                         .overlay {
-                            Text("画像なし")
+                            Text("book.cover_none")
                                 .font(.subheadline)
                                 .foregroundColor(.secondary)
                         }
@@ -428,7 +438,7 @@ struct EditBookView: View {
     
     // MARK: - Helpers
     
-    private func readOnlyRow(label: String, value: String) -> some View {
+    private func readOnlyRow(label: LocalizedStringKey, value: String) -> some View {
         HStack {
             Text(label)
                 .foregroundColor(.primary)

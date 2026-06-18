@@ -25,7 +25,7 @@ struct HomeView: View {
                         .font(.system(size: 60))
                         .foregroundColor(.gray)
                     
-                    Text("口座がありません")
+                    Text("account.empty")
                         .font(.headline)
                         .foregroundColor(.secondary)
                 }

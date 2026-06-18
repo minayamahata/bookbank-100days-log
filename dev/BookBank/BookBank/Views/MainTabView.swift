@@ -25,6 +25,7 @@ extension EnvironmentValues {
 }
 
 struct MainTabView: View {
+    @Environment(LanguageManager.self) private var languageManager
     @Query(sort: \Passbook.sortOrder) private var passbooks: [Passbook]
     @Query(sort: \ReadingList.updatedAt) private var readingLists: [ReadingList]
     private var unlimitedManager: UnlimitedManager { UnlimitedManager.shared }
@@ -74,7 +75,7 @@ struct MainTabView: View {
     
     /// 現在の口座のテーマカラー
     private var currentThemeColor: Color {
-        if isOverallMode { return .blue }
+        if isOverallMode { return PassbookColor.overallThemeColor }
         if let passbook = currentPassbook {
             return PassbookColor.color(for: passbook, in: customPassbooks)
         }
@@ -89,6 +90,8 @@ struct MainTabView: View {
     }
     
     var body: some View {
+        let _ = languageManager.currentLanguage
+
         mainTabContent
             .environment(\.floatingButtonState, floatingButtonState)
             .sheet(isPresented: $showAddReadingList) {
@@ -103,6 +106,10 @@ struct MainTabView: View {
                 NavigationStack {
                     AppMenuView(onDismiss: { showAppMenu = false })
                 }
+                .environment(languageManager)
+                .environment(\.locale, languageManager.resolvedLocale)
+                .environment(CurrencyManager())
+                .environment(ExchangeRateService.shared)
             }
             .onChange(of: selectedTab) { _, _ in
                 // タブ切り替え時にビューを強制更新
@@ -134,7 +141,7 @@ struct MainTabView: View {
                     }
                 }
                 .tabItem {
-                    Label("口座", image: "icon-tab-account")
+                    Label("tab.account", image: "icon-tab-account")
                 }
                 .tag(0)
                 
@@ -163,7 +170,7 @@ struct MainTabView: View {
                     }
                 }
                 .tabItem {
-                    Label("通帳", image: "icon-tab-passbook")
+                    Label("tab.passbook", image: "icon-tab-passbook")
                 }
                 .tag(1)
                 
@@ -192,7 +199,7 @@ struct MainTabView: View {
                     }
                 }
                 .tabItem {
-                    Label("本棚", image: "icon-tab-bookshelf")
+                    Label("tab.bookshelf", image: "icon-tab-bookshelf")
                 }
                 .tag(2)
                 
@@ -221,7 +228,7 @@ struct MainTabView: View {
                     }
                 }
                 .tabItem {
-                    Label("集計", image: "icon-tab-statistics")
+                    Label("tab.statistics", image: "icon-tab-statistics")
                 }
                 .tag(3)
                 
@@ -240,7 +247,7 @@ struct MainTabView: View {
                     }
                 }
                 .tabItem {
-                    Label("Myリスト", image: "icon-tab-mylist")
+                    Label("tab.mylist", image: "icon-tab-mylist")
                 }
                 .tag(4)
             }
@@ -263,7 +270,7 @@ struct MainTabView: View {
                                 }
                             }) {
                                 Label {
-                                    Text("読了リストを作成する")
+                                    Text("readinglist.create")
                                 } icon: {
                                     Image("icon-tab-mylist")
                                 }
@@ -276,7 +283,7 @@ struct MainTabView: View {
                                 }
                             }) {
                                 Label {
-                                    Text("本を登録する")
+                                    Text("book.register")
                                 } icon: {
                                     Image("icon-tab-bookshelf")
                                 }
@@ -320,7 +327,13 @@ struct MainTabView: View {
         Button(action: {
             selectedTab = 0
         }) {
-            Text(isOverallMode ? "総合口座" : "\(currentPassbook?.name ?? "")口座")
+            Group {
+                if isOverallMode {
+                    Text("account.overall")
+                } else {
+                    Text(L10n.format("account.passbook_suffix", locale: languageManager.resolvedLocale, currentPassbook?.name ?? ""))
+                }
+            }
                 .font(.caption)
                 .foregroundColor(.primary)
         }
@@ -333,7 +346,7 @@ struct MainTabView: View {
                 .font(.system(size: 60))
                 .foregroundColor(.gray)
             
-            Text("口座がありません")
+            Text("account.empty")
                 .font(.headline)
                 .foregroundColor(.secondary)
         }

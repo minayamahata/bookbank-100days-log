@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import SwiftData
 
 // MARK: - 総合検索APIのレスポンス構造（formatVersion=2）
 
@@ -159,7 +160,8 @@ extension RakutenBook {
             bookFormat: size,
             pageCount: extractPageCount(),
             source: .api,
-            passbook: passbook
+            passbook: passbook,
+            currencyCode: AppCurrency.jpy.code
         )
     }
     
@@ -176,5 +178,134 @@ extension RakutenBook {
             }
         }
         return nil
+    }
+}
+
+// MARK: - 為替レート
+
+/// 為替レート（JPY 基準・1 JPY あたりの各通貨量）
+@Observable
+@MainActor
+final class ExchangeRateService {
+    static let shared = ExchangeRateService()
+
+    private(set) var ratesFromJPY: [String: Double] = ["JPY": 1.0]
+    private(set) var lastUpdated: Date?
+
+    private let cacheKey = "exchangeRatesFromJPY"
+    private let cacheDateKey = "exchangeRatesUpdatedAt"
+    private let refreshInterval: TimeInterval = 24 * 60 * 60
+
+    private init() {
+        loadCache()
+    }
+
+    /// 必要に応じて API からレートを取得
+    func refreshIfNeeded() async {
+        if let lastUpdated,
+           Date().timeIntervalSince(lastUpdated) < refreshInterval,
+           ratesFromJPY.count > 1 {
+            return
+        }
+        await refresh()
+    }
+
+    func refresh() async {
+        guard let url = URL(string: "https://open.er-api.com/v6/latest/JPY") else { return }
+
+        do {
+            let (data, _) = try await URLSession.shared.data(from: url)
+            let response = try JSONDecoder().decode(ExchangeRateResponse.self, from: data)
+            guard response.result == "success" else { return }
+
+            var rates = response.conversionRates
+            rates["JPY"] = 1.0
+            ratesFromJPY = rates
+            lastUpdated = Date()
+            saveCache()
+        } catch {
+            #if DEBUG
+            print("❌ Exchange rate fetch failed: \(error)")
+            #endif
+        }
+    }
+
+    /// 元通貨の整数金額を表示通貨に換算
+    func convert(_ amount: Int, from source: AppCurrency, to target: AppCurrency) -> Int {
+        if source == target { return amount }
+
+        let amountInJPY: Double
+        if source == .jpy {
+            amountInJPY = Double(amount)
+        } else {
+            guard let sourceRate = ratesFromJPY[source.code], sourceRate > 0 else {
+                return amount
+            }
+            amountInJPY = Double(amount) / sourceRate
+        }
+
+        if target == .jpy {
+            return Int(amountInJPY.rounded())
+        }
+
+        guard let targetRate = ratesFromJPY[target.code] else {
+            return amount
+        }
+        return Int((amountInJPY * targetRate).rounded())
+    }
+
+    private func loadCache() {
+        if let saved = UserDefaults.standard.dictionary(forKey: cacheKey) as? [String: Double] {
+            ratesFromJPY = saved
+        }
+        if let timestamp = UserDefaults.standard.object(forKey: cacheDateKey) as? Date {
+            lastUpdated = timestamp
+        }
+    }
+
+    private func saveCache() {
+        UserDefaults.standard.set(ratesFromJPY, forKey: cacheKey)
+        UserDefaults.standard.set(lastUpdated, forKey: cacheDateKey)
+    }
+}
+
+private struct ExchangeRateResponse: Decodable {
+    let result: String
+    let baseCode: String
+    let conversionRates: [String: Double]
+
+    enum CodingKeys: String, CodingKey {
+        case result
+        case baseCode = "base_code"
+        case conversionRates = "conversion_rates"
+    }
+}
+
+// MARK: - 通貨マイグレーション
+
+enum CurrencyMigration {
+    private static let didMigrateKey = "didMigrateCurrencyCodeV1"
+
+    /// 通貨コード未設定の既存書籍に JPY を付与
+    @MainActor
+    static func migrateIfNeeded(context: ModelContext) {
+        guard !UserDefaults.standard.bool(forKey: didMigrateKey) else { return }
+
+        let descriptor = FetchDescriptor<UserBook>()
+        guard let books = try? context.fetch(descriptor) else { return }
+
+        var changed = false
+        for book in books {
+            if book.currencyCode == nil || book.currencyCode?.isEmpty == true {
+                book.currencyCode = AppCurrency.jpy.code
+                changed = true
+            }
+        }
+
+        if changed {
+            try? context.save()
+        }
+
+        UserDefaults.standard.set(true, forKey: didMigrateKey)
     }
 }

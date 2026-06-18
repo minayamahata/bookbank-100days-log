@@ -118,7 +118,7 @@ struct BookSelectorView: View {
             
             // リスト名
             VStack(spacing: 2) {
-                Text("追加先")
+                Text("selector.destination")
                     .font(.caption2)
                     .foregroundColor(.secondary)
                 Text(readingList.title)
@@ -134,7 +134,7 @@ struct BookSelectorView: View {
             Button(action: {
                 addSelectedBooks()
             }) {
-                Text("追加")
+                Text("common.add")
                     .font(.system(size: 13, weight: .medium))
                     .foregroundColor(selectedBookIDs.isEmpty ? .secondary : .white)
                     .padding(.horizontal, 12)
@@ -166,7 +166,7 @@ struct BookSelectorView: View {
                             HStack(spacing: 4) {
                                 Text(passbook.name)
                                     .font(.subheadline)
-                                Text("(\(bookCount))")
+                                Text(L10n.format("common.book_count_paren", Int64(bookCount)))
                                     .font(.caption)
                             }
                             .foregroundColor(selectedPassbookIndex == index ? .primary : .secondary)
@@ -201,7 +201,7 @@ struct BookSelectorView: View {
             LazyVStack(spacing: 6) {
                 // 選択状態
                 HStack {
-                    Text("\(selectedBookIDs.count)冊選択中")
+                    Text(L10n.format("selector.selected_count", Int64(selectedBookIDs.count)))
                         .font(.footnote)
                         .foregroundColor(.secondary)
                     Spacer()
@@ -311,7 +311,7 @@ struct BookSelectorView: View {
     /// 空状態ビュー
     private var emptyStateView: some View {
         VStack(spacing: 16) {
-            Text("最近どんな本を読んだ？")
+            Text("selector.recent_prompt")
                 .font(.headline)
                 .foregroundColor(.secondary)
         }

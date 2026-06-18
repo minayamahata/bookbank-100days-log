@@ -27,6 +27,10 @@ struct PassbookDetailView: View {
     
     /// カラースキーム（ライト/ダークモード）
     @Environment(\.colorScheme) private var colorScheme
+
+    @Environment(LanguageManager.self) private var languageManager
+    @Environment(CurrencyManager.self) private var currencyManager
+    @Environment(ExchangeRateService.self) private var exchangeRates
     
     // MARK: - State
     
@@ -51,9 +55,9 @@ struct PassbookDetailView: View {
         return allUserBooks
     }
     
-    /// 合計金額
+    /// 合計金額（表示通貨）
     private var totalValue: Int {
-        userBooks.compactMap { $0.priceAtRegistration }.reduce(0, +)
+        userBooks.totalDisplayAmount(in: currencyManager.displayCurrency, exchangeRates: exchangeRates)
     }
     
     /// 今日の日付文字列
@@ -78,7 +82,7 @@ struct PassbookDetailView: View {
         if let passbook {
             return PassbookColor.color(for: passbook, in: customPassbooks)
         }
-        return .blue
+        return PassbookColor.overallThemeColor
     }
     
     /// テーマカラーが黒かどうか
@@ -130,7 +134,7 @@ struct PassbookDetailView: View {
                                 
                                 // ヘッダー（入金履歴ラベル）
                                 HStack {
-                                    Text("入金履歴")
+                                    Text("passbook.deposit_history")
                                         .font(.footnote)
                                         .foregroundColor(.secondary)
                                     
@@ -180,7 +184,7 @@ struct PassbookDetailView: View {
         .toolbar(collapseProgress > 0.5 ? .hidden : .visible, for: .navigationBar)
         .toolbar {
             ToolbarItem(placement: .principal) {
-                Text("通帳")
+                Text("passbook.title")
                     .font(.system(size: 17))
             }
         }
@@ -210,12 +214,7 @@ struct PassbookDetailView: View {
             Spacer()
             
             // 金額表示
-            HStack(alignment: .lastTextBaseline, spacing: 2) {
-                Text("\(totalValue.formatted())")
-                    .font(.system(size: 18, weight: .semibold))
-                Text("円")
-                    .font(.system(size: 12, weight: .medium))
-            }
+            DisplayCurrencyPriceText(amount: totalValue, font: .system(size: 18, weight: .semibold))
             .foregroundStyle(
                 LinearGradient(
                     stops: [
@@ -247,19 +246,14 @@ struct PassbookDetailView: View {
     
     private var accountInfoSection: some View {
         VStack(spacing: 0) {
-            Text("\(todayString) 時点")
+            Text(L10n.format("passbook.as_of", locale: languageManager.resolvedLocale, todayString))
                 .font(.footnote)
                 .foregroundColor(.white)
                 .frame(maxWidth: .infinity, alignment: .trailing)
                 .padding(.horizontal)
                 .padding(.bottom, 32)
 
-            HStack(alignment: .lastTextBaseline, spacing: 2) {
-                Text("\(totalValue.formatted())")
-                    .font(.system(size: 48, weight: .medium))
-                Text("円")
-                    .font(.system(size: 18, weight: .medium))
-            }
+            DisplayCurrencyPriceText(amount: totalValue, font: .system(size: 48, weight: .medium))
             .foregroundStyle(
                 LinearGradient(
                     stops: [
@@ -272,7 +266,7 @@ struct PassbookDetailView: View {
                 )
             )
 
-            Text("登録書籍: \(bookCount)冊")
+            Text(L10n.format("passbook.registered_books", locale: languageManager.resolvedLocale, Int64(bookCount)))
                 .font(.subheadline)
                 .foregroundColor(.white)
             
@@ -280,7 +274,7 @@ struct PassbookDetailView: View {
             HStack(spacing: 12) {
                 if let registrationPassbook {
                     NavigationLink(destination: BookSearchView(passbook: registrationPassbook, allowPassbookChange: true)) {
-                        Text("本を登録する")
+                        Text("book.register")
                             .font(.subheadline)
                             .fontWeight(.medium)
                             .foregroundColor(colorScheme == .dark && isBlackTheme ? .black : .white)
@@ -292,7 +286,7 @@ struct PassbookDetailView: View {
                 }
                 
                 NavigationLink(destination: BookshelfView(passbook: passbook)) {
-                    Text("本棚を見る")
+                    Text("passbook.view_bookshelf")
                         .font(.subheadline)
                         .fontWeight(.medium)
                         .foregroundColor(colorScheme == .dark && isBlackTheme ? .black : .white)
@@ -314,7 +308,7 @@ struct PassbookDetailView: View {
     private var listContent: some View {
         LazyVStack(spacing: 6) {
             if userBooks.isEmpty {
-                Text("最近どんな本を読みましたか？")
+                Text("passbook.recent_books_prompt")
                     .font(.body)
                     .foregroundColor(.secondary)
                     .frame(maxWidth: .infinity)
@@ -350,7 +344,7 @@ struct PassbookDetailView: View {
                             }
 
                             VStack(alignment: .leading, spacing: 2) {
-                                Text("#\(userBooks.count - index)  \(formatDate(book.registeredAt))")
+                                Text(L10n.format("passbook.deposit_entry", locale: languageManager.resolvedLocale, Int64(userBooks.count - index), formatDate(book.registeredAt)))
                                     .font(.system(size: 11))
                                     .foregroundColor(.secondary)
 
@@ -369,14 +363,9 @@ struct PassbookDetailView: View {
 
                             Spacer()
 
-                            if let price = book.priceAtRegistration {
-                                HStack(alignment: .lastTextBaseline, spacing: 1) {
-                                    Text("\(price.formatted())")
-                                        .font(.headline)
-                                    Text("円")
-                                        .font(.caption2)
-                                }
-                                .foregroundColor(themeColor)
+                            if book.priceAtRegistration != nil {
+                                BookPriceText(book: book, font: .headline, fontWeight: .regular)
+                                    .foregroundColor(themeColor)
                             }
                         }
                         .padding(.horizontal, 10)

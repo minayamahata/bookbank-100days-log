@@ -78,11 +78,11 @@ struct EditPassbookView: View {
                     VStack(alignment: .leading, spacing: 24) {
                         // 口座名セクション
                         VStack(alignment: .leading, spacing: 12) {
-                            Text("口座名")
+                            Text("account.name")
                                 .font(.body)
                             
                             HStack(spacing: 8) {
-                                TextField("口座名", text: $editingName)
+                                TextField("account.name", text: $editingName)
                                     .textInputAutocapitalization(.never)
                                     .autocorrectionDisabled()
                                     .font(.system(size: 18, weight: .light))
@@ -94,7 +94,7 @@ struct EditPassbookView: View {
                                             .stroke(Color.primary.opacity(0.3), lineWidth: 1)
                                     )
                                 
-                                Text("口座")
+                                Text("account.title")
                                     .font(.system(size: 14))
                                     .foregroundColor(.secondary)
                             }
@@ -102,7 +102,7 @@ struct EditPassbookView: View {
                         
                         // テーマカラーセクション
                         VStack(alignment: .leading, spacing: 12) {
-                            Text("テーマカラー")
+                            Text("account.theme_color")
                                 .font(.body)
                             
                             let columns = 6
@@ -195,13 +195,13 @@ struct EditPassbookView: View {
                                                     .padding(-3)
                                             )
                                         
-                                        Text("カスタムカラー")
+                                        Text("account.custom_color")
                                             .font(.system(size: 14))
                                             .foregroundColor(.primary)
                                         
                                         Spacer()
                                         
-                                        Button("変更") {
+                                        Button("common.change") {
                                             showColorPicker = true
                                         }
                                         .font(.system(size: 14))
@@ -242,7 +242,7 @@ struct EditPassbookView: View {
                             Spacer()
                             Image("icon-download")
                                 .renderingMode(.template)
-                            Text("口座データをダウンロードする")
+                            Text("account.download_data")
                             Spacer()
                         }
                         .font(.system(size: 15))
@@ -261,7 +261,7 @@ struct EditPassbookView: View {
                         }) {
                             HStack {
                                 Spacer()
-                                Text("この口座を削除")
+                                Text("account.delete")
                                     .foregroundColor(.red)
                                 Spacer()
                             }
@@ -274,7 +274,7 @@ struct EditPassbookView: View {
                         .buttonStyle(.plain)
                         
                         if bookCount > 0 {
-                            Text("この口座に登録されている\(bookCount)冊の本も削除されます")
+                            Text(L10n.format("account.delete.warning_books", Int64(bookCount)))
                                 .font(.caption)
                                 .foregroundColor(.red)
                         }
@@ -287,34 +287,34 @@ struct EditPassbookView: View {
             .onTapGesture {
                 UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
             }
-            .navigationTitle("口座を編集")
+            .navigationTitle("account.edit.title")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Button("キャンセル") {
+                    Button("common.cancel") {
                         dismiss()
                     }
                     .foregroundColor(.primary)
                 }
                 
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("保存") {
+                    Button("common.save") {
                         savePassbook()
                     }
                     .disabled(editingName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !hasChanges)
                     .foregroundColor(hasChanges && !editingName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? .blue : .primary.opacity(0.4))
                 }
             }
-            .alert("口座を削除しますか？", isPresented: $showDeleteAlert) {
-                Button("キャンセル", role: .cancel) { }
-                Button("削除", role: .destructive) {
+            .alert("account.delete.title", isPresented: $showDeleteAlert) {
+                Button("common.cancel", role: .cancel) { }
+                Button("common.delete", role: .destructive) {
                     deletePassbook()
                 }
             } message: {
                 if bookCount > 0 {
-                    Text("「\(editingName)」を削除すると、この口座に登録されている\(bookCount)冊の本も削除されます。\n\nこの操作は取り消せません。")
+                    Text(L10n.format("account.delete.message_with_books", editingName, Int64(bookCount)))
                 } else {
-                    Text("「\(editingName)」を削除してもよろしいですか？\n\nこの操作は取り消せません。")
+                    Text(L10n.format("account.delete.message_empty", editingName))
                 }
             }
             .tint(.primary)

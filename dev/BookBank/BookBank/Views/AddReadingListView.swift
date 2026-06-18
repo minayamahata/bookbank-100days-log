@@ -27,7 +27,7 @@ struct AddReadingListView: View {
     
     /// デフォルトのリスト名を生成
     private var defaultTitle: String {
-        "Myリスト#\(existingLists.count + 1)"
+        L10n.format("readinglist.default_name", Int64(existingLists.count + 1))
     }
     
     var body: some View {
@@ -59,7 +59,7 @@ struct AddReadingListView: View {
                         .tint(.secondary)
                 } else if allBooks.isEmpty {
                     VStack(spacing: 20) {
-                        Text("まずは口座に本を登録しましょう")
+                        Text("readinglist.empty_register_first")
                             .font(.body)
                             .foregroundColor(.secondary)
                             .multilineTextAlignment(.center)
@@ -68,7 +68,7 @@ struct AddReadingListView: View {
                             dismiss()
                             onNavigateToPassbook?()
                         }) {
-                            Text("本を登録する")
+                            Text("book.register")
                                 .font(.subheadline)
                                 .fontWeight(.medium)
                                 .foregroundColor(.white)
@@ -79,7 +79,7 @@ struct AddReadingListView: View {
                     }
                 } else {
                     VStack(spacing: 32) {
-                        Text("読了リストの名前はどうしますか？")
+                        Text("readinglist.name_prompt")
                             .font(.body)
                             .multilineTextAlignment(.center)
                             .foregroundColor(.primary)
@@ -104,7 +104,7 @@ struct AddReadingListView: View {
                         Button(action: {
                             createReadingList()
                         }) {
-                            Text("作成する")
+                            Text("common.create")
                                 .font(.subheadline)
                                 .foregroundColor(.white)
                                 .padding(.horizontal, 32)
@@ -129,10 +129,10 @@ struct AddReadingListView: View {
                 isFocused = true
             }
         }
-        .alert("エラー", isPresented: $showError) {
-            Button("OK", role: .cancel) {}
+        .alert("common.error", isPresented: $showError) {
+            Button("common.ok", role: .cancel) {}
         } message: {
-            Text("リストの作成に失敗しました")
+            Text("readinglist.create.error")
         }
         .fullScreenCover(isPresented: $showBookSelector, onDismiss: {
             isCompleting = true

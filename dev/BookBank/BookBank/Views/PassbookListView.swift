@@ -10,6 +10,8 @@ import SwiftData
 
 struct PassbookListView: View {
     @Environment(\.modelContext) private var context
+    @Environment(CurrencyManager.self) private var currencyManager
+    @Environment(ExchangeRateService.self) private var exchangeRates
     @Query(sort: \Passbook.sortOrder) private var passbooks: [Passbook]
     @State private var showAddPassbook = false
     
@@ -28,7 +30,10 @@ struct PassbookListView: View {
                             PassbookRow(
                                 name: passbook.name,
                                 bookCount: passbook.bookCount,
-                                totalValue: passbook.totalValue
+                                totalValue: passbook.userBooks.totalDisplayAmount(
+                                    in: currencyManager.displayCurrency,
+                                    exchangeRates: exchangeRates
+                                )
                             )
                         }
                     }
@@ -43,14 +48,14 @@ struct PassbookListView: View {
                         HStack {
                             Image(systemName: "plus.circle.fill")
                                 .foregroundColor(.primary)
-                            Text("新しい口座を追加")
+                            Text("account.add_new")
                                 .foregroundColor(.primary)
                         }
                     }
                 }
             }
             .listStyle(.insetGrouped)
-            .navigationTitle("口座")
+            .navigationTitle("account.title")
             .sheet(isPresented: $showAddPassbook) {
                 AddPassbookView()
             }
@@ -88,7 +93,7 @@ struct PassbookRow: View {
                 Text(name)
                     .font(.body)
                 
-                Text("\(bookCount)冊")
+                Text(L10n.format("common.books_count", Int64(bookCount)))
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
@@ -96,14 +101,9 @@ struct PassbookRow: View {
             Spacer()
             
             VStack(alignment: .trailing, spacing: 4) {
-                HStack(alignment: .lastTextBaseline, spacing: 1) {
-                    Text("\(totalValue.formatted())")
-                        .font(.body)
-                    Text("円")
-                        .font(.caption)
-                }
+                DisplayCurrencyPriceText(amount: totalValue)
                 
-                Text("残高")
+                Text("account.balance")
                     .font(.caption2)
                     .foregroundColor(.secondary)
             }

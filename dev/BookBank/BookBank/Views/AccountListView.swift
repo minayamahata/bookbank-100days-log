@@ -11,6 +11,9 @@ import Charts
 
 /// 口座一覧ページ
 struct AccountListView: View {
+    @Environment(LanguageManager.self) private var languageManager
+    @Environment(CurrencyManager.self) private var currencyManager
+    @Environment(ExchangeRateService.self) private var exchangeRates
     @Query(sort: \Passbook.sortOrder) private var passbooks: [Passbook]
     @Query private var allBooks: [UserBook]
     private var unlimitedManager: UnlimitedManager { UnlimitedManager.shared }
@@ -25,15 +28,15 @@ struct AccountListView: View {
     /// 総合口座選択時のコールバック
     var onOverallSelected: (() -> Void)?
     
-    private static let overallColor = Color.blue
+    private static let overallColor = PassbookColor.overallThemeColor
     // カスタム口座を取得
     private var customPassbooks: [Passbook] {
         passbooks.filter { $0.type == .custom && $0.isActive }
     }
     
-    // 全口座の合計金額
+    // 全口座の合計金額（表示通貨）
     private var totalAmount: Int {
-        allBooks.compactMap { $0.priceAtRegistration }.reduce(0, +)
+        allBooks.totalDisplayAmount(in: currencyManager.displayCurrency, exchangeRates: exchangeRates)
     }
     
     // 全口座の合計冊数
@@ -41,12 +44,11 @@ struct AccountListView: View {
         allBooks.count
     }
     
-    // 特定の口座の合計金額
+    // 特定の口座の合計金額（表示通貨）
     private func amountForPassbook(_ passbook: Passbook) -> Int {
         allBooks
             .filter { $0.passbook?.persistentModelID == passbook.persistentModelID }
-            .compactMap { $0.priceAtRegistration }
-            .reduce(0, +)
+            .totalDisplayAmount(in: currencyManager.displayCurrency, exchangeRates: exchangeRates)
     }
     
     // 特定の口座の冊数
@@ -87,6 +89,9 @@ struct AccountListView: View {
     }
     
     var body: some View {
+        let _ = languageManager.currentLanguage
+        let _ = currencyManager.displayCurrency
+
         ScrollView {
             VStack(spacing: 20) {
                 // 円グラフ + 総合口座
@@ -94,7 +99,7 @@ struct AccountListView: View {
                     ZStack {
                         Chart(chartData) { data in
                             SectorMark(
-                                angle: .value("金額", data.amount),
+                                angle: .value(L10n.string("chart.amount", locale: languageManager.resolvedLocale), data.amount),
                                 innerRadius: .ratio(0.6),
                                 angularInset: 1.5
                             )
@@ -111,7 +116,7 @@ struct AccountListView: View {
                                             Circle()
                                                 .fill(data.color)
                                                 .frame(width: 6, height: 6)
-                                            Text("\(Int(percentage.rounded()))%")
+                                            Text(L10n.format("common.percent", Int64(Int(percentage.rounded()))))
                                                 .font(.caption2)
                                                 .foregroundColor(.primary)
                                         }
@@ -133,21 +138,15 @@ struct AccountListView: View {
                                 unlimitedBadgeSection
                             }
                             
-                            Text("総資産")
+                            Text("account.total_assets")
                                 .font(.callout)
                                 .fontWeight(.regular)
                                 .foregroundColor(.primary)
                             
-                            HStack(alignment: .lastTextBaseline, spacing: 1) {
-                                Text("\(totalAmount.formatted())")
-                                    .font(.system(size: 26))
-                                    .fontWeight(.medium)
-                                Text("円")
-                                    .font(.system(size: 14))
-                            }
+                            DisplayCurrencyPriceText(amount: totalAmount, font: .system(size: 26), fontWeight: .medium)
                             .foregroundColor(.primary)
                             
-                            Text("\(totalBookCount)冊")
+                            Text(L10n.format("common.books_count", Int64(totalBookCount)))
                                 .font(.footnote)
                                 .foregroundColor(.secondary)
                         }
@@ -158,7 +157,7 @@ struct AccountListView: View {
                         onOverallSelected?()
                     }) {
                         accountRow(
-                            name: "BookBank（総合）",
+                            name: L10n.string("account.bookbank_overall", locale: languageManager.resolvedLocale),
                             bookCount: totalBookCount,
                             amount: totalAmount,
                             color: Self.overallColor,
@@ -201,7 +200,7 @@ struct AccountListView: View {
                     HStack {
                         Image(systemName: "plus")
                             .font(.system(size: 14))
-                        Text("新しい口座を追加")
+                        Text("account.add_new")
                             .font(.body)
                     }
                     .foregroundColor(.primary)
@@ -232,7 +231,7 @@ struct AccountListView: View {
             }
             .ignoresSafeArea()
         )
-        .navigationTitle("口座一覧")
+        .navigationTitle(L10n.string("account.list.title", locale: languageManager.resolvedLocale))
         .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $passbookToEdit) { passbook in
             EditPassbookView(passbook: passbook)
@@ -258,7 +257,7 @@ struct AccountListView: View {
     private static let goldColor = Color(red: 161/255, green: 151/255, blue: 93/255)
     
     private var unlimitedBadgeSection: some View {
-        Text("Unlimited")
+        Text("paywall.unlimited")
             .font(.custom("Fearlessly Authentic", size: 16))
             .foregroundColor(.primary)
             .frame(maxWidth: .infinity, alignment: .center)
@@ -309,7 +308,7 @@ struct AccountListView: View {
                     .font(.subheadline)
                     .foregroundColor(.primary)
                 
-                Text("\(bookCount)冊")
+                Text(L10n.format("common.books_count", Int64(bookCount)))
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
@@ -317,13 +316,8 @@ struct AccountListView: View {
             Spacer()
             
             // 金額
-            HStack(alignment: .lastTextBaseline, spacing: 1) {
-                Text("\(amount.formatted())")
-                    .font(.body)
-                Text("円")
-                    .font(.caption)
-            }
-            .foregroundColor(color)
+            DisplayCurrencyPriceText(amount: amount)
+                .foregroundColor(color)
             
             if showEditButton {
                 // 三点リーダー（タップで編集）

@@ -15,6 +15,8 @@ struct BookshelfView: View {
     
     /// 表示対象の口座（nil = 総合口座）
     let passbook: Passbook?
+
+    @Environment(LanguageManager.self) private var languageManager
     
     // MARK: - SwiftData Query
     
@@ -72,7 +74,7 @@ struct BookshelfView: View {
         if let passbook {
             return PassbookColor.color(for: passbook, in: customPassbooks)
         }
-        return .blue
+        return PassbookColor.overallThemeColor
     }
     
     /// テーマカラーが黒かどうか
@@ -141,13 +143,30 @@ struct BookshelfView: View {
             .sorted { $0.year > $1.year }
     }
     
-    /// 月名をフォーマット
-    private func monthName(month: Int) -> String {
+    /// 言語に応じた年月表記（例: 2026年6月 / June 2026）
+    private func formattedYearMonth(year: Int, month: Int) -> String {
+        var components = DateComponents()
+        components.year = year
+        components.month = month
+        components.day = 1
+
+        let calendar = Calendar(identifier: .gregorian)
+        guard let date = calendar.date(from: components) else {
+            return L10n.format(
+                "bookshelf.year_month",
+                locale: languageManager.resolvedLocale,
+                Int64(year),
+                Int64(month)
+            )
+        }
+
         let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US")
-        return formatter.monthSymbols[month - 1]
+        formatter.locale = languageManager.resolvedLocale
+        formatter.calendar = calendar
+        formatter.setLocalizedDateFormatFromTemplate("yMMMM")
+        return formatter.string(from: date)
     }
-    
+
     // MARK: - Initialization
     
     init(passbook: Passbook?) {
@@ -159,6 +178,8 @@ struct BookshelfView: View {
     // MARK: - Body
     
     var body: some View {
+        let _ = languageManager.currentLanguage
+
         GeometryReader { geometry in
             ScrollView {
                 VStack(spacing: 0) {
@@ -176,7 +197,7 @@ struct BookshelfView: View {
         }
         .id(passbook?.persistentModelID.hashValue.description ?? "overall")
         .background(ThemedBackgroundView(themeColor: themeColor, isBlackTheme: isBlackTheme))
-        .navigationTitle("本棚")
+        .navigationTitle("bookshelf.title")
         .navigationBarTitleDisplayMode(.inline)
     }
     
@@ -190,7 +211,7 @@ struct BookshelfView: View {
                 showWithMemoOnly = false
             }) {
                 HStack(spacing: 6) {
-                    Text("すべて")
+                    Text("common.all")
                         .font(.system(size: 11, weight: .medium))
                     Text("\(allBooksCount)")
                         .font(.system(size: 10, weight: .medium))
@@ -218,7 +239,7 @@ struct BookshelfView: View {
                 }
             }) {
                 HStack(spacing: 6) {
-                    Text("お気に入り")
+                    Text("bookshelf.favorite")
                         .font(.system(size: 11, weight: .medium))
                     if favoriteCount > 0 {
                         Text("\(favoriteCount)")
@@ -248,7 +269,7 @@ struct BookshelfView: View {
                 }
             }) {
                 HStack(spacing: 6) {
-                    Text("メモ")
+                    Text("bookshelf.memo")
                         .font(.system(size: 11, weight: .medium))
                     if memoCount > 0 {
                         Text("\(memoCount)")
@@ -295,7 +316,7 @@ struct BookshelfView: View {
         Group {
             if userBooks.isEmpty {
                 VStack(spacing: 8) {
-                    Text("読んだ本を登録しましょう")
+                    Text("bookshelf.register_prompt")
                         .font(.body)
                         .foregroundColor(.white)
                 }
@@ -333,12 +354,12 @@ struct BookshelfView: View {
         VStack(alignment: .leading, spacing: 12) {
             // 月ヘッダー
             HStack {
-                Text(verbatim: "\(year)年\(month)月")
+                Text(formattedYearMonth(year: year, month: month))
                     .font(.title3)
                     .fontWeight(.semibold)
                     .foregroundColor(.white)
-                
-                Text("\(books.count)冊")
+
+                Text(L10n.format("common.books_count", locale: languageManager.resolvedLocale, Int64(books.count)))
                     .font(.system(size: 14))
                     .foregroundColor(.white.opacity(0.6))
             }

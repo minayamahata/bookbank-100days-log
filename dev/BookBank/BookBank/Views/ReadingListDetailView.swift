@@ -22,7 +22,14 @@ struct ReadingListDetailView: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(CurrencyManager.self) private var currencyManager
+    @Environment(ExchangeRateService.self) private var exchangeRates
     
+    /// 表示通貨での合計金額
+    private var displayTotalValue: Int {
+        readingList.books.totalDisplayAmount(in: currencyManager.displayCurrency, exchangeRates: exchangeRates)
+    }
+
     // MARK: - State
     
     @State private var showBookSelector = false
@@ -128,8 +135,8 @@ struct ReadingListDetailView: View {
                 SharePreviewSheet(readingList: readingList, shareURL: url)
             }
         }
-        .alert("シェアエラー", isPresented: $showShareError) {
-            Button("OK") { }
+        .alert("readinglist.share.error", isPresented: $showShareError) {
+            Button("common.ok") { }
         } message: {
             Text(shareErrorMessage)
         }
@@ -142,7 +149,7 @@ struct ReadingListDetailView: View {
                     VStack(spacing: 16) {
                         ProgressView()
                             .scaleEffect(1.5)
-                        Text("シェアリンクを作成中...")
+                        Text("readinglist.share.creating")
                             .font(.subheadline)
                             .foregroundColor(.primary)
                     }
@@ -154,26 +161,26 @@ struct ReadingListDetailView: View {
                 }
             }
         }
-        .alert("リストから削除", isPresented: $showRemoveAlert) {
-            Button("キャンセル", role: .cancel) {}
-            Button("削除", role: .destructive) {
+        .alert("readinglist.remove.title", isPresented: $showRemoveAlert) {
+            Button("common.cancel", role: .cancel) {}
+            Button("common.delete", role: .destructive) {
                 if let book = bookToRemove {
                     removeBookFromList(book)
                 }
             }
         } message: {
             if let book = bookToRemove {
-                Text("「\(book.title)」をリストから削除しますか？\n本棚からは削除されません。")
+                Text(L10n.format("readinglist.remove.message", book.title))
             }
         }
         .tint(.primary)
-        .alert("リストを削除", isPresented: $showDeleteListAlert) {
-            Button("キャンセル", role: .cancel) {}
-            Button("削除", role: .destructive) {
+        .alert("readinglist.delete.title", isPresented: $showDeleteListAlert) {
+            Button("common.cancel", role: .cancel) {}
+            Button("common.delete", role: .destructive) {
                 deleteReadingList()
             }
         } message: {
-            Text("「\(readingList.title)」を削除しますか？\nリスト内の本は本棚に残ります。")
+            Text(L10n.format("readinglist.delete.message_alt", readingList.title))
         }
         .tint(.primary)
         .fullScreenCover(isPresented: $isReorderMode) {
@@ -183,7 +190,7 @@ struct ReadingListDetailView: View {
             ExportSheetView(
                 title: readingList.title,
                 bookCount: readingList.books.count,
-                totalValue: readingList.books.reduce(0) { $0 + ($1.priceAtRegistration ?? 0) },
+                totalValue: displayTotalValue,
                 sampleBooks: readingList.books.prefix(4).map { book in
                     if let author = book.author, !author.isEmpty {
                         return "\(book.title) / \(author)"
@@ -278,16 +285,11 @@ struct ReadingListDetailView: View {
             HStack(alignment: .lastTextBaseline, spacing: 12) {
                 Spacer()
                 
-                Text("\(readingList.bookCount)冊")
+                Text(L10n.format("common.books_count", Int64(readingList.bookCount)))
                     .font(.footnote)
                     .foregroundColor(.secondary)
                 
-                HStack(alignment: .lastTextBaseline, spacing: 2) {
-                    Text("\(readingList.totalValue.formatted())")
-                        .font(.system(size: 28, weight: .medium))
-                    Text("円")
-                        .font(.system(size: 15, weight: .medium))
-                }
+                DisplayCurrencyPriceText(amount: displayTotalValue, font: .system(size: 28, weight: .medium))
                 .foregroundStyle(
                     LinearGradient(
                         stops: [
@@ -311,7 +313,7 @@ struct ReadingListDetailView: View {
                     HStack(spacing: 6) {
                         Image(systemName: "plus")
                             .font(.system(size: 13, weight: .medium))
-                        Text("追加")
+                        Text("common.add")
                             .font(.system(size: 13, weight: .medium))
                     }
                     .foregroundColor(.primary)
@@ -333,7 +335,7 @@ struct ReadingListDetailView: View {
                             .resizable()
                             .scaledToFit()
                             .frame(width: 13, height: 13)
-                        Text("並べ替え")
+                        Text("readinglist.sort")
                             .font(.system(size: 13, weight: .medium))
                     }
                     .foregroundColor(.primary)
@@ -355,7 +357,7 @@ struct ReadingListDetailView: View {
                             .resizable()
                             .scaledToFit()
                             .frame(width: 13, height: 13)
-                        Text("シェア")
+                        Text("common.share")
                             .font(.system(size: 13, weight: .medium))
                     }
                     .foregroundColor(.primary)
@@ -462,11 +464,11 @@ struct ReadingListDetailView: View {
         Group {
             if readingList.books.isEmpty {
                 VStack(spacing: 12) {
-                    Text("まだ本がありません")
+                    Text("readinglist.empty")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                     
-                    Button("本を追加する") {
+                    Button("book.add_to_list") {
                         showBookSelector = true
                     }
                     .buttonStyle(.borderedProminent)
@@ -532,14 +534,9 @@ struct ReadingListDetailView: View {
                 Spacer()
                 
                 // 金額
-                if let price = book.priceAtRegistration {
-                    HStack(alignment: .lastTextBaseline, spacing: 1) {
-                        Text("\(price.formatted())")
-                            .font(.subheadline)
-                        Text("円")
-                            .font(.caption2)
-                    }
-                    .foregroundColor(themeColor)
+                if book.priceAtRegistration != nil {
+                    BookPriceText(book: book, font: .subheadline)
+                        .foregroundColor(themeColor)
                 }
                 
                 Image(systemName: "chevron.right")
@@ -559,7 +556,7 @@ struct ReadingListDetailView: View {
                 bookToRemove = book
                 showRemoveAlert = true
             } label: {
-                Label("リストから削除", systemImage: "trash")
+                Label("readinglist.remove.action", systemImage: "trash")
             }
         }
     }
@@ -605,7 +602,7 @@ struct ReadingListDetailView: View {
                 bookToRemove = book
                 showRemoveAlert = true
             } label: {
-                Label("リストから削除", systemImage: "trash")
+                Label("readinglist.remove.action", systemImage: "trash")
             }
         }
     }
@@ -668,6 +665,8 @@ struct EditReadingListView: View {
     @Bindable var readingList: ReadingList
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
+    @Environment(CurrencyManager.self) private var currencyManager
+    @Environment(ExchangeRateService.self) private var exchangeRates
     
     @State private var title: String = ""
     @State private var listDescription: String = ""
@@ -687,16 +686,21 @@ struct EditReadingListView: View {
     private var hasChanges: Bool {
         title != originalTitle || listDescription != originalDescription || selectedColorIndex != originalColorIndex
     }
+
+    /// 表示通貨での合計金額
+    private var displayTotalValue: Int {
+        readingList.books.totalDisplayAmount(in: currencyManager.displayCurrency, exchangeRates: exchangeRates)
+    }
     
     var body: some View {
         NavigationStack {
             Form {
                 Section {
-                    TextField("タイトル", text: $title)
+                    TextField("book.title_label", text: $title)
                 }
                 
                 Section {
-                    TextField("説明（任意）", text: $listDescription, axis: .vertical)
+                    TextField("readinglist.description", text: $listDescription, axis: .vertical)
                         .lineLimit(3...6)
                         .onChange(of: listDescription) { _, newValue in
                             if newValue.count > 50 {
@@ -704,12 +708,12 @@ struct EditReadingListView: View {
                             }
                         }
                 } footer: {
-                    Text("50文字まで")
+                    Text("readinglist.description_limit")
                 }
                 
                 Section {
                     VStack(alignment: .leading, spacing: 12) {
-                        Text("テーマカラー")
+                        Text("account.theme_color")
                             .font(.subheadline)
                             .foregroundColor(.secondary)
                         
@@ -745,7 +749,7 @@ struct EditReadingListView: View {
                             Spacer()
                             Image("icon-download")
                                 .renderingMode(.template)
-                            Text("リストデータをダウンロードする")
+                            Text("readinglist.download_data")
                             Spacer()
                         }
                         .font(.system(size: 15))
@@ -759,24 +763,24 @@ struct EditReadingListView: View {
                     }) {
                         HStack {
                             Spacer()
-                            Text("このリストを削除")
+                            Text("readinglist.delete.this")
                             Spacer()
                         }
                     }
                 }
             }
-            .navigationTitle("リストを編集")
+            .navigationTitle("readinglist.edit.title")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("キャンセル") {
+                    Button("common.cancel") {
                         dismiss()
                     }
                     .foregroundColor(.primary)
                 }
                 
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("保存") {
+                    Button("common.save") {
                         saveChanges()
                     }
                     .disabled(title.isEmpty || !hasChanges)
@@ -791,19 +795,19 @@ struct EditReadingListView: View {
                 originalDescription = String((readingList.listDescription ?? "").prefix(50))
                 originalColorIndex = readingList.colorIndex ?? 0
             }
-            .alert("リストを削除", isPresented: $showDeleteAlert) {
-                Button("キャンセル", role: .cancel) {}
-                Button("削除", role: .destructive) {
+            .alert("readinglist.delete.title", isPresented: $showDeleteAlert) {
+                Button("common.cancel", role: .cancel) {}
+                Button("common.delete", role: .destructive) {
                     deleteList()
                 }
             } message: {
-                Text("「\(readingList.title)」を削除しますか？\nリストに含まれる本は削除されません。")
+                Text(L10n.format("readinglist.delete.message", readingList.title))
             }
             .sheet(isPresented: $showExportSheet) {
                 ExportSheetView(
                     title: readingList.title,
                     bookCount: readingList.books.count,
-                    totalValue: readingList.books.reduce(0) { $0 + ($1.priceAtRegistration ?? 0) },
+                    totalValue: displayTotalValue,
                     sampleBooks: readingList.books.prefix(4).map { book in
                         if let author = book.author, !author.isEmpty {
                             return "\(book.title) / \(author)"
@@ -984,11 +988,11 @@ struct ReorderBooksView: View {
             .scrollContentBackground(.hidden)
             .contentMargins(.top, 16, for: .scrollContent)
             .contentMargins(.bottom, 100, for: .scrollContent)
-            .navigationTitle("リストを編集")
+            .navigationTitle("readinglist.edit.title")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("キャンセル") {
+                    Button("common.cancel") {
                         if hasChanges {
                             showDiscardAlert = true
                         } else {
@@ -999,7 +1003,7 @@ struct ReorderBooksView: View {
                 }
                 
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("保存") {
+                    Button("common.save") {
                         saveChanges()
                     }
                     .fontWeight(.semibold)
@@ -1023,11 +1027,11 @@ struct ReorderBooksView: View {
                     VStack(spacing: 20) {
                         // タイトルとメッセージ
                         VStack(spacing: 8) {
-                            Text("変更を取り消しますか？")
+                            Text("readinglist.discard.title")
                                 .font(.headline)
                                 .foregroundColor(.primary)
                             
-                            Text("いま終了すると、変更した内容は保存されません。")
+                            Text("readinglist.discard.message")
                                 .font(.subheadline)
                                 .foregroundColor(.secondary)
                                 .multilineTextAlignment(.center)
@@ -1039,7 +1043,7 @@ struct ReorderBooksView: View {
                             Button(action: {
                                 showDiscardAlert = false
                             }) {
-                                Text("編集を続ける")
+                                Text("readinglist.continue_editing")
                                     .font(.headline)
                                     .foregroundColor(.white)
                                     .frame(maxWidth: .infinity)
@@ -1055,7 +1059,7 @@ struct ReorderBooksView: View {
                                 showDiscardAlert = false
                                 dismiss()
                             }) {
-                                Text("やめる")
+                                Text("readinglist.quit")
                                     .font(.subheadline)
                                     .foregroundColor(.primary)
                             }
@@ -1126,7 +1130,7 @@ struct MoreActionsSheet: View {
                         .scaledToFit()
                         .frame(width: 20, height: 20)
                         .frame(width: 24)
-                    Text("「\(title)」をシェア")
+                    Text(L10n.format("readinglist.share.title", title))
                         .font(.system(size: 16))
                     Spacer()
                 }
@@ -1147,7 +1151,7 @@ struct MoreActionsSheet: View {
                         .scaledToFit()
                         .frame(width: 16, height: 16)
                         .frame(width: 24)
-                    Text("ダウンロード")
+                    Text("common.download")
                         .font(.system(size: 16))
                     Spacer()
                 }
@@ -1168,7 +1172,7 @@ struct MoreActionsSheet: View {
                         .scaledToFit()
                         .frame(width: 18, height: 18)
                         .frame(width: 24)
-                    Text("名前と詳細の編集")
+                    Text("readinglist.edit_name_detail")
                         .font(.system(size: 16))
                     Spacer()
                 }
@@ -1189,7 +1193,7 @@ struct MoreActionsSheet: View {
                         .scaledToFit()
                         .frame(width: 18, height: 18)
                         .frame(width: 24)
-                    Text("このリストを削除")
+                    Text("readinglist.delete.this")
                         .font(.system(size: 16))
                     Spacer()
                 }
@@ -1213,7 +1217,14 @@ struct SharePreviewSheet: View {
     
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(CurrencyManager.self) private var currencyManager
+    @Environment(ExchangeRateService.self) private var exchangeRates
     @State private var isCopied = false
+    
+    /// 表示通貨での合計金額
+    private var displayTotalValue: Int {
+        readingList.books.totalDisplayAmount(in: currencyManager.displayCurrency, exchangeRates: exchangeRates)
+    }
     
     /// テーマカラー（colorIndexに基づく）
     private var themeColor: Color {
@@ -1240,7 +1251,7 @@ struct SharePreviewSheet: View {
                 .padding(.bottom, 24)
             }
             .background(colorScheme == .dark ? Color.black : Color(.systemGroupedBackground))
-            .navigationTitle("シェアプレビュー")
+            .navigationTitle("readinglist.share.preview")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -1276,7 +1287,7 @@ struct SharePreviewSheet: View {
                 HStack(spacing: 4) {
                     Image(systemName: isCopied ? "checkmark" : "doc.on.doc")
                         .font(.system(size: 12, weight: .medium))
-                    Text(isCopied ? "コピーしました" : "コピー")
+                    Text(isCopied ? "common.copied" : "common.copy")
                         .font(.system(size: 12))
                 }
                 .foregroundColor(isCopied ? .green : .secondary)
@@ -1341,16 +1352,11 @@ struct SharePreviewSheet: View {
                         .foregroundColor(.primary)
                     
                     HStack(alignment: .lastTextBaseline, spacing: 8) {
-                        Text("\(readingList.bookCount)冊")
+                        Text(L10n.format("common.books_count", Int64(readingList.bookCount)))
                             .font(.subheadline)
                             .foregroundColor(.secondary)
                         
-                        HStack(alignment: .lastTextBaseline, spacing: 2) {
-                            Text("\(readingList.totalValue.formatted())")
-                                .font(.system(size: 20, weight: .medium))
-                            Text("円")
-                                .font(.system(size: 12, weight: .medium))
-                        }
+                        DisplayCurrencyPriceText(amount: displayTotalValue, font: .system(size: 20, weight: .medium))
                         .foregroundStyle(
                             LinearGradient(
                                 stops: [
@@ -1375,7 +1381,7 @@ struct SharePreviewSheet: View {
                 
                 // 残りの冊数
                 if readingList.bookCount > 4 {
-                    Text("他\(readingList.bookCount - 4)冊")
+                    Text(L10n.format("readinglist.more_books", Int64(readingList.bookCount - 4)))
                         .font(.footnote)
                         .foregroundColor(.secondary)
                         .frame(maxWidth: .infinity, alignment: .center)
@@ -1488,7 +1494,7 @@ struct SharePreviewSheet: View {
             
             // 金額
             if let price = book.priceAtRegistration {
-                Text("\(price.formatted())円")
+                Text(L10n.format("export.price_yen", price.formatted()))
                     .font(.subheadline)
                     .foregroundColor(themeColor)
             }

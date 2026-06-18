@@ -19,6 +19,15 @@ struct BookBankApp: App {
 
     /// テーマ管理
     @State private var themeManager = ThemeManager()
+
+    /// 言語管理
+    @State private var languageManager = LanguageManager()
+
+    /// 表示通貨管理
+    @State private var currencyManager = CurrencyManager()
+
+    /// 為替レート
+    @State private var exchangeRateService = ExchangeRateService.shared
     
     // MARK: - Initialization
     
@@ -86,6 +95,10 @@ struct BookBankApp: App {
         WindowGroup {
             RootView()
                 .environment(themeManager)
+                .environment(languageManager)
+                .environment(currencyManager)
+                .environment(exchangeRateService)
+                .environment(\.locale, languageManager.resolvedLocale)
                 .preferredColorScheme(themeManager.currentTheme.colorScheme)
         }
         .modelContainer(modelContainer)
@@ -102,10 +115,19 @@ struct BookBankApp: App {
 
 // MARK: - RootView
 
+/// 初回起動時のスプラッシュ表示状態（セッション内で1回のみ）
+private enum SplashPresentationState {
+    static var hasScheduledInitialSplash = false
+}
+
 /// アプリのルートビュー
 /// スプラッシュスクリーン → カスタム口座の有無によってオンボーディングまたはメイン画面を表示
 struct RootView: View {
     @Environment(ThemeManager.self) private var themeManager
+    @Environment(LanguageManager.self) private var languageManager
+    @Environment(CurrencyManager.self) private var currencyManager
+    @Environment(ExchangeRateService.self) private var exchangeRateService
+    @Environment(\.modelContext) private var modelContext
     @State private var showSplash = true
     @State private var showOnboarding = false
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
@@ -126,8 +148,23 @@ struct RootView: View {
                 showOnboarding = false
             }
             .environment(themeManager)
+            .environment(languageManager)
+            .environment(currencyManager)
+            .environment(exchangeRateService)
+            .environment(\.locale, languageManager.resolvedLocale)
         }
         .onAppear {
+            CurrencyMigration.migrateIfNeeded(context: modelContext)
+            Task {
+                await exchangeRateService.refreshIfNeeded()
+            }
+
+            guard !SplashPresentationState.hasScheduledInitialSplash else {
+                showSplash = false
+                return
+            }
+            SplashPresentationState.hasScheduledInitialSplash = true
+
             DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) {
                 withAnimation(.easeOut(duration: 0.5)) {
                     showSplash = false

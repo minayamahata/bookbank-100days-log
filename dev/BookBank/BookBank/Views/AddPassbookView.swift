@@ -13,7 +13,7 @@ struct AddPassbookView: View {
     @Environment(\.dismiss) private var dismiss
     @Query(sort: \Passbook.sortOrder) private var passbooks: [Passbook]
     
-    @State private var accountName: String = "小説"
+    @State private var accountName: String = String(localized: "category.novel")
     @State private var selectedColorIndex: Int = 10
     @State private var showError: Bool = false
     @State private var showColorPicker = false
@@ -24,20 +24,21 @@ struct AddPassbookView: View {
     private var unlimitedManager: UnlimitedManager { UnlimitedManager.shared }
     @Environment(\.colorScheme) private var colorScheme
     
-    // おすすめ口座名
-    private let suggestedNames = [
-        "小説", "ビジネス書", "マンガ", "参考書",
-        "雑誌", "旅行記", "エッセイ", "勉強用",
-        "レシピ", "写真集", "絵本", "子ども用",
-        "プレゼント", "積読"
+    private let categoryKeys = [
+        "category.novel", "category.business", "category.manga", "category.reference",
+        "category.magazine", "category.travel", "category.essay", "category.study",
+        "category.recipe", "category.photo", "category.picture_book", "category.children",
+        "category.gift", "category.tsundoku"
     ]
     
-    private let tagRows: [[String]] = [
-        ["小説", "ビジネス書", "マンガ", "参考書"],
-        ["雑誌", "旅行記", "エッセイ", "勉強用"],
-        ["レシピ", "写真集", "絵本", "子ども用"],
-        ["プレゼント", "積読"]
-    ]
+    private var tagRows: [[String]] {
+        [
+            Array(categoryKeys.prefix(4)),
+            Array(categoryKeys.dropFirst(4).prefix(4)),
+            Array(categoryKeys.dropFirst(8).prefix(4)),
+            Array(categoryKeys.dropFirst(12))
+        ]
+    }
     
     var body: some View {
         NavigationStack {
@@ -45,12 +46,12 @@ struct AddPassbookView: View {
                 VStack(spacing: 24) {
                 // 入力フィールド
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("口座名")
+                    Text("account.name")
                         .font(.body)
 
                     
                     HStack(spacing: 8) {
-                        TextField("小説", text: $accountName)
+                        TextField("account.name_placeholder", text: $accountName)
                             .font(.system(size: 18, weight: .light))
                             .multilineTextAlignment(.center)
                             .frame(height: 50)
@@ -66,7 +67,7 @@ struct AddPassbookView: View {
                                 }
                             }
                         
-                        Text("口座")
+                        Text("account.title")
                             .font(.system(size: 14))
                             .foregroundColor(.secondary)
                     }
@@ -78,25 +79,25 @@ struct AddPassbookView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     ForEach(tagRows, id: \.self) { row in
                         HStack(spacing: 8) {
-                            ForEach(row, id: \.self) { name in
+                            ForEach(row, id: \.self) { key in
                                 Button(action: {
-                                    accountName = name
+                                    accountName = String(localized: String.LocalizationValue(key))
                                 }) {
-                                    Text(name)
+                                    Text(LocalizedStringKey(key))
                                         .font(.system(size: 12))
                                         .lineLimit(1)
                                         .fixedSize(horizontal: true, vertical: false)
-                                        .foregroundColor(accountName == name ? (colorScheme == .dark ? .black : .white) : .primary)
+                                        .foregroundColor(accountName == String(localized: String.LocalizationValue(key)) ? (colorScheme == .dark ? .black : .white) : .primary)
                                         .padding(.horizontal, 20)
                                         .padding(.vertical, 12)
                                         .background(
-                                            accountName == name
+                                            accountName == String(localized: String.LocalizationValue(key))
                                                 ? Color.primary
                                                 : Color.clear
                                         )
                                         .overlay(
                                             RoundedRectangle(cornerRadius: 20)
-                                                .stroke(accountName == name ? Color.clear : Color.primary.opacity(0.3), lineWidth: 1)
+                                                .stroke(accountName == String(localized: String.LocalizationValue(key)) ? Color.clear : Color.primary.opacity(0.3), lineWidth: 1)
                                         )
                                         .cornerRadius(20)
                                 }
@@ -111,7 +112,7 @@ struct AddPassbookView: View {
                 
                 // テーマカラー選択
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("テーマカラー")
+                    Text("account.theme_color")
                         .font(.body)
                     
                     let columns = 6
@@ -204,13 +205,13 @@ struct AddPassbookView: View {
                                             .padding(-3)
                                     )
                                 
-                                Text("カスタムカラー")
+                                Text("account.custom_color")
                                     .font(.system(size: 14))
                                     .foregroundColor(.primary)
                                 
                                 Spacer()
                                 
-                                Button("変更") {
+                                Button("common.change") {
                                     showColorPicker = true
                                 }
                                 .font(.system(size: 14))
@@ -233,20 +234,20 @@ struct AddPassbookView: View {
             .onTapGesture {
                 UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
             }
-            .navigationTitle("新しい口座")
+            .navigationTitle("account.new")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("追加") {
+                    Button("common.add") {
                         createPassbook()
                     }
                     .disabled(accountName.isEmpty)
                 }
             }
-            .alert("エラー", isPresented: $showError) {
-                Button("OK", role: .cancel) {}
+            .alert("common.error", isPresented: $showError) {
+                Button("common.ok", role: .cancel) {}
             } message: {
-                Text("口座の作成に失敗しました")
+                Text("account.create.error")
             }
             .sheet(isPresented: $showColorPicker) {
                 ColorPickerSheet(selectedColor: $customColor, onComplete: {

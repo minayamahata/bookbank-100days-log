@@ -25,6 +25,8 @@ struct StatisticsView: View {
     // MARK: - Environment
     
     @Environment(\.modelContext) private var context
+    @Environment(CurrencyManager.self) private var currencyManager
+    @Environment(ExchangeRateService.self) private var exchangeRates
     
     // MARK: - Properties
     
@@ -53,7 +55,7 @@ struct StatisticsView: View {
         if let passbook = passbook {
             return PassbookColor.color(for: passbook, in: customPassbooks)
         }
-        return .blue  // 総合口座は青
+        return PassbookColor.overallThemeColor
     }
     
     /// テーマカラーが黒かどうか
@@ -92,9 +94,9 @@ struct StatisticsView: View {
         targetBooks.count
     }
 
-    /// 総合計金額（口座全体）
+    /// 総合計金額（表示通貨）
     private var totalAmount: Int {
-        targetBooks.compactMap { $0.priceAtRegistration }.reduce(0, +)
+        targetBooks.totalDisplayAmount(in: currencyManager.displayCurrency, exchangeRates: exchangeRates)
     }
 
     /// メモの総文字数（口座全体）
@@ -132,7 +134,14 @@ struct StatisticsView: View {
                         // グラフ部分のTabView（年別統計含む）
                         TabView(selection: $selectedYear) {
                             ForEach(availableYears, id: \.self) { year in
-                                YearlyChartContent(year: year, passbook: passbook, targetBooks: targetBooks, themeColor: themeColor)
+                                YearlyChartContent(
+                                    year: year,
+                                    passbook: passbook,
+                                    targetBooks: targetBooks,
+                                    themeColor: themeColor,
+                                    displayCurrency: currencyManager.displayCurrency,
+                                    exchangeRates: exchangeRates
+                                )
                                     .tag(year)
                             }
                         }
@@ -142,67 +151,50 @@ struct StatisticsView: View {
 
                         // 口座サマリー
                         VStack(alignment: .leading, spacing: 12) {
-                            Text("口座サマリー")
+                            Text("account.summary")
                                 .font(.headline)
                                 .padding(.bottom, 4)
                             
                             HStack {
-                                Text("総合計金額")
+                                Text("statistics.total_amount")
                                     .font(.subheadline)
                                     .foregroundColor(.secondary)
                                 Spacer()
-                                HStack(alignment: .lastTextBaseline, spacing: 1) {
-                                    Text("\(totalAmount.formatted())")
-                                        .font(.body)
-                                    Text("円")
-                                        .font(.caption2)
-                                }
+                                DisplayCurrencyPriceText(amount: totalAmount)
                             }
                             HStack {
-                                Text("総冊数")
+                                Text("statistics.total_books")
                                     .font(.subheadline)
                                     .foregroundColor(.secondary)
                                 Spacer()
-                                HStack(alignment: .lastTextBaseline, spacing: 1) {
-                                    Text("\(totalBookCount)")
-                                        .font(.body)
-                                    Text("冊")
-                                        .font(.caption2)
-                                }
+                                Text(L10n.format("common.books_count", Int64(totalBookCount)))
+                                    .font(.body)
                             }
                             HStack {
-                                Text("お気に入り")
+                                Text("bookshelf.favorite")
                                     .font(.subheadline)
                                     .foregroundColor(.secondary)
                                 Spacer()
-                                HStack(alignment: .lastTextBaseline, spacing: 1) {
-                                    Text("\(totalFavoriteCount)")
-                                        .font(.body)
-                                    Text("冊")
-                                        .font(.caption2)
-                                }
+                                Text(L10n.format("common.books_count", Int64(totalFavoriteCount)))
+                                    .font(.body)
                             }
                             HStack {
-                                Text("メモ数")
+                                Text("statistics.memo_count")
                                     .font(.subheadline)
                                     .foregroundColor(.secondary)
                                 Spacer()
-                                HStack(alignment: .lastTextBaseline, spacing: 1) {
-                                    Text("\(totalMemoCount)")
-                                        .font(.body)
-                                    Text("冊")
-                                        .font(.caption2)
-                                }
+                                Text(L10n.format("common.books_count", Int64(totalMemoCount)))
+                                    .font(.body)
                             }
                             HStack {
-                                Text("メモ文字数")
+                                Text("statistics.memo_chars")
                                     .font(.subheadline)
                                     .foregroundColor(.secondary)
                                 Spacer()
                                 HStack(alignment: .lastTextBaseline, spacing: 1) {
                                     Text("\(totalMemoCharacterCount.formatted())")
                                         .font(.body)
-                                    Text("文字")
+                                    Text("statistics.chars_unit")
                                         .font(.caption2)
                                 }
                             }
@@ -219,7 +211,7 @@ struct StatisticsView: View {
                 }
             }
         }
-        .navigationTitle("集計")
+        .navigationTitle("statistics.title")
         .navigationBarTitleDisplayMode(.inline)
         .background(ThemedBackgroundView(themeColor: themeColor, isBlackTheme: isBlackTheme))
     }
@@ -233,11 +225,11 @@ struct StatisticsView: View {
                 .font(.system(size: 60))
                 .foregroundColor(.gray)
             
-            Text("データがありません")
+            Text("statistics.empty")
                 .font(.headline)
                 .foregroundColor(.secondary)
             
-            Text("本を登録すると統計が表示されます")
+            Text("statistics.empty_message")
                 .font(.subheadline)
                 .foregroundColor(.secondary)
         }
@@ -253,6 +245,8 @@ struct YearlyChartContent: View {
     let passbook: Passbook?
     let targetBooks: [UserBook]
     let themeColor: Color
+    let displayCurrency: AppCurrency
+    let exchangeRates: ExchangeRateService
     
     // MARK: - Year-specific Computed Properties
     
@@ -264,9 +258,9 @@ struct YearlyChartContent: View {
         }
     }
     
-    /// 指定年の合計金額
+    /// 指定年の合計金額（表示通貨）
     private var yearlyAmount: Int {
-        booksInYear.compactMap { $0.priceAtRegistration }.reduce(0, +)
+        booksInYear.totalDisplayAmount(in: displayCurrency, exchangeRates: exchangeRates)
     }
     
     /// 指定年の冊数
@@ -302,7 +296,7 @@ struct YearlyChartContent: View {
             let isFutureMonth = (year == currentYear && month > currentMonth) || year > currentYear
             
             // 日本語のラベル（1月、2月...）
-            let label = "\(month)月"
+            let label = L10n.format("statistics.month_label", Int64(month))
             
             if isFutureMonth {
                 // 未来の月は空データ（X軸ラベルのみ表示）
@@ -315,7 +309,7 @@ struct YearlyChartContent: View {
                 return bookYear == year && bookMonth == month
             }
             
-            let amount = booksInMonth.compactMap { $0.priceAtRegistration }.reduce(0, +)
+            let amount = booksInMonth.totalDisplayAmount(in: displayCurrency, exchangeRates: exchangeRates)
             let count = booksInMonth.count
             
             return ChartDataPoint(month: month, label: label, amount: amount, count: count)
@@ -361,38 +355,56 @@ struct YearlyChartContent: View {
         ], spacing: 8) {
             // 合計金額
             statsCard(
-                title: "合計金額",
-                value: "\(yearlyAmount.formatted())",
-                unit: "円"
+                titleKey: "statistics.yearly_amount",
+                amount: yearlyAmount
             )
             
-            // 冊数
             statsCard(
-                title: "冊数",
-                value: "\(yearlyBookCount)",
-                unit: "冊"
+                titleKey: "statistics.book_count",
+                value: L10n.format("common.books_count", Int64(yearlyBookCount))
             )
             
-            // お気に入り数
             statsCard(
-                title: "お気に入り",
-                value: "\(yearlyFavoriteCount)",
-                unit: "冊"
+                titleKey: "bookshelf.favorite",
+                value: L10n.format("common.books_count", Int64(yearlyFavoriteCount))
             )
             
-            // メモ数
             statsCard(
-                title: "メモ",
-                value: "\(yearlyMemoCount)",
-                unit: "冊"
+                titleKey: "bookshelf.memo",
+                value: L10n.format("common.books_count", Int64(yearlyMemoCount))
             )
         }
     }
     
-    /// 統計カード
-    private func statsCard(title: String, value: String, unit: String) -> some View {
+    /// 金額付き統計カード
+    private func statsCard(titleKey: LocalizedStringKey, amount: Int) -> some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text(title)
+            Text(titleKey)
+                .font(.caption)
+                .foregroundColor(.secondary)
+            DisplayCurrencyPriceText(amount: amount, font: .title, fontWeight: .medium)
+                .foregroundStyle(
+                    LinearGradient(
+                        stops: [
+                            Gradient.Stop(color: themeColor, location: 0),
+                            Gradient.Stop(color: themeColor, location: 0.6),
+                            Gradient.Stop(color: themeColor.opacity(0.3), location: 1.0)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .background(Color.appCardBackground)
+        .cornerRadius(8)
+    }
+
+    /// 統計カード
+    private func statsCard(titleKey: LocalizedStringKey, value: String, unitKey: LocalizedStringKey? = nil) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text(titleKey)
                 .font(.caption)
                 .foregroundColor(.secondary)
             HStack(alignment: .lastTextBaseline, spacing: 1) {
@@ -410,10 +422,12 @@ struct YearlyChartContent: View {
                             endPoint: .bottom
                         )
                     )
-                Text(unit)
-                    .font(.caption2)
-                    .fontWeight(.medium)
-                    .foregroundColor(.secondary)
+                if let unitKey {
+                    Text(unitKey)
+                        .font(.caption2)
+                        .fontWeight(.medium)
+                        .foregroundColor(.secondary)
+                }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -427,7 +441,7 @@ struct YearlyChartContent: View {
         VStack(spacing: 36) {
             // 金額グラフ（上段）
             VStack(alignment: .leading, spacing: 12) {
-                Text("金額")
+                Text("statistics.amount")
                     .font(.subheadline)
                     .foregroundColor(.secondary)
                 
@@ -505,7 +519,7 @@ struct YearlyChartContent: View {
             
             // 冊数グラフ（下段）
             VStack(alignment: .leading, spacing: 12) {
-                Text("冊数")
+                Text("statistics.book_count")
                     .font(.subheadline)
                     .foregroundColor(.secondary)
                 
@@ -596,7 +610,7 @@ struct ReadingReportView: View {
         if let passbook = passbook {
             return PassbookColor.color(for: passbook, in: customPassbooks)
         }
-        return .blue
+        return PassbookColor.overallThemeColor
     }
     
     var body: some View {
@@ -605,16 +619,16 @@ struct ReadingReportView: View {
                 .font(.system(size: 60))
                 .foregroundColor(themeColor)
             
-            Text("読書レポート")
+            Text("statistics.report.title")
                 .font(.title2)
             
-            Text("資産ポートフォリオの詳細を表示します")
+            Text("statistics.report.subtitle")
                 .font(.subheadline)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .navigationTitle("読書レポート")
+        .navigationTitle("statistics.report.title")
         .navigationBarTitleDisplayMode(.inline)
     }
 }

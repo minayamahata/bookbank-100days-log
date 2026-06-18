@@ -16,6 +16,8 @@ struct ContentView: View {
     
     /// 全ての口座を取得（sortOrder順）
     @Query(sort: \Passbook.sortOrder) private var passbooks: [Passbook]
+    @Environment(CurrencyManager.self) private var currencyManager
+    @Environment(ExchangeRateService.self) private var exchangeRates
     
     // MARK: - Body
     
@@ -30,7 +32,7 @@ struct ContentView: View {
                                 .font(.headline)
                             
                             // 登録書籍数
-                            Text("\(passbook.bookCount)冊")
+                            Text(L10n.format("common.books_count", Int64(passbook.bookCount)))
                                 .font(.subheadline)
                                 .foregroundColor(.secondary)
                         }
@@ -38,18 +40,19 @@ struct ContentView: View {
                         Spacer()
                         
                         // 総額
-                        HStack(alignment: .lastTextBaseline, spacing: 1) {
-                            Text("\(passbook.totalValue.formatted())")
-                                .font(.title3)
-                            Text("円")
-                                .font(.caption)
-                        }
+                        DisplayCurrencyPriceText(
+                            amount: passbook.userBooks.totalDisplayAmount(
+                                in: currencyManager.displayCurrency,
+                                exchangeRates: exchangeRates
+                            ),
+                            font: .title3
+                        )
                         .foregroundColor(.blue)
                     }
                     .padding(.vertical, 8)
                 }
             }
-            .navigationTitle("読書銀行")
+            .navigationTitle("account.title")
         }
     }
 }

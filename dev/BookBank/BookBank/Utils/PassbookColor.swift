@@ -114,6 +114,12 @@ struct PassbookColor {
     
     /// 黒テーマのインデックス（ピンクの次、ゴールドの前）
     static let blackThemeIndex: Int = 9
+
+    /// ゴールドテーマのインデックス
+    static let goldThemeIndex: Int = 10
+
+    /// 総合口座のデフォルトテーマカラー（ゴールド）
+    static let overallThemeColor: Color = color(for: goldThemeIndex)
     
     /// 口座が黒テーマかどうかを判定
     static func isBlackTheme(for passbook: Passbook, in passbooks: [Passbook]) -> Bool {
