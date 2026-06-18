@@ -22,6 +22,10 @@ struct AccountListView: View {
     /// 口座選択時のコールバック
     var onPassbookSelected: ((Passbook) -> Void)?
     
+    /// 総合口座選択時のコールバック
+    var onOverallSelected: (() -> Void)?
+    
+    private static let overallColor = Color.blue
     // カスタム口座を取得
     private var customPassbooks: [Passbook] {
         passbooks.filter { $0.type == .custom && $0.isActive }
@@ -85,83 +89,106 @@ struct AccountListView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 20) {
-                // 円グラフ（中央に総資産表示）
-                ZStack {
-                    Chart(chartData) { data in
-                        SectorMark(
-                            angle: .value("金額", data.amount),
-                            innerRadius: .ratio(0.6),
-                            angularInset: 1.5
-                        )
-                        .foregroundStyle(data.color)
-                        .cornerRadius(2)
-                        .annotation(position: .overlay) {
-                            if totalAmount > 0 {
-                                let percentage: Double = {
-                                    let value = Double(data.amount) / Double(totalAmount) * 100
-                                    return value.isNaN || value.isInfinite ? 0 : value
-                                }()
-                                if percentage >= 5 {
-                                    HStack(spacing: 4) {
-                                        Circle()
-                                            .fill(data.color)
-                                            .frame(width: 6, height: 6)
-                                        Text("\(Int(percentage.rounded()))%")
-                                            .font(.caption2)
-                                            .foregroundColor(.primary)
+                // 円グラフ + 総合口座
+                VStack(spacing: 0) {
+                    ZStack {
+                        Chart(chartData) { data in
+                            SectorMark(
+                                angle: .value("金額", data.amount),
+                                innerRadius: .ratio(0.6),
+                                angularInset: 1.5
+                            )
+                            .foregroundStyle(data.color)
+                            .cornerRadius(2)
+                            .annotation(position: .overlay) {
+                                if totalAmount > 0 {
+                                    let percentage: Double = {
+                                        let value = Double(data.amount) / Double(totalAmount) * 100
+                                        return value.isNaN || value.isInfinite ? 0 : value
+                                    }()
+                                    if percentage >= 5 {
+                                        HStack(spacing: 4) {
+                                            Circle()
+                                                .fill(data.color)
+                                                .frame(width: 6, height: 6)
+                                            Text("\(Int(percentage.rounded()))%")
+                                                .font(.caption2)
+                                                .foregroundColor(.primary)
+                                        }
+                                        .padding(.horizontal, 10)
+                                        .padding(.vertical, 6)
+                                        .background(
+                                            Capsule()
+                                                .fill(Color.appCardBackground)
+                                                .shadow(color: Color.black.opacity(0.1), radius: 2, x: 0, y: 1)
+                                        )
                                     }
-                                    .padding(.horizontal, 10)
-                                    .padding(.vertical, 6)
-                                    .background(
-                                        Capsule()
-                                            .fill(Color.appCardBackground)
-                                            .shadow(color: Color.black.opacity(0.1), radius: 2, x: 0, y: 1)
-                                    )
                                 }
                             }
                         }
-                    }
-                    .chartLegend(.hidden)
-                    
-                    // 中央の総資産表示
-                    VStack(spacing: 4) {
-                        if unlimitedManager.isUnlimited {
-                            unlimitedBadgeSection
-                        }
+                        .chartLegend(.hidden)
                         
-                        Text("総資産")
-                            .font(.callout)
-                            .fontWeight(.regular)
+                        VStack(spacing: 4) {
+                            if unlimitedManager.isUnlimited {
+                                unlimitedBadgeSection
+                            }
+                            
+                            Text("総資産")
+                                .font(.callout)
+                                .fontWeight(.regular)
+                                .foregroundColor(.primary)
+                            
+                            HStack(alignment: .lastTextBaseline, spacing: 1) {
+                                Text("\(totalAmount.formatted())")
+                                    .font(.system(size: 26))
+                                    .fontWeight(.medium)
+                                Text("円")
+                                    .font(.system(size: 14))
+                            }
                             .foregroundColor(.primary)
-                        
-                        HStack(alignment: .lastTextBaseline, spacing: 1) {
-                            Text("\(totalAmount.formatted())")
-                                .font(.system(size: 26))
-                                .fontWeight(.medium)
-                            Text("円")
-                                .font(.system(size: 14))
+                            
+                            Text("\(totalBookCount)冊")
+                                .font(.footnote)
+                                .foregroundColor(.secondary)
                         }
-                        .foregroundColor(.primary)
-                        
-                        Text("\(totalBookCount)冊")
-                            .font(.footnote)
-                            .foregroundColor(.secondary)
                     }
+                    .frame(height: 260)
+                    
+                    Button(action: {
+                        onOverallSelected?()
+                    }) {
+                        accountRow(
+                            name: "BookBank（総合）",
+                            bookCount: totalBookCount,
+                            amount: totalAmount,
+                            color: Self.overallColor,
+                            showEditButton: false,
+                            showRowBackground: false
+                        )
+                    }
+                    .buttonStyle(.plain)
                 }
-                .frame(height: 260)
+                .padding(.top, 30)
+                .padding(.bottom, 10)
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color.appSectionBackground)
+                )
                 
-                // 口座リスト
+                // カスタム口座リスト
                 VStack(spacing: 6) {
                     ForEach(customPassbooks) { passbook in
                         Button(action: {
                             onPassbookSelected?(passbook)
                         }) {
-                            accountRow(passbook: passbook)
+                            accountRow(
+                                passbook: passbook,
+                                showEditButton: true
+                            )
                         }
                         .buttonStyle(.plain)
                     }
                 }
-                .padding(.top, 16)
                 
                 // 新しい口座を追加ボタン
                 Button(action: {
@@ -207,11 +234,6 @@ struct AccountListView: View {
         )
         .navigationTitle("口座一覧")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                ThemeToggleButton()
-            }
-        }
         .sheet(item: $passbookToEdit) { passbook in
             EditPassbookView(passbook: passbook)
         }
@@ -242,8 +264,28 @@ struct AccountListView: View {
             .frame(maxWidth: .infinity, alignment: .center)
     }
     
+    // 口座行のビュー（カスタム口座用）
+    private func accountRow(passbook: Passbook, showEditButton: Bool) -> some View {
+        accountRow(
+            name: passbook.name,
+            bookCount: bookCountForPassbook(passbook),
+            amount: amountForPassbook(passbook),
+            color: colorForPassbook(passbook),
+            showEditButton: showEditButton,
+            onEdit: { passbookToEdit = passbook }
+        )
+    }
+    
     // 口座行のビュー
-    private func accountRow(passbook: Passbook) -> some View {
+    private func accountRow(
+        name: String,
+        bookCount: Int,
+        amount: Int,
+        color: Color,
+        showEditButton: Bool,
+        showRowBackground: Bool = true,
+        onEdit: (() -> Void)? = nil
+    ) -> some View {
         HStack(spacing: 12) {
             // 口座アイコン（fillとstrokeを重ねる）
             ZStack {
@@ -251,23 +293,23 @@ struct AccountListView: View {
                     .renderingMode(.template)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
-                    .foregroundColor(colorForPassbook(passbook).opacity(0.1))
+                    .foregroundColor(color.opacity(0.1))
                 
                 Image("icon-tab-account")
                     .renderingMode(.template)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
-                    .foregroundColor(colorForPassbook(passbook))
+                    .foregroundColor(color)
             }
             .frame(width: 20, height: 20)
             
             // 口座情報
             VStack(alignment: .leading, spacing: 4) {
-                Text(passbook.name)
+                Text(name)
                     .font(.subheadline)
                     .foregroundColor(.primary)
                 
-                Text("\(bookCountForPassbook(passbook))冊")
+                Text("\(bookCount)冊")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
@@ -276,32 +318,36 @@ struct AccountListView: View {
             
             // 金額
             HStack(alignment: .lastTextBaseline, spacing: 1) {
-                Text("\(amountForPassbook(passbook).formatted())")
+                Text("\(amount.formatted())")
                     .font(.body)
                 Text("円")
                     .font(.caption)
             }
-            .foregroundColor(colorForPassbook(passbook))
+            .foregroundColor(color)
             
-            // 三点リーダー（タップで編集）
-            Button(action: {
-                passbookToEdit = passbook
-            }) {
-                Image(systemName: "ellipsis")
-                    .font(.system(size: 14))
-                    .foregroundColor(.secondary)
-                    .frame(width: 44, height: 44)
-                    .contentShape(Rectangle())
+            if showEditButton {
+                // 三点リーダー（タップで編集）
+                Button(action: {
+                    onEdit?()
+                }) {
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: 14))
+                        .foregroundColor(.secondary)
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
         }
         .padding(.leading, 16)
-        .padding(.trailing, 8)
+        .padding(.trailing, showEditButton ? 8 : 16)
         .padding(.vertical, 14)
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color.appCardBackground)
-        )
+        .background {
+            if showRowBackground {
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color.appCardBackground)
+            }
+        }
     }
 }
 

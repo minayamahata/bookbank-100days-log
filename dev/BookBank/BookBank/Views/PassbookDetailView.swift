@@ -14,8 +14,8 @@ struct PassbookDetailView: View {
     
     // MARK: - Properties
     
-    /// 表示対象の口座
-    let passbook: Passbook
+    /// 表示対象の口座（nil = 総合口座）
+    let passbook: Passbook?
     
     // MARK: - Environment
     
@@ -43,14 +43,17 @@ struct PassbookDetailView: View {
     
     /// この口座に紐づく書籍のみをフィルタリング
     private var userBooks: [UserBook] {
-        allUserBooks.filter { book in
-            book.passbook?.persistentModelID == passbook.persistentModelID
+        if let passbook {
+            return allUserBooks.filter { book in
+                book.passbook?.persistentModelID == passbook.persistentModelID
+            }
         }
+        return allUserBooks
     }
     
     /// 合計金額
     private var totalValue: Int {
-        passbook.totalValue
+        userBooks.compactMap { $0.priceAtRegistration }.reduce(0, +)
     }
     
     /// 今日の日付文字列
@@ -62,7 +65,7 @@ struct PassbookDetailView: View {
 
     /// 登録書籍数
     private var bookCount: Int {
-        passbook.bookCount
+        userBooks.count
     }
     
     /// カスタム口座のリスト
@@ -72,17 +75,26 @@ struct PassbookDetailView: View {
     
     /// この口座のテーマカラー
     private var themeColor: Color {
-        PassbookColor.color(for: passbook, in: customPassbooks)
+        if let passbook {
+            return PassbookColor.color(for: passbook, in: customPassbooks)
+        }
+        return .blue
     }
     
     /// テーマカラーが黒かどうか
     private var isBlackTheme: Bool {
-        PassbookColor.isBlackTheme(for: passbook, in: customPassbooks)
+        guard let passbook else { return false }
+        return PassbookColor.isBlackTheme(for: passbook, in: customPassbooks)
+    }
+    
+    /// 本の登録先口座（総合口座表示時は先頭のカスタム口座）
+    private var registrationPassbook: Passbook? {
+        passbook ?? customPassbooks.first
     }
     
     // MARK: - Initialization
     
-    init(passbook: Passbook) {
+    init(passbook: Passbook?) {
         self.passbook = passbook
         // registeredAt の降順でソート（新しい本が上に表示される）
         _allUserBooks = Query(sort: \UserBook.registeredAt, order: .reverse)
@@ -162,7 +174,7 @@ struct PassbookDetailView: View {
                 }
             }
         }
-        .id(passbook.persistentModelID)
+        .id(passbook?.persistentModelID.hashValue.description ?? "overall")
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.hidden, for: .navigationBar)
         .toolbar(collapseProgress > 0.5 ? .hidden : .visible, for: .navigationBar)
@@ -266,15 +278,17 @@ struct PassbookDetailView: View {
             
             // アクションボタン
             HStack(spacing: 12) {
-                NavigationLink(destination: BookSearchView(passbook: passbook, allowPassbookChange: true)) {
-                    Text("本を登録する")
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                        .foregroundColor(colorScheme == .dark && isBlackTheme ? .black : .white)
-                        .padding(.horizontal, 20)
-                        .padding(.vertical, 12)
-                        .glassEffect(.regular.tint(colorScheme == .dark && isBlackTheme ? .white : themeColor))
-                        .clipShape(Capsule())
+                if let registrationPassbook {
+                    NavigationLink(destination: BookSearchView(passbook: registrationPassbook, allowPassbookChange: true)) {
+                        Text("本を登録する")
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                            .foregroundColor(colorScheme == .dark && isBlackTheme ? .black : .white)
+                            .padding(.horizontal, 20)
+                            .padding(.vertical, 12)
+                            .glassEffect(.regular.tint(colorScheme == .dark && isBlackTheme ? .white : themeColor))
+                            .clipShape(Capsule())
+                    }
                 }
                 
                 NavigationLink(destination: BookshelfView(passbook: passbook)) {

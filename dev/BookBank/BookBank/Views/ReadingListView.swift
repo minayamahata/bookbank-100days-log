@@ -80,11 +80,6 @@ struct ReadingListView: View {
         .navigationDestination(for: ReadingList.self) { list in
             ReadingListDetailView(readingList: list)
         }
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                ThemeToggleButton()
-            }
-        }
         .sheet(isPresented: $showAddList) {
             AddReadingListView(themeColor: themeColor, onNavigateToPassbook: onNavigateToPassbook)
         }

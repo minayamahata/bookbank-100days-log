@@ -24,6 +24,13 @@ extension Color {
             ? UIColor(red: 28/255.0, green: 28/255.0, blue: 30/255.0, alpha: 1)  // #1C1C1E
             : .systemBackground
     })
+
+    /// セクション背景色（ライト: #FFFFFF, ダーク: #1C1C1E）
+    static let appSectionBackground = Color(UIColor { traits in
+        traits.userInterfaceStyle == .dark
+            ? UIColor(red: 28/255.0, green: 28/255.0, blue: 30/255.0, alpha: 1)  // #1C1C1E
+            : .systemBackground  // #FFFFFF
+    })
 }
 
 /// アプリのテーマ設定

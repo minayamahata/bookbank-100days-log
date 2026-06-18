@@ -13,8 +13,8 @@ struct BookshelfView: View {
     
     // MARK: - Properties
     
-    /// 表示対象の口座
-    let passbook: Passbook
+    /// 表示対象の口座（nil = 総合口座）
+    let passbook: Passbook?
     
     // MARK: - SwiftData Query
     
@@ -35,11 +35,19 @@ struct BookshelfView: View {
     /// カレンダー表示モード
     @State private var showCalendarView = false
     
-    /// この口座に紐づく書籍のみをフィルタリング
-    private var userBooks: [UserBook] {
-        var books = allUserBooks.filter { book in
-            book.passbook?.persistentModelID == passbook.persistentModelID
+    /// 口座に紐づく書籍（総合口座の場合は全書籍）
+    private var passbookBooks: [UserBook] {
+        if let passbook {
+            return allUserBooks.filter { book in
+                book.passbook?.persistentModelID == passbook.persistentModelID
+            }
         }
+        return allUserBooks
+    }
+    
+    /// フィルター適用後の書籍
+    private var userBooks: [UserBook] {
+        var books = passbookBooks
         
         // お気に入りフィルター
         if showFavoritesOnly {
@@ -61,32 +69,31 @@ struct BookshelfView: View {
     
     /// この口座のテーマカラー
     private var themeColor: Color {
-        PassbookColor.color(for: passbook, in: customPassbooks)
+        if let passbook {
+            return PassbookColor.color(for: passbook, in: customPassbooks)
+        }
+        return .blue
     }
     
     /// テーマカラーが黒かどうか
     private var isBlackTheme: Bool {
-        PassbookColor.isBlackTheme(for: passbook, in: customPassbooks)
+        guard let passbook else { return false }
+        return PassbookColor.isBlackTheme(for: passbook, in: customPassbooks)
     }
     
     /// この口座の全書籍数
     private var allBooksCount: Int {
-        allUserBooks.filter { book in
-            book.passbook?.persistentModelID == passbook.persistentModelID
-        }.count
+        passbookBooks.count
     }
     
     /// お気に入りの書籍数
     private var favoriteCount: Int {
-        allUserBooks.filter { book in
-            book.passbook?.persistentModelID == passbook.persistentModelID && book.isFavorite
-        }.count
+        passbookBooks.filter(\.isFavorite).count
     }
     
     /// メモありの書籍数
     private var memoCount: Int {
-        allUserBooks.filter { book in
-            book.passbook?.persistentModelID == passbook.persistentModelID &&
+        passbookBooks.filter { book in
             book.memo != nil && !(book.memo?.isEmpty ?? true)
         }.count
     }
@@ -143,7 +150,7 @@ struct BookshelfView: View {
     
     // MARK: - Initialization
     
-    init(passbook: Passbook) {
+    init(passbook: Passbook?) {
         self.passbook = passbook
         // registeredAt の降順でソート（新しい本が上に表示される）
         _allUserBooks = Query(sort: \UserBook.registeredAt, order: .reverse)
@@ -167,7 +174,7 @@ struct BookshelfView: View {
                 }
             }
         }
-        .id(passbook.persistentModelID) // 口座が変わったら強制的にViewを再生成
+        .id(passbook?.persistentModelID.hashValue.description ?? "overall")
         .background(ThemedBackgroundView(themeColor: themeColor, isBlackTheme: isBlackTheme))
         .navigationTitle("本棚")
         .navigationBarTitleDisplayMode(.inline)

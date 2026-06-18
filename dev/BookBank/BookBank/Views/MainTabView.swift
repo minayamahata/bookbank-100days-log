@@ -29,7 +29,8 @@ struct MainTabView: View {
     @Query(sort: \ReadingList.updatedAt) private var readingLists: [ReadingList]
     private var unlimitedManager: UnlimitedManager { UnlimitedManager.shared }
     @State private var selectedPassbook: Passbook?
-    @State private var showPassbookSelector = false
+    @State private var isOverallMode = false
+    @State private var showAppMenu = false
     @State private var showAddReadingList = false
     @State private var showUnlimitedPaywall = false
     @State private var floatingButtonState = FloatingButtonState()
@@ -56,14 +57,24 @@ struct MainTabView: View {
     private var currentPassbook: Passbook? {
         selectedPassbook ?? customPassbooks.first
     }
+    /// 通帳・本棚・集計に渡す口座（総合口座モード時は nil）
+    private var displayPassbook: Passbook? {
+        isOverallMode ? nil : currentPassbook
+    }
     
-    /// ナビゲーション中かどうか
+    /// 表示用の口座ID（View更新トリガー）
+    private var displayPassbookID: String {
+        if isOverallMode { return "overall" }
+        return currentPassbook?.persistentModelID.hashValue.description ?? "none"
+    }
+    
     private var isNavigating: Bool {
         !accountListNavPath.isEmpty || !passbookNavPath.isEmpty || !bookshelfNavPath.isEmpty || !readingListNavPath.isEmpty || !statisticsNavPath.isEmpty
     }
     
     /// 現在の口座のテーマカラー
     private var currentThemeColor: Color {
+        if isOverallMode { return .blue }
         if let passbook = currentPassbook {
             return PassbookColor.color(for: passbook, in: customPassbooks)
         }
@@ -72,20 +83,54 @@ struct MainTabView: View {
     
     /// 現在の口座が黒テーマかどうか
     private var isBlackTheme: Bool {
+        if isOverallMode { return false }
         guard let passbook = currentPassbook else { return false }
         return PassbookColor.isBlackTheme(for: passbook, in: customPassbooks)
     }
     
     var body: some View {
+        mainTabContent
+            .environment(\.floatingButtonState, floatingButtonState)
+            .sheet(isPresented: $showAddReadingList) {
+                AddReadingListView(themeColor: currentThemeColor) {
+                    selectedTab = 1
+                }
+            }
+            .sheet(isPresented: $showUnlimitedPaywall) {
+                UnlimitedPaywallView()
+            }
+            .fullScreenCover(isPresented: $showAppMenu) {
+                NavigationStack {
+                    AppMenuView(onDismiss: { showAppMenu = false })
+                }
+            }
+            .onChange(of: selectedTab) { _, _ in
+                // タブ切り替え時にビューを強制更新
+                refreshTrigger = UUID()
+            }
+    }
+    
+    private var mainTabContent: some View {
         ZStack(alignment: .bottom) {
             // 標準のTabView
             TabView(selection: $selectedTab) {
                 // 口座一覧タブ
                 NavigationStack(path: $accountListNavPath) {
-                    AccountListView { passbook in
-                        // 口座を選択して通帳タブに切り替え
-                        selectedPassbook = passbook
-                        selectedTab = 1
+                    AccountListView(
+                        onPassbookSelected: { passbook in
+                            isOverallMode = false
+                            selectedPassbook = passbook
+                            selectedTab = 1
+                        },
+                        onOverallSelected: {
+                            isOverallMode = true
+                            selectedTab = 1
+                        }
+                    )
+                    .toolbar {
+                        ToolbarItem(placement: .topBarTrailing) {
+                            AppMenuButton(isPresented: $showAppMenu)
+                        }
                     }
                 }
                 .tabItem {
@@ -98,21 +143,23 @@ struct MainTabView: View {
                     Group {
                         if customPassbooks.isEmpty {
                             emptyStateView
-                        } else if let passbook = currentPassbook {
-                            PassbookDetailView(passbook: passbook)
-                                .id("passbook-\(passbook.persistentModelID)-\(refreshTrigger)")
-                                .toolbar {
-                                    ToolbarItem(placement: .topBarLeading) {
-                                        passbookSwitcherButton
-                                    }
-                                    ToolbarItem(placement: .topBarTrailing) {
-                                        ThemeToggleButton()
-                                    }
-                                }
+                        } else {
+                            PassbookDetailView(passbook: displayPassbook)
+                                .id("passbook-\(displayPassbookID)-\(refreshTrigger)")
                         }
                     }
                     .navigationDestination(for: BookSearchDestination.self) { destination in
                         BookSearchView(passbook: destination.passbook, allowPassbookChange: true)
+                    }
+                    .toolbar {
+                        if !customPassbooks.isEmpty {
+                            ToolbarItem(placement: .topBarLeading) {
+                                passbookSwitcherButton
+                            }
+                        }
+                        ToolbarItem(placement: .topBarTrailing) {
+                            AppMenuButton(isPresented: $showAppMenu)
+                        }
                     }
                 }
                 .tabItem {
@@ -125,21 +172,23 @@ struct MainTabView: View {
                     Group {
                         if customPassbooks.isEmpty {
                             emptyStateView
-                        } else if let passbook = currentPassbook {
-                            BookshelfView(passbook: passbook)
-                                .id("bookshelf-\(passbook.persistentModelID)-\(refreshTrigger)")
-                                .toolbar {
-                                    ToolbarItem(placement: .topBarLeading) {
-                                        passbookSwitcherButton
-                                    }
-                                    ToolbarItem(placement: .topBarTrailing) {
-                                        ThemeToggleButton()
-                                    }
-                                }
+                        } else {
+                            BookshelfView(passbook: displayPassbook)
+                                .id("bookshelf-\(displayPassbookID)-\(refreshTrigger)")
                         }
                     }
                     .navigationDestination(for: BookSearchDestination.self) { destination in
                         BookSearchView(passbook: destination.passbook, allowPassbookChange: true)
+                    }
+                    .toolbar {
+                        if !customPassbooks.isEmpty {
+                            ToolbarItem(placement: .topBarLeading) {
+                                passbookSwitcherButton
+                            }
+                        }
+                        ToolbarItem(placement: .topBarTrailing) {
+                            AppMenuButton(isPresented: $showAppMenu)
+                        }
                     }
                 }
                 .tabItem {
@@ -153,20 +202,22 @@ struct MainTabView: View {
                         if customPassbooks.isEmpty {
                             emptyStateView
                         } else {
-                            StatisticsView(passbook: currentPassbook)
-                                .id("statistics-\(currentPassbook?.persistentModelID.hashValue ?? 0)-\(refreshTrigger)")
-                                .toolbar {
-                                    ToolbarItem(placement: .topBarLeading) {
-                                        passbookSwitcherButton
-                                    }
-                                    ToolbarItem(placement: .topBarTrailing) {
-                                        ThemeToggleButton()
-                                    }
-                                }
+                            StatisticsView(passbook: displayPassbook)
+                                .id("statistics-\(displayPassbookID)-\(refreshTrigger)")
                         }
                     }
                     .navigationDestination(for: BookSearchDestination.self) { destination in
                         BookSearchView(passbook: destination.passbook, allowPassbookChange: true)
+                    }
+                    .toolbar {
+                        if !customPassbooks.isEmpty {
+                            ToolbarItem(placement: .topBarLeading) {
+                                passbookSwitcherButton
+                            }
+                        }
+                        ToolbarItem(placement: .topBarTrailing) {
+                            AppMenuButton(isPresented: $showAppMenu)
+                        }
                     }
                 }
                 .tabItem {
@@ -179,9 +230,14 @@ struct MainTabView: View {
                     ReadingListView(themeColor: currentThemeColor) {
                         selectedTab = 1
                     }
-                        .navigationDestination(for: BookSearchDestination.self) { destination in
-                            BookSearchView(passbook: destination.passbook, allowPassbookChange: true)
+                    .navigationDestination(for: BookSearchDestination.self) { destination in
+                        BookSearchView(passbook: destination.passbook, allowPassbookChange: true)
+                    }
+                    .toolbar {
+                        ToolbarItem(placement: .topBarTrailing) {
+                            AppMenuButton(isPresented: $showAppMenu)
                         }
+                    }
                 }
                 .tabItem {
                     Label("Myリスト", image: "icon-tab-mylist")
@@ -255,53 +311,6 @@ struct MainTabView: View {
                 }
             }
         }
-        .environment(\.floatingButtonState, floatingButtonState)
-        .sheet(isPresented: $showAddReadingList) {
-            AddReadingListView(themeColor: currentThemeColor) {
-                selectedTab = 1
-            }
-        }
-        .sheet(isPresented: $showUnlimitedPaywall) {
-            UnlimitedPaywallView()
-        }
-        .overlay {
-            // 背景の暗幕（フェード）
-            if showPassbookSelector {
-                Color.black.opacity(0.3)
-                    .ignoresSafeArea()
-                    .onTapGesture {
-                        withAnimation(.easeInOut(duration: 0.25)) {
-                            showPassbookSelector = false
-                        }
-                    }
-                    .transition(.opacity)
-            }
-        }
-        .overlay(alignment: .leading) {
-            // 左からスライドするモーダル（天地全画面）
-            if showPassbookSelector {
-                GeometryReader { geometry in
-                    NavigationStack {
-                        PassbookSelectorView(selectedPassbook: $selectedPassbook) {
-                            withAnimation(.easeInOut(duration: 0.25)) {
-                                showPassbookSelector = false
-                            }
-                        }
-                    }
-                    .frame(width: geometry.size.width * 0.85)
-                    .frame(maxHeight: .infinity)
-                    .background(Color.appCardBackground)
-                    .shadow(radius: 10)
-                }
-                .ignoresSafeArea()
-                .transition(.move(edge: .leading))
-            }
-        }
-        .animation(.easeInOut(duration: 0.25), value: showPassbookSelector)
-        .onChange(of: selectedTab) { _, _ in
-            // タブ切り替え時にビューを強制更新
-            refreshTrigger = UUID()
-        }
     }
     
     // MARK: - Subviews
@@ -309,9 +318,9 @@ struct MainTabView: View {
     /// 口座切り替えボタン
     private var passbookSwitcherButton: some View {
         Button(action: {
-            showPassbookSelector = true
+            selectedTab = 0
         }) {
-            Text("\(currentPassbook?.name ?? "")口座")
+            Text(isOverallMode ? "総合口座" : "\(currentPassbook?.name ?? "")口座")
                 .font(.caption)
                 .foregroundColor(.primary)
         }
