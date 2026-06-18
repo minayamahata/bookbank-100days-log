@@ -24,10 +24,6 @@ struct BookshelfView: View {
     /// この口座に紐づく書籍を取得
     @Query private var allUserBooks: [UserBook]
     
-    // MARK: - Environment
-    
-    @Environment(\.modelContext) private var context
-    
     // MARK: - State
     
     /// お気に入りフィルター
@@ -38,12 +34,6 @@ struct BookshelfView: View {
     
     /// カレンダー表示モード
     @State private var showCalendarView = false
-    
-    /// 月別メモ編集用
-    @State private var showMonthlyMemo = false
-    @State private var memoTargetYear = 0
-    @State private var memoTargetMonth = 0
-    @State private var memoText = ""
     
     /// この口座に紐づく書籍のみをフィルタリング
     private var userBooks: [UserBook] {
@@ -181,19 +171,6 @@ struct BookshelfView: View {
         .background(ThemedBackgroundView(themeColor: themeColor, isBlackTheme: isBlackTheme))
         .navigationTitle("本棚")
         .navigationBarTitleDisplayMode(.inline)
-        .sheet(isPresented: $showMonthlyMemo) {
-            MemoEditorView(memo: Binding(
-                get: { memoText },
-                set: { _ in }
-            )) { newText in
-                MonthlyMemoRepository.save(
-                    year: memoTargetYear,
-                    month: memoTargetMonth,
-                    text: newText,
-                    context: context
-                )
-            }
-        }
     }
     
     // MARK: - Filter Section
@@ -357,47 +334,46 @@ struct BookshelfView: View {
                 Text("\(books.count)冊")
                     .font(.system(size: 14))
                     .foregroundColor(.white.opacity(0.6))
-                
-                Spacer()
-                
-                Button {
-                    memoTargetYear = year
-                    memoTargetMonth = month
-                    memoText = MonthlyMemoRepository.fetch(year: year, month: month, context: context)?.text ?? ""
-                    showMonthlyMemo = true
-                } label: {
-                    Image(systemName: "ellipsis")
-                        .font(.system(size: 16))
-                        .foregroundColor(.white.opacity(0.6))
-                        .frame(width: 32, height: 32)
-                        .contentShape(Rectangle())
-                }
             }
             
-            // 7カラムグリッドで本を並べる
+            // 5カラムグリッドで本を並べる
             LazyVGrid(columns: calendarColumns, spacing: 4) {
                 ForEach(books) { book in
                     NavigationLink(destination: UserBookDetailView(book: book)) {
-                        if let coverImage = book.coverUIImage {
-                            Image(uiImage: coverImage)
-                                .resizable()
-                                .aspectRatio(contentMode: .fill)
-                                .frame(width: 50, height: 75)
-                                .clipShape(RoundedRectangle(cornerRadius: 2))
-                        } else if let imageURL = book.imageURL,
-                           let url = URL(string: imageURL) {
-                            CachedAsyncImage(url: url, width: 50, height: 75)
-                                .clipShape(RoundedRectangle(cornerRadius: 2))
-                        } else {
-                            RoundedRectangle(cornerRadius: 2)
-                                .fill(Color.white.opacity(0.1))
-                                .aspectRatio(0.67, contentMode: .fit)
-                        }
+                        calendarBookCover(for: book)
                     }
                     .buttonStyle(.plain)
                 }
             }
         }
+    }
+    
+    /// カレンダー表示用の表紙（2:3・列幅いっぱい）
+    private func calendarBookCover(for book: UserBook) -> some View {
+        GeometryReader { geometry in
+            Group {
+                if let coverImage = book.coverUIImage {
+                    Image(uiImage: coverImage)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(width: geometry.size.width, height: geometry.size.height)
+                        .clipped()
+                } else if let imageURL = book.imageURL,
+                          let url = URL(string: imageURL) {
+                    CachedAsyncImage(
+                        url: url,
+                        width: geometry.size.width,
+                        height: geometry.size.height
+                    )
+                } else {
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(Color.white.opacity(0.1))
+                }
+            }
+        }
+        .aspectRatio(2/3, contentMode: .fit)
+        .frame(maxWidth: .infinity)
+        .clipShape(RoundedRectangle(cornerRadius: 2))
     }
 }
 
