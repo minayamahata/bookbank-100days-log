@@ -35,20 +35,36 @@ struct FormattedPriceText: View {
 
     var font: Font = .body
     var fontWeight: Font.Weight = .regular
+    /// 通貨記号用フォント（nil の場合は数字より小さめのサイズ）
+    var symbolFont: Font?
+
+    private var resolvedSymbolFont: Font {
+        symbolFont ?? .caption.weight(fontWeight)
+    }
 
     var body: some View {
         let _ = currencyManager.displayCurrency
 
-        if let text = MoneyDisplay.formattedPrice(
-            amount: amount,
-            sourceCurrency: sourceCurrency,
-            displayCurrency: currencyManager.displayCurrency,
-            exchangeRates: exchangeRates,
-            locale: languageManager.resolvedLocale
-        ) {
-            Text(text)
-                .font(font)
-                .fontWeight(fontWeight)
+        if let amount {
+            let parts = MoneyDisplay.formatParts(
+                amount: exchangeRates.convert(amount, from: sourceCurrency, to: currencyManager.displayCurrency),
+                currency: currencyManager.displayCurrency,
+                locale: languageManager.resolvedLocale
+            )
+
+            HStack(alignment: .lastTextBaseline, spacing: 2) {
+                if !parts.prefix.isEmpty {
+                    Text(parts.prefix)
+                        .font(resolvedSymbolFont)
+                }
+                Text(parts.amount)
+                    .font(font)
+                    .fontWeight(fontWeight)
+                if !parts.suffix.isEmpty {
+                    Text(parts.suffix)
+                        .font(resolvedSymbolFont)
+                }
+            }
         }
     }
 }
@@ -62,18 +78,36 @@ struct DisplayCurrencyPriceText: View {
 
     var font: Font = .body
     var fontWeight: Font.Weight = .regular
+    /// 通貨記号用フォント（nil の場合は数字より小さめのサイズ）
+    var symbolFont: Font?
+
+    private var resolvedSymbolFont: Font {
+        symbolFont ?? .caption.weight(fontWeight)
+    }
 
     var body: some View {
         let _ = currencyManager.displayCurrency
 
         if let amount {
-            Text(MoneyDisplay.format(
+            let parts = MoneyDisplay.formatParts(
                 amount: amount,
                 currency: currencyManager.displayCurrency,
                 locale: languageManager.resolvedLocale
-            ))
-            .font(font)
-            .fontWeight(fontWeight)
+            )
+
+            HStack(alignment: .lastTextBaseline, spacing: 2) {
+                if !parts.prefix.isEmpty {
+                    Text(parts.prefix)
+                        .font(resolvedSymbolFont)
+                }
+                Text(parts.amount)
+                    .font(font)
+                    .fontWeight(fontWeight)
+                if !parts.suffix.isEmpty {
+                    Text(parts.suffix)
+                        .font(resolvedSymbolFont)
+                }
+            }
         }
     }
 }
@@ -84,13 +118,76 @@ struct BookPriceText: View {
 
     var font: Font = .body
     var fontWeight: Font.Weight = .regular
+    var symbolFont: Font?
 
     var body: some View {
         FormattedPriceText(
             amount: book.priceAtRegistration,
             sourceCurrency: book.storedCurrency,
             font: font,
-            fontWeight: fontWeight
+            fontWeight: fontWeight,
+            symbolFont: symbolFont
         )
+    }
+}
+
+/// 冊数表示（数字 + 小さめの単位）
+struct BooksCountText: View {
+    let count: Int
+
+    @Environment(LanguageManager.self) private var languageManager
+
+    var font: Font = .body
+    var fontWeight: Font.Weight = .regular
+    /// 単位用フォント（nil の場合は数字より小さめのサイズ）
+    var unitFont: Font?
+    var locale: Locale?
+
+    private var resolvedLocale: Locale {
+        locale ?? languageManager.resolvedLocale
+    }
+
+    private var resolvedUnitFont: Font {
+        unitFont ?? .caption.weight(fontWeight)
+    }
+
+    var body: some View {
+        HStack(alignment: .lastTextBaseline, spacing: 1) {
+            Text(count.formatted())
+                .font(font)
+                .fontWeight(fontWeight)
+            Text(L10n.string("common.books_count.unit", locale: resolvedLocale))
+                .font(resolvedUnitFont)
+        }
+    }
+}
+
+/// 文字数表示（数字 + 小さめの単位）
+struct CharacterCountText: View {
+    let count: Int
+
+    @Environment(LanguageManager.self) private var languageManager
+
+    var font: Font = .body
+    var fontWeight: Font.Weight = .regular
+    var unitFont: Font?
+    var locale: Locale?
+
+    private var resolvedLocale: Locale {
+        locale ?? languageManager.resolvedLocale
+    }
+
+    private var resolvedUnitFont: Font {
+        unitFont ?? .caption.weight(fontWeight)
+    }
+
+    var body: some View {
+        HStack(alignment: .lastTextBaseline, spacing: 1) {
+            Text(count.formatted())
+                .font(font)
+                .fontWeight(fontWeight)
+            Text(L10n.string("statistics.chars_unit", locale: resolvedLocale))
+                .font(resolvedUnitFont)
+        }
     }
 }

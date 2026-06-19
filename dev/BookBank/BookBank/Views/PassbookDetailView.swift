@@ -77,12 +77,22 @@ struct PassbookDetailView: View {
         allPassbooks.filter { $0.type == .custom && $0.isActive }
     }
     
+    /// 総合口座かどうか
+    private var isOverallAccount: Bool {
+        passbook == nil
+    }
+
     /// この口座のテーマカラー
     private var themeColor: Color {
         if let passbook {
             return PassbookColor.color(for: passbook, in: customPassbooks)
         }
-        return PassbookColor.overallThemeColor
+        return PassbookColor.overallAccentColor
+    }
+
+    /// UIアクセントカラー
+    private var accentColor: Color {
+        isOverallAccount ? PassbookColor.overallAccentColor : themeColor
     }
     
     /// テーマカラーが黒かどうか
@@ -107,9 +117,15 @@ struct PassbookDetailView: View {
     // MARK: - Body
     
     var body: some View {
+        let _ = currencyManager.displayCurrency
+
         ZStack(alignment: .top) {
             // 背景
-            ThemedBackgroundView(themeColor: themeColor, isBlackTheme: isBlackTheme)
+            if isOverallAccount {
+                OverallAccountBackgroundView()
+            } else {
+                ThemedBackgroundView(themeColor: themeColor, isBlackTheme: isBlackTheme)
+            }
             
             // メインコンテンツ
             GeometryReader { geometry in
@@ -207,25 +223,19 @@ struct PassbookDetailView: View {
             } label: {
                 Image(systemName: "chevron.down")
                     .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(themeColor)
+                    .foregroundColor(accentColor)
                     .frame(width: 32, height: 32)
             }
             
             Spacer()
             
             // 金額表示
-            DisplayCurrencyPriceText(amount: totalValue, font: .system(size: 18, weight: .semibold))
-            .foregroundStyle(
-                LinearGradient(
-                    stops: [
-                        Gradient.Stop(color: themeColor, location: 0),
-                        Gradient.Stop(color: themeColor, location: 0.6),
-                        Gradient.Stop(color: themeColor.opacity(0.3), location: 1.0)
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
+            DisplayCurrencyPriceText(
+                amount: totalValue,
+                font: .system(size: 18, weight: .semibold),
+                symbolFont: .system(size: 12, weight: .medium)
             )
+            .foregroundStyle(stickyHeaderPriceStyle)
             
             Spacer()
             
@@ -242,33 +252,97 @@ struct PassbookDetailView: View {
         .opacity(appearProgress)
     }
     
+    private var stickyHeaderPriceStyle: AnyShapeStyle {
+        if isOverallAccount {
+            return AnyShapeStyle(accentColor)
+        }
+        return AnyShapeStyle(
+            LinearGradient(
+                stops: [
+                    Gradient.Stop(color: themeColor, location: 0),
+                    Gradient.Stop(color: themeColor, location: 0.6),
+                    Gradient.Stop(color: themeColor.opacity(0.3), location: 1.0)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        )
+    }
+
+    private var accountHeaderPrimaryTextColor: Color {
+        isOverallAccount ? .primary : .white
+    }
+
+    private var accountHeaderSecondaryTextColor: Color {
+        isOverallAccount ? .secondary : .white
+    }
+
+    private var accountActionButtonTextColor: Color {
+        if isOverallAccount { return .primary }
+        return colorScheme == .dark && isBlackTheme ? .black : .white
+    }
+
+    private var accountActionButtonGlassTint: Color {
+        if isOverallAccount { return PassbookColor.silverThemeColor.opacity(0.35) }
+        return colorScheme == .dark && isBlackTheme ? .white : themeColor
+    }
+
+    private var listRowHighlightColor: Color {
+        if isOverallAccount {
+            return colorScheme == .dark ? Color.white.opacity(0.1) : Color.primary.opacity(0.06)
+        }
+        return colorScheme == .dark ? Color.white.opacity(0.1) : themeColor.opacity(0.1)
+    }
+
+    private var depositEntryBadgeBackground: Color {
+        if isOverallAccount {
+            return colorScheme == .dark ? Color.white.opacity(0.12) : Color.primary.opacity(0.08)
+        }
+        return colorScheme == .dark ? Color.white.opacity(0.12) : accentColor.opacity(0.12)
+    }
+
     // MARK: - Account Info Section
     
     private var accountInfoSection: some View {
         VStack(spacing: 0) {
             Text(L10n.format("passbook.as_of", locale: languageManager.resolvedLocale, todayString))
                 .font(.footnote)
-                .foregroundColor(.white)
+                .foregroundColor(accountHeaderSecondaryTextColor)
                 .frame(maxWidth: .infinity, alignment: .trailing)
                 .padding(.horizontal)
                 .padding(.bottom, 32)
 
-            DisplayCurrencyPriceText(amount: totalValue, font: .system(size: 48, weight: .medium))
-            .foregroundStyle(
-                LinearGradient(
-                    stops: [
-                        Gradient.Stop(color: .white, location: 0),
-                        Gradient.Stop(color: .white, location: 0.6),
-                        Gradient.Stop(color: themeColor.opacity(0.1), location: 1.0)
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-            )
+            Group {
+                if isOverallAccount {
+                    DisplayCurrencyPriceText(
+                        amount: totalValue,
+                        font: .system(size: 48, weight: .medium),
+                        symbolFont: .system(size: 28, weight: .medium)
+                    )
+                    .foregroundColor(accentColor)
+                } else {
+                    DisplayCurrencyPriceText(
+                        amount: totalValue,
+                        font: .system(size: 48, weight: .medium),
+                        symbolFont: .system(size: 28, weight: .medium)
+                    )
+                    .foregroundStyle(
+                        LinearGradient(
+                            stops: [
+                                Gradient.Stop(color: .white, location: 0),
+                                Gradient.Stop(color: .white, location: 0.6),
+                                Gradient.Stop(color: themeColor.opacity(0.1), location: 1.0)
+                            ],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+                }
+            }
 
             Text(L10n.format("passbook.registered_books", locale: languageManager.resolvedLocale, Int64(bookCount)))
                 .font(.subheadline)
-                .foregroundColor(.white)
+                .foregroundColor(accountHeaderPrimaryTextColor)
             
             // アクションボタン
             HStack(spacing: 12) {
@@ -277,10 +351,10 @@ struct PassbookDetailView: View {
                         Text("book.register")
                             .font(.subheadline)
                             .fontWeight(.medium)
-                            .foregroundColor(colorScheme == .dark && isBlackTheme ? .black : .white)
+                            .foregroundColor(accountActionButtonTextColor)
                             .padding(.horizontal, 20)
                             .padding(.vertical, 12)
-                            .glassEffect(.regular.tint(colorScheme == .dark && isBlackTheme ? .white : themeColor))
+                            .glassEffect(.regular.tint(accountActionButtonGlassTint))
                             .clipShape(Capsule())
                     }
                 }
@@ -289,10 +363,10 @@ struct PassbookDetailView: View {
                     Text("passbook.view_bookshelf")
                         .font(.subheadline)
                         .fontWeight(.medium)
-                        .foregroundColor(colorScheme == .dark && isBlackTheme ? .black : .white)
+                        .foregroundColor(accountActionButtonTextColor)
                         .padding(.horizontal, 20)
                         .padding(.vertical, 12)
-                        .glassEffect(.regular.tint(colorScheme == .dark && isBlackTheme ? .white : themeColor))
+                        .glassEffect(.regular.tint(accountActionButtonGlassTint))
                         .clipShape(Capsule())
                 }
             }
@@ -344,9 +418,21 @@ struct PassbookDetailView: View {
                             }
 
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(L10n.format("passbook.deposit_entry", locale: languageManager.resolvedLocale, Int64(userBooks.count - index), formatDate(book.registeredAt)))
-                                    .font(.system(size: 11))
-                                    .foregroundColor(.secondary)
+                                HStack(spacing: 6) {
+                                    Text("\(userBooks.count - index)")
+                                        .font(.system(size: 11, weight: .medium))
+                                        .foregroundColor(accentColor)
+                                        .padding(.horizontal, 5)
+                                        .padding(.vertical, 2)
+                                        .background(
+                                            RoundedRectangle(cornerRadius: 4)
+                                                .fill(depositEntryBadgeBackground)
+                                        )
+
+                                    Text(formatDate(book.registeredAt))
+                                        .font(.system(size: 11))
+                                        .foregroundColor(.secondary)
+                                }
 
                                 Text(book.title)
                                     .font(.callout)
@@ -364,15 +450,15 @@ struct PassbookDetailView: View {
                             Spacer()
 
                             if book.priceAtRegistration != nil {
-                                BookPriceText(book: book, font: .headline, fontWeight: .regular)
-                                    .foregroundColor(themeColor)
+                                BookPriceText(book: book, font: .headline, fontWeight: .medium)
+                                    .foregroundColor(accentColor)
                             }
                         }
                         .padding(.horizontal, 10)
                         .padding(.vertical, 8)
                         .background(
                             RoundedRectangle(cornerRadius: 6)
-                                .fill(colorScheme == .dark ? Color.white.opacity(0.1) : themeColor.opacity(0.1))
+                                .fill(listRowHighlightColor)
                         )
                     }
                     .buttonStyle(.plain)
@@ -405,6 +491,9 @@ struct PassbookDetailView: View {
     return NavigationStack {
         PassbookDetailView(passbook: passbook)
     }
+    .environment(LanguageManager())
+    .environment(CurrencyManager())
+    .environment(ExchangeRateService.shared)
     .modelContainer(container)
 }
 

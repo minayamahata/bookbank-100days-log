@@ -21,6 +21,7 @@ struct AppMenuView: View {
     @State private var safariLink: SafariLink?
     
     var body: some View {
+        let _ = themeManager.currentTheme
         let _ = languageManager.currentLanguage
         let _ = currencyManager.displayCurrency
 
@@ -116,6 +117,7 @@ struct AppMenuView: View {
         .background(Color.appGroupedBackground)
         .navigationTitle("menu.title")
         .navigationBarTitleDisplayMode(.inline)
+        .preferredColorScheme(themeManager.currentTheme.colorScheme)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button {

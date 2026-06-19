@@ -12,6 +12,8 @@ struct AppearanceSettingsView: View {
     @Environment(ThemeManager.self) private var themeManager
 
     var body: some View {
+        let _ = themeManager.currentTheme
+
         ScrollView {
             VStack(spacing: 0) {
                 ForEach(Array(AppTheme.allCases.enumerated()), id: \.element) { index, theme in
@@ -52,6 +54,7 @@ struct AppearanceSettingsView: View {
         .background(Color.appGroupedBackground)
         .navigationTitle("settings.appearance")
         .navigationBarTitleDisplayMode(.inline)
+        .preferredColorScheme(themeManager.currentTheme.colorScheme)
     }
 }
 

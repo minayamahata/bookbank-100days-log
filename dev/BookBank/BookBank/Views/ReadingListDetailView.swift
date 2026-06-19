@@ -285,11 +285,14 @@ struct ReadingListDetailView: View {
             HStack(alignment: .lastTextBaseline, spacing: 12) {
                 Spacer()
                 
-                Text(L10n.format("common.books_count", Int64(readingList.bookCount)))
-                    .font(.footnote)
+                BooksCountText(count: readingList.bookCount, font: .footnote)
                     .foregroundColor(.secondary)
                 
-                DisplayCurrencyPriceText(amount: displayTotalValue, font: .system(size: 28, weight: .medium))
+                DisplayCurrencyPriceText(
+                    amount: displayTotalValue,
+                    font: .system(size: 28, weight: .medium),
+                    symbolFont: .system(size: 17, weight: .medium)
+                )
                 .foregroundStyle(
                     LinearGradient(
                         stops: [
@@ -535,13 +538,9 @@ struct ReadingListDetailView: View {
                 
                 // 金額
                 if book.priceAtRegistration != nil {
-                    BookPriceText(book: book, font: .subheadline)
+                    BookPriceText(book: book, font: .subheadline, fontWeight: .medium)
                         .foregroundColor(themeColor)
                 }
-                
-                Image(systemName: "chevron.right")
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 8)
@@ -1352,11 +1351,14 @@ struct SharePreviewSheet: View {
                         .foregroundColor(.primary)
                     
                     HStack(alignment: .lastTextBaseline, spacing: 8) {
-                        Text(L10n.format("common.books_count", Int64(readingList.bookCount)))
-                            .font(.subheadline)
+                        BooksCountText(count: readingList.bookCount, font: .subheadline)
                             .foregroundColor(.secondary)
                         
-                        DisplayCurrencyPriceText(amount: displayTotalValue, font: .system(size: 20, weight: .medium))
+                        DisplayCurrencyPriceText(
+                            amount: displayTotalValue,
+                            font: .system(size: 20, weight: .medium),
+                            symbolFont: .system(size: 13, weight: .medium)
+                        )
                         .foregroundStyle(
                             LinearGradient(
                                 stops: [

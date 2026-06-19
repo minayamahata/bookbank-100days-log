@@ -32,8 +32,7 @@ struct ContentView: View {
                                 .font(.headline)
                             
                             // 登録書籍数
-                            Text(L10n.format("common.books_count", Int64(passbook.bookCount)))
-                                .font(.subheadline)
+                            BooksCountText(count: passbook.bookCount, font: .subheadline)
                                 .foregroundColor(.secondary)
                         }
                         

@@ -69,12 +69,22 @@ struct BookshelfView: View {
         allPassbooks.filter { $0.type == .custom && $0.isActive }
     }
     
+    /// 総合口座かどうか
+    private var isOverallAccount: Bool {
+        passbook == nil
+    }
+
     /// この口座のテーマカラー
     private var themeColor: Color {
         if let passbook {
             return PassbookColor.color(for: passbook, in: customPassbooks)
         }
-        return PassbookColor.overallThemeColor
+        return PassbookColor.overallAccentColor
+    }
+
+    /// UIアクセントカラー
+    private var accentColor: Color {
+        isOverallAccount ? PassbookColor.overallAccentColor : themeColor
     }
     
     /// テーマカラーが黒かどうか
@@ -196,7 +206,13 @@ struct BookshelfView: View {
             }
         }
         .id(passbook?.persistentModelID.hashValue.description ?? "overall")
-        .background(ThemedBackgroundView(themeColor: themeColor, isBlackTheme: isBlackTheme))
+        .background {
+            if isOverallAccount {
+                OverallAccountBackgroundView()
+            } else {
+                ThemedBackgroundView(themeColor: themeColor, isBlackTheme: isBlackTheme)
+            }
+        }
         .navigationTitle("bookshelf.title")
         .navigationBarTitleDisplayMode(.inline)
     }
@@ -302,8 +318,15 @@ struct BookshelfView: View {
                     .resizable()
                     .scaledToFit()
                     .frame(width: 20, height: 20)
-                    .foregroundColor(showCalendarView ? .white : .white.opacity(0.5))
+                    .foregroundColor(showCalendarView ? .white : .white.opacity(0.7))
+                    .frame(width: 36, height: 36)
+                    .background(
+                        Circle()
+                            .fill(showCalendarView ? Color.white.opacity(0.22) : Color.white.opacity(0.12))
+                    )
+                    .contentShape(Circle())
             }
+            .buttonStyle(.plain)
         }
         .padding(.horizontal, 20)
         .padding(.top, 16)
@@ -359,8 +382,7 @@ struct BookshelfView: View {
                     .fontWeight(.semibold)
                     .foregroundColor(.white)
 
-                Text(L10n.format("common.books_count", locale: languageManager.resolvedLocale, Int64(books.count)))
-                    .font(.system(size: 14))
+                BooksCountText(count: books.count, font: .system(size: 14), locale: languageManager.resolvedLocale)
                     .foregroundColor(.white.opacity(0.6))
             }
             

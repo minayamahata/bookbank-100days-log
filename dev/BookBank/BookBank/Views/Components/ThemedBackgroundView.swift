@@ -64,3 +64,36 @@ struct ThemedBackgroundView: View {
 #Preview {
     ThemedBackgroundView(themeColor: .blue, isBlackTheme: false)
 }
+
+// MARK: - 総合口座背景
+
+/// 総合口座専用の無彩色背景（口座一覧と同じ構成）
+struct OverallAccountBackgroundView: View {
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        if colorScheme == .light {
+            ThemedBackgroundView(themeColor: PassbookColor.silverThemeColor, isBlackTheme: false)
+        } else {
+            GeometryReader { geometry in
+                ZStack(alignment: .top) {
+                    Color.appGroupedBackground
+
+                    Image("bg_glow")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: geometry.size.width * 2.2)
+                        .blendMode(.screen)
+                        .opacity(1)
+
+                    Image("bg_noise")
+                        .resizable(resizingMode: .tile)
+                        .blendMode(.overlay)
+                        .opacity(0.2)
+                }
+                .frame(width: geometry.size.width, height: geometry.size.height)
+            }
+            .ignoresSafeArea()
+        }
+    }
+}

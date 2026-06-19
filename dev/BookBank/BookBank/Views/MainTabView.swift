@@ -25,7 +25,10 @@ extension EnvironmentValues {
 }
 
 struct MainTabView: View {
+    @Environment(ThemeManager.self) private var themeManager
     @Environment(LanguageManager.self) private var languageManager
+    @Environment(CurrencyManager.self) private var currencyManager
+    @Environment(ExchangeRateService.self) private var exchangeRateService
     @Query(sort: \Passbook.sortOrder) private var passbooks: [Passbook]
     @Query(sort: \ReadingList.updatedAt) private var readingLists: [ReadingList]
     private var unlimitedManager: UnlimitedManager { UnlimitedManager.shared }
@@ -75,7 +78,7 @@ struct MainTabView: View {
     
     /// 現在の口座のテーマカラー
     private var currentThemeColor: Color {
-        if isOverallMode { return PassbookColor.overallThemeColor }
+        if isOverallMode { return PassbookColor.overallAccentColor }
         if let passbook = currentPassbook {
             return PassbookColor.color(for: passbook, in: customPassbooks)
         }
@@ -90,7 +93,9 @@ struct MainTabView: View {
     }
     
     var body: some View {
+        let _ = themeManager.currentTheme
         let _ = languageManager.currentLanguage
+        let _ = currencyManager.displayCurrency
 
         mainTabContent
             .environment(\.floatingButtonState, floatingButtonState)
@@ -106,10 +111,12 @@ struct MainTabView: View {
                 NavigationStack {
                     AppMenuView(onDismiss: { showAppMenu = false })
                 }
+                .environment(themeManager)
                 .environment(languageManager)
                 .environment(\.locale, languageManager.resolvedLocale)
-                .environment(CurrencyManager())
-                .environment(ExchangeRateService.shared)
+                .environment(currencyManager)
+                .environment(exchangeRateService)
+                .preferredColorScheme(themeManager.currentTheme.colorScheme)
             }
             .onChange(of: selectedTab) { _, _ in
                 // タブ切り替え時にビューを強制更新
@@ -408,6 +415,9 @@ struct BookSearchDestination: Hashable {
         
         return MainTabView()
             .environment(ThemeManager())
+            .environment(LanguageManager())
+            .environment(CurrencyManager())
+            .environment(ExchangeRateService.shared)
             .modelContainer(container)
     } catch {
         return Text("Preview error: \(error.localizedDescription)")

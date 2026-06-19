@@ -130,8 +130,7 @@ struct ReadingListView: View {
                     .lineLimit(1)
                 
                 HStack(spacing: 4) {
-                    Text(L10n.format("common.books_count", Int64(list.bookCount)))
-                        .font(.caption)
+                    BooksCountText(count: list.bookCount, font: .caption)
                         .foregroundColor(.secondary)
                     
                     if list.totalValue > 0 {

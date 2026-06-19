@@ -93,8 +93,7 @@ struct PassbookRow: View {
                 Text(name)
                     .font(.body)
                 
-                Text(L10n.format("common.books_count", Int64(bookCount)))
-                    .font(.caption)
+                BooksCountText(count: bookCount, font: .caption)
                     .foregroundColor(.secondary)
             }
             

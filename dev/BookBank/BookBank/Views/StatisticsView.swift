@@ -25,6 +25,7 @@ struct StatisticsView: View {
     // MARK: - Environment
     
     @Environment(\.modelContext) private var context
+    @Environment(LanguageManager.self) private var languageManager
     @Environment(CurrencyManager.self) private var currencyManager
     @Environment(ExchangeRateService.self) private var exchangeRates
     
@@ -50,12 +51,22 @@ struct StatisticsView: View {
         allPassbooks.filter { $0.type == .custom && $0.isActive }
     }
     
+    /// 総合口座かどうか
+    private var isOverallAccount: Bool {
+        passbook == nil
+    }
+
     /// この口座のテーマカラー
     private var themeColor: Color {
         if let passbook = passbook {
             return PassbookColor.color(for: passbook, in: customPassbooks)
         }
-        return PassbookColor.overallThemeColor
+        return PassbookColor.overallAccentColor
+    }
+
+    /// UIアクセントカラー
+    private var accentColor: Color {
+        isOverallAccount ? PassbookColor.overallAccentColor : themeColor
     }
     
     /// テーマカラーが黒かどうか
@@ -117,6 +128,10 @@ struct StatisticsView: View {
     // MARK: - Body
     
     var body: some View {
+        let _ = currencyManager.displayCurrency
+        let _ = languageManager.currentLanguage
+        let locale = languageManager.resolvedLocale
+
         VStack(spacing: 0) {
             if availableYears.isEmpty {
                 emptyState
@@ -126,7 +141,7 @@ struct StatisticsView: View {
                         // 年表示（固定）
                         Text(String(selectedYear))
                             .font(.title)
-                            .foregroundColor(.white)
+                            .foregroundColor(isOverallAccount ? .primary : .white)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.horizontal)
                             .padding(.top, 8)
@@ -138,11 +153,13 @@ struct StatisticsView: View {
                                     year: year,
                                     passbook: passbook,
                                     targetBooks: targetBooks,
-                                    themeColor: themeColor,
+                                    themeColor: accentColor,
                                     displayCurrency: currencyManager.displayCurrency,
-                                    exchangeRates: exchangeRates
+                                    exchangeRates: exchangeRates,
+                                    locale: locale
                                 )
                                     .tag(year)
+                                    .id("\(year)-\(locale.identifier)")
                             }
                         }
                         .tabViewStyle(.page)
@@ -160,43 +177,38 @@ struct StatisticsView: View {
                                     .font(.subheadline)
                                     .foregroundColor(.secondary)
                                 Spacer()
-                                DisplayCurrencyPriceText(amount: totalAmount)
+                                DisplayCurrencyPriceText(
+                                    amount: totalAmount,
+                                    symbolFont: .caption2
+                                )
                             }
                             HStack {
                                 Text("statistics.total_books")
                                     .font(.subheadline)
                                     .foregroundColor(.secondary)
                                 Spacer()
-                                Text(L10n.format("common.books_count", Int64(totalBookCount)))
-                                    .font(.body)
+                                BooksCountText(count: totalBookCount, unitFont: .caption2, locale: locale)
                             }
                             HStack {
                                 Text("bookshelf.favorite")
                                     .font(.subheadline)
                                     .foregroundColor(.secondary)
                                 Spacer()
-                                Text(L10n.format("common.books_count", Int64(totalFavoriteCount)))
-                                    .font(.body)
+                                BooksCountText(count: totalFavoriteCount, unitFont: .caption2, locale: locale)
                             }
                             HStack {
                                 Text("statistics.memo_count")
                                     .font(.subheadline)
                                     .foregroundColor(.secondary)
                                 Spacer()
-                                Text(L10n.format("common.books_count", Int64(totalMemoCount)))
-                                    .font(.body)
+                                BooksCountText(count: totalMemoCount, unitFont: .caption2, locale: locale)
                             }
                             HStack {
                                 Text("statistics.memo_chars")
                                     .font(.subheadline)
                                     .foregroundColor(.secondary)
                                 Spacer()
-                                HStack(alignment: .lastTextBaseline, spacing: 1) {
-                                    Text("\(totalMemoCharacterCount.formatted())")
-                                        .font(.body)
-                                    Text("statistics.chars_unit")
-                                        .font(.caption2)
-                                }
+                                CharacterCountText(count: totalMemoCharacterCount, unitFont: .caption2, locale: locale)
                             }
                         }
                         .padding()
@@ -213,7 +225,13 @@ struct StatisticsView: View {
         }
         .navigationTitle("statistics.title")
         .navigationBarTitleDisplayMode(.inline)
-        .background(ThemedBackgroundView(themeColor: themeColor, isBlackTheme: isBlackTheme))
+        .background {
+            if isOverallAccount {
+                OverallAccountBackgroundView()
+            } else {
+                ThemedBackgroundView(themeColor: themeColor, isBlackTheme: isBlackTheme)
+            }
+        }
     }
     
     // MARK: - Subviews
@@ -247,6 +265,7 @@ struct YearlyChartContent: View {
     let themeColor: Color
     let displayCurrency: AppCurrency
     let exchangeRates: ExchangeRateService
+    let locale: Locale
     
     // MARK: - Year-specific Computed Properties
     
@@ -295,9 +314,9 @@ struct YearlyChartContent: View {
             // 未来の月はデータなしとして扱う
             let isFutureMonth = (year == currentYear && month > currentMonth) || year > currentYear
             
-            // 日本語のラベル（1月、2月...）
-            let label = L10n.format("statistics.month_label", Int64(month))
-            
+            // ローカライズされた月ラベル（1月、Jan、1…）
+            let label = monthLabel(month)
+
             if isFutureMonth {
                 // 未来の月は空データ（X軸ラベルのみ表示）
                 return ChartDataPoint(month: month, label: label, amount: 0, count: 0)
@@ -330,9 +349,26 @@ struct YearlyChartContent: View {
         return false
     }
     
+    /// 月ラベルを locale に合わせて生成
+    private func monthLabel(_ month: Int) -> String {
+        var components = DateComponents()
+        components.month = month
+        components.day = 1
+        guard let date = Calendar.current.date(from: components) else {
+            return L10n.format("statistics.month_label", locale: locale, Int64(month))
+        }
+
+        let formatter = DateFormatter()
+        formatter.locale = locale
+        formatter.setLocalizedDateFormatFromTemplate("MMM")
+        return formatter.string(from: date)
+    }
+
     // MARK: - Body
     
     var body: some View {
+        let _ = locale
+
         VStack(spacing: 16) {
             // 年別統計サマリー（2x2グリッド）
             yearlyStatsSection
@@ -361,17 +397,17 @@ struct YearlyChartContent: View {
             
             statsCard(
                 titleKey: "statistics.book_count",
-                value: L10n.format("common.books_count", Int64(yearlyBookCount))
+                count: yearlyBookCount
             )
             
             statsCard(
                 titleKey: "bookshelf.favorite",
-                value: L10n.format("common.books_count", Int64(yearlyFavoriteCount))
+                count: yearlyFavoriteCount
             )
             
             statsCard(
                 titleKey: "bookshelf.memo",
-                value: L10n.format("common.books_count", Int64(yearlyMemoCount))
+                count: yearlyMemoCount
             )
         }
     }
@@ -382,7 +418,12 @@ struct YearlyChartContent: View {
             Text(titleKey)
                 .font(.caption)
                 .foregroundColor(.secondary)
-            DisplayCurrencyPriceText(amount: amount, font: .title, fontWeight: .medium)
+            DisplayCurrencyPriceText(
+                amount: amount,
+                font: .title,
+                fontWeight: .medium,
+                symbolFont: .caption.weight(.medium)
+            )
                 .foregroundStyle(
                     LinearGradient(
                         stops: [
@@ -401,34 +442,24 @@ struct YearlyChartContent: View {
         .cornerRadius(8)
     }
 
-    /// 統計カード
-    private func statsCard(titleKey: LocalizedStringKey, value: String, unitKey: LocalizedStringKey? = nil) -> some View {
+    /// 冊数統計カード
+    private func statsCard(titleKey: LocalizedStringKey, count: Int) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             Text(titleKey)
                 .font(.caption)
                 .foregroundColor(.secondary)
-            HStack(alignment: .lastTextBaseline, spacing: 1) {
-                Text(value)
-                    .font(.title)
-                    .fontWeight(.medium)
-                    .foregroundStyle(
-                        LinearGradient(
-                            stops: [
-                                Gradient.Stop(color: themeColor, location: 0),
-                                Gradient.Stop(color: themeColor, location: 0.6),
-                                Gradient.Stop(color: themeColor.opacity(0.3), location: 1.0)
-                            ],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
+            BooksCountText(count: count, font: .title, fontWeight: .medium, locale: locale)
+                .foregroundStyle(
+                    LinearGradient(
+                        stops: [
+                            Gradient.Stop(color: themeColor, location: 0),
+                            Gradient.Stop(color: themeColor, location: 0.6),
+                            Gradient.Stop(color: themeColor.opacity(0.3), location: 1.0)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
                     )
-                if let unitKey {
-                    Text(unitKey)
-                        .font(.caption2)
-                        .fontWeight(.medium)
-                        .foregroundColor(.secondary)
-                }
-            }
+                )
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(14)
@@ -610,7 +641,7 @@ struct ReadingReportView: View {
         if let passbook = passbook {
             return PassbookColor.color(for: passbook, in: customPassbooks)
         }
-        return PassbookColor.overallThemeColor
+        return PassbookColor.overallAccentColor
     }
     
     var body: some View {

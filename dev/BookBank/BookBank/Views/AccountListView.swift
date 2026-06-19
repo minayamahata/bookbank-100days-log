@@ -14,6 +14,7 @@ struct AccountListView: View {
     @Environment(LanguageManager.self) private var languageManager
     @Environment(CurrencyManager.self) private var currencyManager
     @Environment(ExchangeRateService.self) private var exchangeRates
+    @Environment(\.colorScheme) private var colorScheme
     @Query(sort: \Passbook.sortOrder) private var passbooks: [Passbook]
     @Query private var allBooks: [UserBook]
     private var unlimitedManager: UnlimitedManager { UnlimitedManager.shared }
@@ -28,7 +29,9 @@ struct AccountListView: View {
     /// 総合口座選択時のコールバック
     var onOverallSelected: (() -> Void)?
     
-    private static let overallColor = PassbookColor.overallThemeColor
+    private static let overallColor = PassbookColor.overallAccentColor
+    private static let lightModeRowBackground = Color(hex: "F2F2F6")
+
     // カスタム口座を取得
     private var customPassbooks: [Passbook] {
         passbooks.filter { $0.type == .custom && $0.isActive }
@@ -92,10 +95,13 @@ struct AccountListView: View {
         let _ = languageManager.currentLanguage
         let _ = currencyManager.displayCurrency
 
-        ScrollView {
-            VStack(spacing: 20) {
+        ZStack(alignment: .top) {
+            OverallAccountBackgroundView()
+
+            ScrollView {
+                VStack(spacing: 20) {
                 // 円グラフ + 総合口座
-                VStack(spacing: 0) {
+                VStack(spacing: 30) {
                     ZStack {
                         Chart(chartData) { data in
                             SectorMark(
@@ -143,11 +149,15 @@ struct AccountListView: View {
                                 .fontWeight(.regular)
                                 .foregroundColor(.primary)
                             
-                            DisplayCurrencyPriceText(amount: totalAmount, font: .system(size: 26), fontWeight: .medium)
+                            DisplayCurrencyPriceText(
+                                amount: totalAmount,
+                                font: .system(size: 26),
+                                fontWeight: .medium,
+                                symbolFont: .system(size: 16, weight: .medium)
+                            )
                             .foregroundColor(.primary)
                             
-                            Text(L10n.format("common.books_count", Int64(totalBookCount)))
-                                .font(.footnote)
+                            BooksCountText(count: totalBookCount, font: .footnote)
                                 .foregroundColor(.secondary)
                         }
                     }
@@ -162,17 +172,17 @@ struct AccountListView: View {
                             amount: totalAmount,
                             color: Self.overallColor,
                             showEditButton: false,
-                            showRowBackground: false
+                            showRowBackground: false,
+                            showSummary: false,
+                            showIcon: false,
+                            showChevron: true,
+                            showsTopBorder: true
                         )
                     }
                     .buttonStyle(.plain)
                 }
                 .padding(.top, 30)
-                .padding(.bottom, 10)
-                .background(
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(Color.appSectionBackground)
-                )
+                .accountChartSectionGlass()
                 
                 // カスタム口座リスト
                 VStack(spacing: 6) {
@@ -209,28 +219,8 @@ struct AccountListView: View {
                 }
             }
             .padding(.horizontal, 16)
-        }
-        .background(
-            GeometryReader { geometry in
-                ZStack(alignment: .top) {
-                    Color.appGroupedBackground
-                    
-                    Image("bg_glow")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: geometry.size.width * 2.2)
-                        .blendMode(.screen)
-                        .opacity(1)
-                    
-                    Image("bg_noise")
-                        .resizable(resizingMode: .tile)
-                        .blendMode(.overlay)
-                        .opacity(0.2)
-                }
-                .frame(width: geometry.size.width, height: geometry.size.height)
             }
-            .ignoresSafeArea()
-        )
+        }
         .navigationTitle(L10n.string("account.list.title", locale: languageManager.resolvedLocale))
         .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $passbookToEdit) { passbook in
@@ -283,41 +273,53 @@ struct AccountListView: View {
         color: Color,
         showEditButton: Bool,
         showRowBackground: Bool = true,
+        showSummary: Bool = true,
+        showIcon: Bool = true,
+        showChevron: Bool = false,
+        showsTopBorder: Bool = false,
         onEdit: (() -> Void)? = nil
     ) -> some View {
         HStack(spacing: 12) {
-            // 口座アイコン（fillとstrokeを重ねる）
-            ZStack {
-                Image("icon-tab-account-fill")
-                    .renderingMode(.template)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .foregroundColor(color.opacity(0.1))
-                
-                Image("icon-tab-account")
-                    .renderingMode(.template)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .foregroundColor(color)
+            if showIcon {
+                // 口座アイコン（fillとstrokeを重ねる）
+                ZStack {
+                    Image("icon-tab-account-fill")
+                        .renderingMode(.template)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .foregroundColor(color.opacity(0.1))
+                    
+                    Image("icon-tab-account")
+                        .renderingMode(.template)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .foregroundColor(color)
+                }
+                .frame(width: 20, height: 20)
             }
-            .frame(width: 20, height: 20)
             
             // 口座情報
-            VStack(alignment: .leading, spacing: 4) {
+            if showSummary {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(name)
+                        .font(.subheadline)
+                        .foregroundColor(.primary)
+                    
+                    BooksCountText(count: bookCount, font: .caption)
+                        .foregroundColor(.secondary)
+                }
+            } else {
                 Text(name)
-                    .font(.subheadline)
+                    .font(.headline)
                     .foregroundColor(.primary)
-                
-                Text(L10n.format("common.books_count", Int64(bookCount)))
-                    .font(.caption)
-                    .foregroundColor(.secondary)
             }
             
             Spacer()
             
-            // 金額
-            DisplayCurrencyPriceText(amount: amount)
-                .foregroundColor(color)
+            if showSummary {
+                DisplayCurrencyPriceText(amount: amount, fontWeight: .medium)
+                    .foregroundColor(color)
+            }
             
             if showEditButton {
                 // 三点リーダー（タップで編集）
@@ -331,17 +333,30 @@ struct AccountListView: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+            } else if showChevron {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(.secondary.opacity(0.6))
+                    .frame(width: 44, height: 44)
             }
         }
         .padding(.leading, 16)
-        .padding(.trailing, showEditButton ? 8 : 16)
+        .padding(.trailing, (showEditButton || showChevron) ? 8 : 16)
         .padding(.vertical, 14)
         .background {
             if showRowBackground {
                 RoundedRectangle(cornerRadius: 12)
-                    .fill(Color.appCardBackground)
+                    .fill(colorScheme == .light ? Self.lightModeRowBackground : Color.appCardBackground)
             }
         }
+        .overlay(alignment: .top) {
+            if showsTopBorder {
+                Rectangle()
+                    .fill(Color.primary.opacity(0.1))
+                    .frame(height: 1)
+            }
+        }
+        .contentShape(Rectangle())
     }
 }
 
@@ -353,10 +368,103 @@ struct AccountChartData: Identifiable {
     let color: Color
 }
 
-#Preview {
-    NavigationStack {
-        AccountListView()
+// MARK: - チャートセクションのガラス背景
+
+private struct AccountChartSectionGlassModifier: ViewModifier {
+    @Environment(\.colorScheme) private var colorScheme
+
+    private static let cornerRadius: CGFloat = 24
+
+    private var isRunningForPreviews: Bool {
+        ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
     }
-    .environment(ThemeManager())
-    .modelContainer(for: [Passbook.self, UserBook.self])
+
+    func body(content: Content) -> some View {
+        Group {
+            if isRunningForPreviews {
+                content
+                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: Self.cornerRadius))
+            } else if colorScheme == .dark {
+                content
+                    .glassEffect(.clear, in: .rect(cornerRadius: Self.cornerRadius))
+            } else {
+                content
+                    .glassEffect(.regular, in: .rect(cornerRadius: Self.cornerRadius))
+            }
+        }
+        .overlay(
+            RoundedRectangle(cornerRadius: Self.cornerRadius)
+                .stroke(Color.primary.opacity(0.1), lineWidth: 0.5)
+        )
+    }
+}
+
+private extension View {
+    func accountChartSectionGlass() -> some View {
+        modifier(AccountChartSectionGlassModifier())
+    }
+}
+
+#Preview("Light") {
+    do {
+        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: Passbook.self, UserBook.self, configurations: config)
+
+        let passbook = Passbook(name: "読書", type: .custom, sortOrder: 0)
+        container.mainContext.insert(passbook)
+
+        let book = UserBook(
+            title: "SwiftUI実践入門",
+            author: "山田太郎",
+            price: 3200,
+            source: .manual,
+            passbook: passbook,
+            currencyCode: AppCurrency.jpy.code
+        )
+        container.mainContext.insert(book)
+
+        return NavigationStack {
+            AccountListView()
+        }
+        .environment(ThemeManager())
+        .environment(LanguageManager())
+        .environment(CurrencyManager())
+        .environment(ExchangeRateService.shared)
+        .modelContainer(container)
+        .preferredColorScheme(.light)
+    } catch {
+        return Text("Preview error: \(error.localizedDescription)")
+    }
+}
+
+#Preview("Dark") {
+    do {
+        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: Passbook.self, UserBook.self, configurations: config)
+
+        let passbook = Passbook(name: "読書", type: .custom, sortOrder: 0)
+        container.mainContext.insert(passbook)
+
+        let book = UserBook(
+            title: "SwiftUI実践入門",
+            author: "山田太郎",
+            price: 3200,
+            source: .manual,
+            passbook: passbook,
+            currencyCode: AppCurrency.jpy.code
+        )
+        container.mainContext.insert(book)
+
+        return NavigationStack {
+            AccountListView()
+        }
+        .environment(ThemeManager())
+        .environment(LanguageManager())
+        .environment(CurrencyManager())
+        .environment(ExchangeRateService.shared)
+        .modelContainer(container)
+        .preferredColorScheme(.dark)
+    } catch {
+        return Text("Preview error: \(error.localizedDescription)")
+    }
 }

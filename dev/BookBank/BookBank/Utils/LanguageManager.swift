@@ -182,4 +182,45 @@ enum MoneyDisplay {
         formatter.minimumFractionDigits = 0
         return formatter.string(from: NSNumber(value: amount)) ?? "\(amount)"
     }
+
+    /// 通貨記号と金額を分離（記号のみ別フォントサイズにする用途）
+    static func formatParts(amount: Int, currency: AppCurrency, locale: Locale) -> (prefix: String, amount: String, suffix: String) {
+        let currencyFormatter = NumberFormatter()
+        currencyFormatter.numberStyle = .currency
+        currencyFormatter.currencyCode = currency.code
+        currencyFormatter.locale = locale
+        currencyFormatter.maximumFractionDigits = 0
+        currencyFormatter.minimumFractionDigits = 0
+
+        let decimalFormatter = NumberFormatter()
+        decimalFormatter.numberStyle = .decimal
+        decimalFormatter.locale = locale
+        decimalFormatter.maximumFractionDigits = 0
+        decimalFormatter.minimumFractionDigits = 0
+
+        let amountText = decimalFormatter.string(from: NSNumber(value: amount)) ?? "\(amount)"
+        guard let fullText = currencyFormatter.string(from: NSNumber(value: amount)) else {
+            return ("", amountText, "")
+        }
+
+        if fullText.hasPrefix(amountText) {
+            let suffix = String(fullText.dropFirst(amountText.count)).trimmingCharacters(in: .whitespaces)
+            return ("", amountText, suffix)
+        }
+        if fullText.hasSuffix(amountText) {
+            let prefix = String(fullText.dropLast(amountText.count)).trimmingCharacters(in: .whitespaces)
+            return (prefix, amountText, "")
+        }
+
+        if let symbol = currencyFormatter.currencySymbol {
+            if fullText.hasPrefix(symbol) {
+                return (symbol, amountText, "")
+            }
+            if fullText.hasSuffix(symbol) {
+                return ("", amountText, symbol)
+            }
+        }
+
+        return ("", fullText, "")
+    }
 }
