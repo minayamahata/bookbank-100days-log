@@ -316,6 +316,25 @@ struct YearlyChartContent: View {
     private var countChartYUpperBound: Int {
         maxCount > 0 ? maxCount : 5
     }
+
+    /// 冊数グラフのY軸目盛り（上限値は含めず、最上部のグリッド線を出さない）
+    private var countChartYAxisValues: [Int] {
+        let upper = countChartYUpperBound
+        guard upper > 1 else { return [0] }
+
+        let desiredTickCount = 5
+        let step = max(1, Int(ceil(Double(upper) / Double(desiredTickCount))))
+        var values: [Int] = []
+        var value = 0
+        while value < upper {
+            values.append(value)
+            value += step
+        }
+        if values.first != 0 {
+            values.insert(0, at: 0)
+        }
+        return values
+    }
     
     // MARK: - Chart Computed Properties
     
@@ -611,7 +630,7 @@ struct YearlyChartContent: View {
                 .frame(height: 120)
                 .chartYScale(domain: 0...countChartYUpperBound)
                 .chartYAxis {
-                    AxisMarks(position: .trailing) { value in
+                    AxisMarks(position: .trailing, values: countChartYAxisValues) { value in
                         AxisGridLine()
                         AxisValueLabel {
                             if let intValue = value.as(Int.self) {

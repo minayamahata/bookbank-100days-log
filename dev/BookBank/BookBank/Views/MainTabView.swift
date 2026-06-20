@@ -28,6 +28,11 @@ class FloatingButtonState {
     var isHidden = false
 }
 
+@Observable
+class PassbookSheetChromeState {
+    var isExpanded = false
+}
+
 private struct FloatingButtonStateKey: EnvironmentKey {
     static let defaultValue = FloatingButtonState()
 }
@@ -53,6 +58,7 @@ struct MainTabView: View {
     @State private var showAddReadingList = false
     @State private var showUnlimitedPaywall = false
     @State private var floatingButtonState = FloatingButtonState()
+    @State private var passbookSheetChromeState = PassbookSheetChromeState()
     
     /// 各タブのナビゲーションパス
     @State private var accountListNavPath = NavigationPath()
@@ -63,9 +69,6 @@ struct MainTabView: View {
     
     /// 現在選択中のタブ
     @State private var selectedTab = 1  // デフォルトは通帳タブ
-    
-    /// ビュー更新用のトリガー（タブ切り替え時に更新）
-    @State private var refreshTrigger = UUID()
     
     // カスタム口座を取得
     private var customPassbooks: [Passbook] {
@@ -121,6 +124,7 @@ struct MainTabView: View {
 
         mainTabContent
             .environment(appShellState)
+            .environment(passbookSheetChromeState)
             .environment(\.floatingButtonState, floatingButtonState)
             .onAppear {
                 appShellState.onPassbookSelected = { passbook in
@@ -152,10 +156,6 @@ struct MainTabView: View {
                 .environment(currencyManager)
                 .environment(exchangeRateService)
                 .preferredColorScheme(themeManager.currentTheme.colorScheme)
-            }
-            .onChange(of: selectedTab) { _, _ in
-                // タブ切り替え時にビューを強制更新
-                refreshTrigger = UUID()
             }
     }
     
@@ -190,20 +190,22 @@ struct MainTabView: View {
                             emptyStateView
                         } else {
                             PassbookDetailView(passbook: displayPassbook)
-                                .id("passbook-\(displayPassbookID)-\(refreshTrigger)")
+                                .id("passbook-\(displayPassbookID)")
                         }
                     }
                     .navigationDestination(for: BookSearchDestination.self) { destination in
                         BookSearchView(passbook: destination.passbook, allowPassbookChange: true)
                     }
                     .toolbar {
-                        if !customPassbooks.isEmpty {
+                        if !customPassbooks.isEmpty, !passbookSheetChromeState.isExpanded {
                             ToolbarItem(placement: .topBarLeading) {
                                 passbookSwitcherButton
                             }
                         }
-                        ToolbarItem(placement: .topBarTrailing) {
-                            AppMenuButton(isPresented: appMenuPresentation)
+                        if !passbookSheetChromeState.isExpanded {
+                            ToolbarItem(placement: .topBarTrailing) {
+                                AppMenuButton(isPresented: appMenuPresentation)
+                            }
                         }
                     }
                 }
@@ -219,7 +221,7 @@ struct MainTabView: View {
                             emptyStateView
                         } else {
                             BookshelfView(passbook: displayPassbook)
-                                .id("bookshelf-\(displayPassbookID)-\(refreshTrigger)")
+                                .id("bookshelf-\(displayPassbookID)")
                         }
                     }
                     .navigationDestination(for: BookSearchDestination.self) { destination in
@@ -248,7 +250,7 @@ struct MainTabView: View {
                             emptyStateView
                         } else {
                             StatisticsView(passbook: displayPassbook)
-                                .id("statistics-\(displayPassbookID)-\(refreshTrigger)")
+                                .id("statistics-\(displayPassbookID)")
                         }
                     }
                     .navigationDestination(for: BookSearchDestination.self) { destination in
@@ -293,7 +295,7 @@ struct MainTabView: View {
             
             // プラスボタン（右下に配置、タブバーの上）- リキッドグラス風
             // 口座タブ(0)、ナビゲーション中、詳細画面表示中は非表示
-            if !isNavigating && !floatingButtonState.isHidden && selectedTab != 0 {
+            if !isNavigating && !floatingButtonState.isHidden && selectedTab != 0 && !passbookSheetChromeState.isExpanded {
                 HStack {
                     Spacer()
                     
@@ -428,52 +430,16 @@ struct BookSearchDestination: Hashable {
     }
 }
 
-#Preview {
-    do {
-        let config = ModelConfiguration(isStoredInMemoryOnly: true)
-        let container = try ModelContainer(
-            for: Passbook.self, UserBook.self, Subscription.self, ReadingList.self,
-            configurations: config
-        )
-        
-        let passbook = Passbook(name: "読書", type: .custom, sortOrder: 0)
-        container.mainContext.insert(passbook)
-        
-        let book1 = UserBook(
-            title: "SwiftUI実践入門",
-            author: "山田太郎",
-            isbn: "9784123456789",
-            publisher: "技術評論社",
-            publishedYear: 2024,
-            price: 3200,
-            imageURL: nil,
-            source: .manual,
-            passbook: passbook
-        )
-        container.mainContext.insert(book1)
-        
-        let book2 = UserBook(
-            title: "Swift Design Patterns",
-            author: "佐藤花子",
-            isbn: "9784987654321",
-            publisher: "翔泳社",
-            publishedYear: 2025,
-            price: 2800,
-            imageURL: nil,
-            source: .manual,
-            passbook: passbook
-        )
-        container.mainContext.insert(book2)
-        
-        return MainTabView()
-        
-        
-            .environment(ThemeManager())
-            .environment(LanguageManager())
-            .environment(CurrencyManager())
-            .environment(ExchangeRateService.shared)
-            .modelContainer(container)
-    } catch {
-        return Text("Preview error: \(error.localizedDescription)")
-    }
+// MARK: - Preview
+
+#Preview("Light") {
+    MainTabView()
+        .bookBankPreviewEnvironment()
+        .preferredColorScheme(.light)
+}
+
+#Preview("Dark") {
+    MainTabView()
+        .bookBankPreviewEnvironment()
+        .preferredColorScheme(.dark)
 }

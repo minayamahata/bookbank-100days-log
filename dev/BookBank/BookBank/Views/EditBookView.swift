@@ -34,6 +34,12 @@ struct EditBookView: View {
     private var isManual: Bool {
         book.source == .manual
     }
+
+    /// 手動登録、またはAPI登録で楽天表紙URLがない場合は表紙を編集可能
+    private var canEditCover: Bool {
+        if isManual { return true }
+        return book.coverImageURL == nil
+    }
     
     // MARK: - Form State
     
@@ -313,7 +319,7 @@ struct EditBookView: View {
     @ViewBuilder
     private var coverImageSection: some View {
         Section {
-            if isManual {
+            if canEditCover {
                 if let selectedImage {
                     Image(uiImage: selectedImage)
                         .resizable()
@@ -412,8 +418,17 @@ struct EditBookView: View {
                     }
                 }
             } else {
-                // API登録: 画像は表示のみ
-                if let imageURL = book.imageURL, let url = URL(string: imageURL) {
+                // API登録（楽天表紙URLあり）: 表示のみ
+                if let coverImage = selectedImage ?? book.coverUIImage {
+                    Image(uiImage: coverImage)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(height: 180)
+                        .clipShape(RoundedRectangle(cornerRadius: 2))
+                        .shadow(color: .black.opacity(0.15), radius: 4, y: 2)
+                        .frame(maxWidth: .infinity)
+                        .opacity(0.5)
+                } else if let imageURL = book.coverImageURL, let url = URL(string: imageURL) {
                     CachedAsyncImage(url: url, width: 120, height: 180)
                         .clipShape(RoundedRectangle(cornerRadius: 2))
                         .shadow(color: .black.opacity(0.15), radius: 4, y: 2)
@@ -516,8 +531,11 @@ struct EditBookView: View {
                 book.price = price
                 book.priceAtRegistration = price
             }
-            if imageChanged {
-                book.coverImageData = selectedImage.flatMap { compressedImageData(from: $0) }
+        }
+        if imageChanged {
+            book.coverImageData = selectedImage.flatMap { compressedImageData(from: $0) }
+            if book.coverImageData != nil, BookCoverImageURL.isRakutenPlaceholder(book.imageURL) {
+                book.imageURL = nil
             }
         }
         

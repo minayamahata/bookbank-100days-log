@@ -187,7 +187,7 @@ struct ReadingListView: View {
                             .aspectRatio(contentMode: .fill)
                             .frame(width: cellWidth, height: cellHeight)
                             .clipShape(RoundedRectangle(cornerRadius: 2))
-                    } else if let imageURL = book.imageURL {
+                    } else if let imageURL = book.coverImageURL {
                         CachedAsyncImage(
                             url: URL(string: imageURL),
                             width: cellWidth,
@@ -207,7 +207,7 @@ struct ReadingListView: View {
                                 .aspectRatio(contentMode: .fill)
                                 .frame(width: cellWidth, height: cellHeight)
                                 .clipShape(RoundedRectangle(cornerRadius: 2))
-                        } else if let imageURL = book.imageURL {
+                        } else if let imageURL = book.coverImageURL {
                             CachedAsyncImage(
                                 url: URL(string: imageURL),
                                 width: cellWidth,

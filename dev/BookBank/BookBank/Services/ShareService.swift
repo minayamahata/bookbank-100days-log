@@ -90,7 +90,7 @@ class ShareService {
             ShareBookItem(
                 title: book.title,
                 author: book.author ?? "",
-                imageURL: book.imageURL,
+                imageURL: book.coverImageURL,
                 priceAtRegistration: book.priceAtRegistration
             )
         }

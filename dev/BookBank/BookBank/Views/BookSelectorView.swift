@@ -241,7 +241,7 @@ struct BookSelectorView: View {
                         .aspectRatio(contentMode: .fill)
                         .frame(width: 47, height: 70)
                         .clipShape(RoundedRectangle(cornerRadius: 2))
-                } else if let imageURL = book.imageURL,
+                } else if let imageURL = book.coverImageURL,
                    let url = URL(string: imageURL) {
                     CachedAsyncImage(url: url, width: 47, height: 70)
                         .clipShape(RoundedRectangle(cornerRadius: 2))

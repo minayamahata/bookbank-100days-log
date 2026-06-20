@@ -91,7 +91,7 @@ func generatePassbookMarkdown(
             if let isbn = book.isbn, !isbn.isEmpty {
                 markdown += "- \(String(localized: "export.md.isbn"))\(isbn)\n"
             }
-            if let imageURL = book.imageURL, !imageURL.isEmpty {
+            if let imageURL = book.coverImageURL, !imageURL.isEmpty {
                 markdown += "- \(String(localized: "export.md.cover"))\(imageURL)\n"
             }
             if let memo = book.memo, !memo.isEmpty {
@@ -168,7 +168,7 @@ func generateReadingListMarkdown(
             if let isbn = book.isbn, !isbn.isEmpty {
                 markdown += "- \(String(localized: "export.md.isbn"))\(isbn)\n"
             }
-            if let imageURL = book.imageURL, !imageURL.isEmpty {
+            if let imageURL = book.coverImageURL, !imageURL.isEmpty {
                 markdown += "- \(String(localized: "export.md.cover"))\(imageURL)\n"
             }
             if let memo = book.memo, !memo.isEmpty {

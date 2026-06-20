@@ -7,8 +7,6 @@
 
 import SwiftUI
 import SwiftData
-import PhotosUI
-import AVFoundation
 
 /// 検索結果の並べ替えオプション
 enum SortOption: CaseIterable {
@@ -119,9 +117,6 @@ struct BookSearchView: View {
 
     /// 発行形態フィルター（文庫・単行本・コミック）
     @State private var selectedFormatFilter: BookFormatKind?
-
-    /// 表紙登録シート用（画像なしの検索結果）
-    @State private var coverRegistrationBook: RakutenBook?
     
     /// 選択中の並べ替えオプション
     @State private var selectedSortOption: SortOption = .newestFirst
@@ -680,15 +675,6 @@ struct BookSearchView: View {
                 .foregroundColor(.primary)
             }
         }
-        .sheet(item: $coverRegistrationBook) { book in
-            SearchResultCoverRegistrationSheet(
-                book: book,
-                onRegister: { image in
-                    saveBook(from: book, coverImage: image)
-                    coverRegistrationBook = nil
-                }
-            )
-        }
         .sheet(isPresented: $isShowingManualEntry) {
             if let targetPassbook = selectedPassbook {
                 AddBookView(passbook: targetPassbook, allowPassbookChange: allowPassbookChange) {
@@ -804,20 +790,15 @@ struct BookSearchView: View {
         }
     }
     
-    /// 検索結果を登録（画像なしの場合は表紙登録シートを表示）
+    /// 検索結果を登録（画像なしでもそのまま登録可能）
     private func registerBook(from result: RakutenBook) {
-        if result.hasCoverImageURL {
-            saveBook(from: result)
-        } else {
-            coverRegistrationBook = result
-        }
+        saveBook(from: result)
     }
 
     /// 検索結果から本を保存
-    private func saveBook(from result: RakutenBook, coverImage: UIImage? = nil) {
+    private func saveBook(from result: RakutenBook) {
         guard let targetPassbook = selectedPassbook else { return }
-        let imageData = coverImage.flatMap { compressedImageData(from: $0) }
-        let newBook = result.toUserBook(passbook: targetPassbook, coverImageData: imageData)
+        let newBook = result.toUserBook(passbook: targetPassbook)
         
         context.insert(newBook)
         
@@ -848,24 +829,6 @@ struct BookSearchView: View {
             print("Error saving book: \(error)")
             #endif
         }
-    }
-
-    /// 画像をJPEGデータに変換（リサイズ含む）
-    private func compressedImageData(from image: UIImage) -> Data? {
-        let maxDimension: CGFloat = 800
-        let size = image.size
-        let scale: CGFloat
-        if size.width > maxDimension || size.height > maxDimension {
-            scale = maxDimension / max(size.width, size.height)
-        } else {
-            scale = 1.0
-        }
-        let newSize = CGSize(width: size.width * scale, height: size.height * scale)
-        let renderer = UIGraphicsImageRenderer(size: newSize)
-        let resized = renderer.image { _ in
-            image.draw(in: CGRect(origin: .zero, size: newSize))
-        }
-        return resized.jpegData(compressionQuality: 0.8)
     }
     
     /// 本が既に登録済みかチェック（全口座を対象）
@@ -932,166 +895,6 @@ struct BookSearchView: View {
     }
 }
 
-// MARK: - SearchResultCoverRegistrationSheet
-
-/// 画像なしの検索結果に表紙を追加して登録するシート
-struct SearchResultCoverRegistrationSheet: View {
-    let book: RakutenBook
-    let onRegister: (UIImage) -> Void
-
-    @Environment(\.dismiss) private var dismiss
-
-    @State private var selectedImage: UIImage?
-    @State private var selectedPhotoItem: PhotosPickerItem?
-    @State private var showPhotoPicker = false
-    @State private var showCamera = false
-    @State private var showCameraDeniedAlert = false
-
-    var body: some View {
-        NavigationStack {
-            Form {
-                Section {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(book.title)
-                            .font(.headline)
-                        if !book.author.isEmpty {
-                            Text(book.author)
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                }
-
-                Section {
-                    if let selectedImage {
-                        VStack(spacing: 8) {
-                            Image(uiImage: selectedImage)
-                                .resizable()
-                                .aspectRatio(contentMode: .fit)
-                                .frame(height: 180)
-                                .clipShape(RoundedRectangle(cornerRadius: 2))
-                                .frame(maxWidth: .infinity)
-
-                            Button(role: .destructive) {
-                                withAnimation {
-                                    self.selectedImage = nil
-                                    self.selectedPhotoItem = nil
-                                }
-                            } label: {
-                                Text("book.cover_delete")
-                                    .font(.caption)
-                            }
-                        }
-                    } else {
-                        VStack(spacing: 12) {
-                            RoundedRectangle(cornerRadius: 2)
-                                .fill(Color.gray.opacity(0.12))
-                                .frame(width: 120, height: 180)
-                                .overlay {
-                                    Text("book.cover_none")
-                                        .font(.subheadline)
-                                        .foregroundColor(.secondary)
-                                }
-                                .frame(maxWidth: .infinity)
-
-                            Menu {
-                                Button {
-                                    showPhotoPicker = true
-                                } label: {
-                                    Label("book.library_select", systemImage: "photo.on.rectangle")
-                                }
-
-                                if UIImagePickerController.isSourceTypeAvailable(.camera) {
-                                    Button {
-                                        requestCameraAccess()
-                                    } label: {
-                                        Label("book.camera_capture", systemImage: "camera")
-                                    }
-                                }
-                            } label: {
-                                Text("book.cover_register")
-                                    .font(.subheadline)
-                                    .padding(.horizontal, 16)
-                                    .padding(.vertical, 8)
-                                    .background(Color.primary.opacity(0.06))
-                                    .clipShape(Capsule())
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                }
-                .listRowBackground(Color.clear)
-            }
-            .navigationTitle("book.search.add_cover")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("common.cancel") {
-                        dismiss()
-                    }
-                    .foregroundColor(.primary)
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("common.save") {
-                        if let selectedImage {
-                            onRegister(selectedImage)
-                            dismiss()
-                        }
-                    }
-                    .disabled(selectedImage == nil)
-                }
-            }
-            .photosPicker(isPresented: $showPhotoPicker, selection: $selectedPhotoItem, matching: .images)
-            .onChange(of: selectedPhotoItem) { _, newItem in
-                loadPhoto(from: newItem)
-            }
-            .fullScreenCover(isPresented: $showCamera) {
-                CameraImagePicker { image in
-                    selectedImage = image
-                }
-            }
-            .alert("book.camera.denied.title", isPresented: $showCameraDeniedAlert) {
-                Button("common.close", role: .cancel) { }
-            } message: {
-                Text("book.camera.denied.message")
-            }
-        }
-    }
-
-    private func loadPhoto(from item: PhotosPickerItem?) {
-        guard let item else { return }
-        Task {
-            if let data = try? await item.loadTransferable(type: Data.self),
-               let uiImage = UIImage(data: data) {
-                await MainActor.run {
-                    selectedImage = uiImage
-                }
-            }
-        }
-    }
-
-    private func requestCameraAccess() {
-        switch AVCaptureDevice.authorizationStatus(for: .video) {
-        case .authorized:
-            showCamera = true
-        case .notDetermined:
-            AVCaptureDevice.requestAccess(for: .video) { granted in
-                DispatchQueue.main.async {
-                    if granted {
-                        showCamera = true
-                    } else {
-                        showCameraDeniedAlert = true
-                    }
-                }
-            }
-        case .denied, .restricted:
-            showCameraDeniedAlert = true
-        @unknown default:
-            showCameraDeniedAlert = true
-        }
-    }
-}
-
 // MARK: - ToastView
 
 /// トースト通知ビュー（リキッドガラス）
@@ -1133,7 +936,8 @@ struct BookSearchResultRow: View {
         HStack(alignment: .center, spacing: 12) {
             // サムネイル画像（登録済みバッジをオーバーレイ）
             ZStack(alignment: .bottom) {
-                if let imageUrlString = result.largeImageUrl ?? result.mediumImageUrl,
+                if result.hasCoverImageURL,
+                   let imageUrlString = result.largeImageUrl ?? result.mediumImageUrl,
                    let imageUrl = URL(string: imageUrlString) {
                     AsyncImage(url: imageUrl) { image in
                         image

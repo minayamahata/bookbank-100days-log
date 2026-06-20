@@ -153,14 +153,9 @@ struct RakutenBook: Codable, Identifiable {
         BookFormatKind.from(displayFormat)
     }
 
-    /// 楽天APIから表紙URLが取得できているか
+    /// 楽天APIから表紙URLが取得できているか（noimage プレースホルダーは除外）
     var hasCoverImageURL: Bool {
-        guard let urlString = largeImageUrl ?? mediumImageUrl,
-              !urlString.isEmpty,
-              URL(string: urlString) != nil else {
-            return false
-        }
-        return true
+        BookCoverImageURL.isValid(largeImageUrl ?? mediumImageUrl)
     }
 
     /// 発行形態（size）を差し替えたコピーを返す
@@ -226,7 +221,7 @@ extension RakutenBook {
             publishedYear: publishedYear,
             seriesName: seriesName,
             price: itemPrice,
-            imageURL: largeImageUrl ?? mediumImageUrl,
+            imageURL: BookCoverImageURL.normalized(largeImageUrl ?? mediumImageUrl),
             coverImageData: coverImageData,
             bookFormat: displayFormat,
             pageCount: extractPageCount(),

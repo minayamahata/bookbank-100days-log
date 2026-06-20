@@ -56,8 +56,12 @@ struct BookBankApp: App {
             MonthlyMemo.self
         ])
         
-        // ModelContainerの設定
-        let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
+        // ModelContainerの設定（プレビュー時はメモリ上のみ・サンドボックス書き込みエラーを回避）
+        let isPreview = ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
+        let modelConfiguration = ModelConfiguration(
+            schema: schema,
+            isStoredInMemoryOnly: isPreview
+        )
         
         do {
             modelContainer = try ModelContainer(for: schema, configurations: [modelConfiguration])
@@ -154,7 +158,10 @@ struct RootView: View {
             .environment(\.locale, languageManager.resolvedLocale)
         }
         .onAppear {
-            guard !PreviewRuntime.isActive else { return }
+            if PreviewRuntime.isActive {
+                showSplash = false
+                return
+            }
 
             CurrencyMigration.migrateIfNeeded(context: modelContext)
             Task {

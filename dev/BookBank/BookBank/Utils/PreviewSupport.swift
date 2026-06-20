@@ -77,9 +77,11 @@ extension View {
 
     func bookBankPreviewEnvironment() -> some View {
         self
+            .environment(ThemeManager())
             .environment(PreviewSupport.languageManager)
             .environment(PreviewSupport.currencyManager)
             .environment(PreviewSupport.exchangeRates)
+            .environment(\.locale, PreviewSupport.languageManager.resolvedLocale)
             .modelContainer(PreviewSupport.modelContainer)
     }
 }

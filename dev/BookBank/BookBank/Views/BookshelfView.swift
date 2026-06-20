@@ -250,7 +250,7 @@ struct BookshelfView: View {
     private var filterSection: some View {
         HStack(spacing: 8) {
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
+                HStack(spacing: 4) {
                     filterPill(
                         label: "common.all",
                         count: allBooksCount,
@@ -437,7 +437,7 @@ struct BookshelfView: View {
                         .aspectRatio(contentMode: .fill)
                         .frame(width: geometry.size.width, height: geometry.size.height)
                         .clipped()
-                } else if let imageURL = book.imageURL,
+                } else if let imageURL = book.coverImageURL,
                           let url = URL(string: imageURL) {
                     CachedAsyncImage(
                         url: url,

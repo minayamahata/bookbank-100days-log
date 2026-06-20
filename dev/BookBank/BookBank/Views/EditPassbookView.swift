@@ -345,7 +345,7 @@ struct EditPassbookView: View {
                             publisher: book.publisher,
                             date: formatExportDate(book.registeredAt),
                             isbn: book.isbn,
-                            imageURL: book.imageURL,
+                            imageURL: book.coverImageURL,
                             memo: book.memo,
                             isFavorite: book.isFavorite
                         )

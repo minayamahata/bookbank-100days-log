@@ -156,7 +156,7 @@ struct UserBookDetailView: View {
                 }
                 .clipped()
                 .overlay(Color.black.opacity(0.3))
-            } else if let imageURL = book.imageURL,
+            } else if let imageURL = book.coverImageURL,
                let url = URL(string: imageURL) {
                 GeometryReader { geo in
                     AsyncImage(url: url) { image in
@@ -190,7 +190,7 @@ struct UserBookDetailView: View {
                     .shadow(color: Color.black.opacity(0.5), radius: 20, x: 0, y: 8)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .offset(y: 20)
-            } else if let imageURL = book.imageURL,
+            } else if let imageURL = book.coverImageURL,
                let url = URL(string: imageURL) {
                 AsyncImage(url: url) { image in
                     image

@@ -8,12 +8,6 @@
 import SwiftUI
 import SwiftData
 
-/// スクロール折りたたみ進捗（コンパクトヘッダー専用・画面全体の再描画を避ける）
-@Observable
-final class PassbookScrollCollapse {
-    var progress: CGFloat = 0
-}
-
 /// 通帳画面
 /// 選択した口座の詳細と、登録されている書籍の一覧を表示
 struct PassbookDetailView: View {
@@ -38,11 +32,22 @@ struct PassbookDetailView: View {
     @Environment(CurrencyManager.self) private var currencyManager
     @Environment(ExchangeRateService.self) private var exchangeRates
     @Environment(AppShellState.self) private var appShellState
+    @Environment(PassbookSheetChromeState.self) private var passbookSheetChromeState
     
     // MARK: - State
-    
-    /// コラプス進捗はコンパクトヘッダーだけが購読（リスト全体の再描画を防ぐ）
-    @State private var scrollCollapse = PassbookScrollCollapse()
+
+    @State private var sheetDetent: PassbookSheetDetent = .collapsed
+    @State private var accountSectionHeight: CGFloat = 0
+    @State private var contentTopInset: CGFloat = 0
+    @State private var safeAreaTopInset: CGFloat = 0
+    @State private var locksRowNavigation = false
+    @State private var selectedBook: UserBook?
+
+    private let sheetGap: CGFloat = 20
+    /// 展開時にシート上端を画面最上部まで伸ばすための追加オフセット
+    private var sheetExpandedTop: CGFloat {
+        -(accountSectionHeight + sheetGap + contentTopInset)
+    }
     
     // MARK: - SwiftData Query
     
@@ -128,85 +133,90 @@ struct PassbookDetailView: View {
         let _ = exchangeRates.lastUpdated
 
         ZStack(alignment: .top) {
-            // 背景
-            if isOverallAccount {
-                OverallAccountBackgroundView()
-            } else {
-                ThemedBackgroundView(themeColor: themeColor, isBlackTheme: isBlackTheme)
-            }
-            
-            // メインコンテンツ
-            GeometryReader { geometry in
-                ScrollViewReader { scrollProxy in
-                    ScrollView {
-                        VStack(spacing: 0) {
-                            // 口座情報セクション（スクロールで自然に隠れる）
-                            accountInfoSection
-                                .id("top")
-                            
-                            // コンテンツカード（ボトムシート風）
-                            VStack(alignment: .leading, spacing: 0) {
-                                // ハンドル
-                                RoundedRectangle(cornerRadius: 2.5)
-                                    .fill(Color.secondary.opacity(0.4))
-                                    .frame(width: 36, height: 5)
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.top, 10)
-                                
-                                // ヘッダー（入金履歴ラベル）
-                                HStack {
-                                    Text("passbook.deposit_history")
-                                        .font(.footnote)
-                                        .foregroundColor(.secondary)
-                                    
-                                    Spacer()
-                                }
-                                .padding(.horizontal)
-                                .padding(.top, 16)
-                                .padding(.bottom, 12)
-                                
-                                // 書籍リスト
-                                listContent
-                                
-                                Spacer(minLength: 0)
-                            }
-                            .frame(minHeight: geometry.size.height)
-                            .background(Color(.systemBackground))
-                            .clipShape(contentCardShape)
-                            .overlay(contentCardGlassBorder)
-                        }
-                    }
-                    .onScrollGeometryChange(for: CGFloat.self) { geometry in
-                        geometry.contentOffset.y
-                    } action: { _, newValue in
-                        let progress = min(max(newValue / 150, 0), 1)
-                        if abs(scrollCollapse.progress - progress) > 0.001 {
-                            scrollCollapse.progress = progress
-                        }
-                    }
-                    .overlay(alignment: .top) {
-                        PassbookCompactHeaderOverlay(
-                            scrollProxy: scrollProxy,
-                            totalValue: totalValue,
-                            accentColor: accentColor,
-                            isOverallAccount: isOverallAccount,
-                            themeColor: themeColor
-                        )
-                    }
+            Group {
+                if isOverallAccount {
+                    OverallAccountBackgroundView()
+                } else {
+                    ThemedBackgroundView(themeColor: themeColor, isBlackTheme: isBlackTheme)
                 }
             }
+            .animation(nil, value: sheetDetent)
+
+            VStack(spacing: sheetGap) {
+                accountInfoSection
+                    .animation(nil, value: sheetDetent)
+                    .opacity(sheetDetent == .expanded ? 0 : 1)
+                    .allowsHitTesting(sheetDetent != .expanded)
+                    .onGeometryChange(for: CGFloat.self) { proxy in
+                        proxy.size.height
+                    } action: { _, height in
+                        guard height > 0, abs(accountSectionHeight - height) > 0.5 else { return }
+                        accountSectionHeight = height
+                    }
+
+                PassbookDepositSheet(
+                    totalValue: totalValue,
+                    accentColor: accentColor,
+                    isOverallAccount: isOverallAccount,
+                    themeColor: themeColor,
+                    collapsedTop: 0,
+                    expandedTop: sheetExpandedTop,
+                    expandedHeaderInset: safeAreaTopInset + 8,
+                    detent: $sheetDetent,
+                    locksRowNavigation: $locksRowNavigation
+                ) {
+                    listContent
+                }
+                .frame(maxHeight: .infinity)
+                .zIndex(sheetDetent == .expanded ? 1 : 0)
+            }
         }
-        .environment(scrollCollapse)
+        .onGeometryChange(for: CGFloat.self) { proxy in
+            proxy.frame(in: .global).minY
+        } action: { _, minY in
+            guard minY > 0, abs(contentTopInset - minY) > 0.5 else { return }
+            contentTopInset = minY
+        }
+        .onGeometryChange(for: CGFloat.self) { proxy in
+            proxy.safeAreaInsets.top
+        } action: { _, top in
+            guard abs(safeAreaTopInset - top) > 0.5 else { return }
+            safeAreaTopInset = top
+        }
+        .onChange(of: sheetDetent) { _, detent in
+            passbookSheetChromeState.isExpanded = detent == .expanded
+        }
+        .onAppear {
+            passbookSheetChromeState.isExpanded = sheetDetent == .expanded
+        }
+        .onDisappear {
+            passbookSheetChromeState.isExpanded = false
+        }
+        .onChange(of: passbook?.persistentModelID) { _, _ in
+            sheetDetent = .collapsed
+            accountSectionHeight = 0
+            contentTopInset = 0
+            safeAreaTopInset = 0
+            passbookSheetChromeState.isExpanded = false
+            locksRowNavigation = false
+            selectedBook = nil
+        }
         .id(passbook?.persistentModelID.hashValue.description ?? "overall")
+        .navigationDestination(item: $selectedBook) { book in
+            UserBookDetailView(book: book)
+        }
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.hidden, for: .navigationBar)
+        .toolbar(sheetDetent == .expanded ? .hidden : .visible, for: .navigationBar)
         .toolbar {
             ToolbarItem(placement: .principal) {
                 Text("passbook.title")
                     .font(.system(size: 17))
+                    .opacity(sheetDetent == .expanded ? 0 : 1)
             }
         }
     }
+
     private var accountHeaderPrimaryTextColor: Color {
         isOverallAccount ? .primary : .white
     }
@@ -247,15 +257,6 @@ struct PassbookDetailView: View {
             )
     }
 
-    private var contentCardShape: UnevenRoundedRectangle {
-        UnevenRoundedRectangle(
-            topLeadingRadius: 40,
-            bottomLeadingRadius: 0,
-            bottomTrailingRadius: 0,
-            topTrailingRadius: 40
-        )
-    }
-
     private var listGlassBorderGradient: LinearGradient {
         LinearGradient(
             stops: [
@@ -266,11 +267,6 @@ struct PassbookDetailView: View {
             startPoint: .topLeading,
             endPoint: .bottomTrailing
         )
-    }
-
-    private var contentCardGlassBorder: some View {
-        contentCardShape
-            .strokeBorder(listGlassBorderGradient, lineWidth: 0.5)
     }
 
     // MARK: - Account Info Section
@@ -321,7 +317,7 @@ struct PassbookDetailView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.top, 8)
-        .padding(.bottom, 60)
+        .padding(.bottom, 24)
     }
 
     /// 総合口座：日付・金額・冊数を1つのカードにまとめる
@@ -518,6 +514,87 @@ struct PassbookDetailView: View {
     }
     
     // MARK: - List Content
+
+    @ViewBuilder
+    private func passbookBookCover(for book: UserBook) -> some View {
+        Group {
+            if let coverImage = book.coverUIImage {
+                Image(uiImage: coverImage)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+            } else if let imageURL = book.coverImageURL,
+                      let url = URL(string: imageURL) {
+                CachedAsyncImage(
+                    url: url,
+                    width: 47,
+                    height: 70
+                )
+            } else {
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(Color.gray.opacity(0.2))
+                    .overlay {
+                        Image(systemName: "book.closed")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+            }
+        }
+        .frame(width: 47, height: 70)
+        .clipShape(RoundedRectangle(cornerRadius: 2))
+        .id(book.persistentModelID)
+    }
+
+    private func passbookDepositRow(for book: UserBook, index: Int) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            passbookBookCover(for: book)
+
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(alignment: .center, spacing: 6) {
+                    Text("\(userBooks.count - index)")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(accentColor)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 2)
+                        .background(
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(depositEntryBadgeBackground)
+                        )
+
+                    Text(formatDate(book.registeredAt))
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
+                }
+
+                Text(book.title)
+                    .font(.callout)
+                    .fontWeight(.medium)
+                    .foregroundColor(.primary)
+                    .lineLimit(2)
+
+                if !book.displayAuthor.isEmpty {
+                    Text(book.displayAuthor)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+            .padding(.trailing, book.priceAtRegistration != nil ? 72 : 0)
+
+            Spacer(minLength: 0)
+        }
+        .overlay(alignment: .trailing) {
+            if book.priceAtRegistration != nil {
+                BookPriceText(book: book, font: .headline, fontWeight: .medium)
+                    .foregroundColor(accentColor)
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 6)
+                .fill(listRowHighlightColor)
+        )
+        .overlay(listRowGlassBorder())
+    }
     
     private var listContent: some View {
         LazyVStack(spacing: 6) {
@@ -529,78 +606,11 @@ struct PassbookDetailView: View {
                     .padding()
             } else {
                 ForEach(Array(userBooks.enumerated()), id: \.element.id) { index, book in
-                    NavigationLink(destination: UserBookDetailView(book: book)) {
-                        HStack(alignment: .center, spacing: 12) {
-                            // サムネイル
-                            if let coverImage = book.coverUIImage {
-                                Image(uiImage: coverImage)
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fill)
-                                    .frame(width: 47, height: 70)
-                                    .clipShape(RoundedRectangle(cornerRadius: 2))
-                            } else if let imageURL = book.imageURL,
-                               let url = URL(string: imageURL) {
-                                CachedAsyncImage(
-                                    url: url,
-                                    width: 47,
-                                    height: 70
-                                )
-                                .clipShape(RoundedRectangle(cornerRadius: 2))
-                            } else {
-                                RoundedRectangle(cornerRadius: 2)
-                                    .fill(Color.gray.opacity(0.2))
-                                    .frame(width: 47, height: 70)
-                                    .overlay {
-                                        Image(systemName: "book.closed")
-                                            .font(.caption)
-                                            .foregroundColor(.secondary)
-                                    }
-                            }
-
-                            VStack(alignment: .leading, spacing: 2) {
-                                HStack(spacing: 6) {
-                                    Text("\(userBooks.count - index)")
-                                        .font(.system(size: 11, weight: .medium))
-                                        .foregroundColor(accentColor)
-                                        .padding(.horizontal, 5)
-                                        .padding(.vertical, 2)
-                                        .background(
-                                            RoundedRectangle(cornerRadius: 4)
-                                                .fill(depositEntryBadgeBackground)
-                                        )
-
-                                    Text(formatDate(book.registeredAt))
-                                        .font(.system(size: 11))
-                                        .foregroundColor(.secondary)
-                                }
-
-                                Text(book.title)
-                                    .font(.callout)
-                                    .fontWeight(.medium)
-                                    .foregroundColor(.primary)
-                                    .lineLimit(2)
-
-                                if !book.displayAuthor.isEmpty {
-                                    Text(book.displayAuthor)
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                }
-                            }
-
-                            Spacer()
-
-                            if book.priceAtRegistration != nil {
-                                BookPriceText(book: book, font: .headline, fontWeight: .medium)
-                                    .foregroundColor(accentColor)
-                            }
-                        }
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 8)
-                        .background(
-                            RoundedRectangle(cornerRadius: 6)
-                                .fill(listRowHighlightColor)
-                        )
-                        .overlay(listRowGlassBorder())
+                    Button {
+                        guard !locksRowNavigation else { return }
+                        selectedBook = book
+                    } label: {
+                        passbookDepositRow(for: book, index: index)
                     }
                     .buttonStyle(.plain)
                     .padding(.horizontal, 16)
@@ -620,74 +630,6 @@ struct PassbookDetailView: View {
     }
 }
 
-// MARK: - Compact Header Overlay
-
-/// スクロール連動コンパクトヘッダー（この View だけが progress を購読する）
-private struct PassbookCompactHeaderOverlay: View {
-    @Environment(PassbookScrollCollapse.self) private var scrollCollapse
-
-    let scrollProxy: ScrollViewProxy
-    let totalValue: Int
-    let accentColor: Color
-    let isOverallAccount: Bool
-    let themeColor: Color
-
-    private var opacity: CGFloat {
-        min(max((scrollCollapse.progress - 0.2) / 0.3, 0), 1)
-    }
-
-    private var priceStyle: AnyShapeStyle {
-        if isOverallAccount {
-            return AnyShapeStyle(accentColor)
-        }
-        return AnyShapeStyle(
-            LinearGradient(
-                stops: [
-                    Gradient.Stop(color: themeColor, location: 0),
-                    Gradient.Stop(color: themeColor, location: 0.6),
-                    Gradient.Stop(color: themeColor.opacity(0.3), location: 1.0)
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-        )
-    }
-
-    var body: some View {
-        HStack(spacing: 12) {
-            Button {
-                withAnimation(.easeOut(duration: 0.3)) {
-                    scrollProxy.scrollTo("top", anchor: .top)
-                }
-            } label: {
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(accentColor)
-                    .frame(width: 32, height: 32)
-            }
-
-            Spacer()
-
-            DisplayCurrencyPriceText(
-                amount: totalValue,
-                font: .system(size: 18, weight: .semibold),
-                symbolFont: .system(size: 12, weight: .medium)
-            )
-            .foregroundStyle(priceStyle)
-
-            Spacer()
-
-            Color.clear
-                .frame(width: 32, height: 32)
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
-        .background(Color(.systemBackground))
-        .opacity(opacity)
-        .allowsHitTesting(opacity > 0.05)
-    }
-}
-
 // MARK: - Preview
 
 #Preview("総合口座") {
@@ -696,6 +638,7 @@ private struct PassbookCompactHeaderOverlay: View {
     }
     .bookBankPreviewEnvironment()
     .environment(AppShellState())
+    .environment(PassbookSheetChromeState())
 }
 
 #Preview("カスタム口座") {
@@ -704,5 +647,6 @@ private struct PassbookCompactHeaderOverlay: View {
     }
     .bookBankPreviewEnvironment()
     .environment(AppShellState())
+    .environment(PassbookSheetChromeState())
 }
 

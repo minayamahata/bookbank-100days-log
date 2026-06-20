@@ -32,12 +32,22 @@ struct LiquidGlassButton: View {
     }
     
     var body: some View {
-        Image(systemName: "plus")
-            .font(.system(size: 16))
-            .foregroundColor(textColor)
-            .frame(width: size, height: size)
-            .glassEffect(.regular.tint(effectiveColor))
-            .clipShape(Circle())
+        Group {
+            if PreviewRuntime.isActive {
+                Image(systemName: "plus")
+                    .font(.system(size: 16))
+                    .foregroundColor(textColor)
+                    .frame(width: size, height: size)
+                    .background(effectiveColor.opacity(0.85), in: Circle())
+            } else {
+                Image(systemName: "plus")
+                    .font(.system(size: 16))
+                    .foregroundColor(textColor)
+                    .frame(width: size, height: size)
+                    .glassEffect(.regular.tint(effectiveColor))
+                    .clipShape(Circle())
+            }
+        }
     }
 }
 

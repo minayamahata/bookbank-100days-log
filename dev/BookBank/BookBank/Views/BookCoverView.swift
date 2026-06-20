@@ -30,7 +30,7 @@ struct BookCoverView: View {
                         .aspectRatio(contentMode: .fill)
                         .frame(width: geometry.size.width, height: geometry.size.width * 1.5)
                         .clipped()
-                } else if let imageURL = book.imageURL,
+                } else if let imageURL = book.coverImageURL,
                    let url = URL(string: imageURL) {
                     CachedAsyncImage(
                         url: url,

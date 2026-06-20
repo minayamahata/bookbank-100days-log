@@ -64,4 +64,16 @@ struct BookBankTests {
         #expect(jpy.prefix != cny.prefix)
     }
 
+    @Test func rakutenNoImagePlaceholderIsExcluded() {
+        let placeholder = "https://thumbnail.image.rakuten.co.jp/@0_mall/book/cabinet/noimage_01.gif?_ex=200x200"
+        let real = "https://thumbnail.image.rakuten.co.jp/@0_mall/book/cabinet/0247/9784839960247.jpg?_ex=200x200"
+
+        #expect(BookCoverImageURL.isRakutenPlaceholder(placeholder))
+        #expect(!BookCoverImageURL.isRakutenPlaceholder(real))
+        #expect(BookCoverImageURL.isValid(placeholder) == false)
+        #expect(BookCoverImageURL.isValid(real) == true)
+        #expect(BookCoverImageURL.normalized(placeholder) == nil)
+        #expect(BookCoverImageURL.normalized(real) == real)
+    }
+
 }

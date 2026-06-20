@@ -140,6 +140,11 @@ extension UserBook {
         author ?? ""
     }
 
+    /// 表示に使える表紙URL（楽天の noimage プレースホルダーは除外）
+    var coverImageURL: String? {
+        BookCoverImageURL.normalized(imageURL)
+    }
+
     /// 表示用の価格文字列（レガシー・換算表示は FormattedPriceText を使用）
     var displayPrice: String? {
         guard let price = priceAtRegistration else { return nil }
@@ -154,9 +159,8 @@ extension UserBook {
     
     /// 表紙画像があるかどうか（URL or ローカルデータ）
     var hasCoverImage: Bool {
-        if let url = imageURL, !url.isEmpty { return true }
         if let data = coverImageData, !data.isEmpty { return true }
-        return false
+        return coverImageURL != nil
     }
     
     /// ローカル保存の表紙画像をUIImageとして取得
