@@ -144,13 +144,13 @@ struct PassbookDetailView: View {
 
             VStack(spacing: sheetGap) {
                 accountInfoSection
-                    .animation(nil, value: sheetDetent)
-                    .opacity(sheetDetent == .expanded ? 0 : 1)
+                    .frame(height: accountSectionHeight > 0 ? accountSectionHeight : nil, alignment: .top)
                     .allowsHitTesting(sheetDetent != .expanded)
                     .onGeometryChange(for: CGFloat.self) { proxy in
                         proxy.size.height
                     } action: { _, height in
-                        guard height > 0, abs(accountSectionHeight - height) > 0.5 else { return }
+                        guard height > 0, !locksRowNavigation else { return }
+                        guard abs(accountSectionHeight - height) > 0.5 else { return }
                         accountSectionHeight = height
                     }
 
@@ -207,7 +207,6 @@ struct PassbookDetailView: View {
         }
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.hidden, for: .navigationBar)
-        .toolbar(sheetDetent == .expanded ? .hidden : .visible, for: .navigationBar)
         .toolbar {
             ToolbarItem(placement: .principal) {
                 Text("passbook.title")
@@ -619,7 +618,7 @@ struct PassbookDetailView: View {
         }
         .padding(.bottom, 100)
     }
-    
+
     // MARK: - Actions
     
     /// 日付をYYYY.MM.DD形式でフォーマット
