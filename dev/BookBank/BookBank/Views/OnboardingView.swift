@@ -268,12 +268,14 @@ struct CategoryTag: View {
 /// 横並びで自動折り返しするレイアウト
 struct FlowLayout: Layout {
     var spacing: CGFloat = 8
+    var horizontalAlignment: HorizontalAlignment = .leading
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
         let result = FlowResult(
             in: proposal.replacingUnspecifiedDimensions().width,
             subviews: subviews,
-            spacing: spacing
+            spacing: spacing,
+            horizontalAlignment: horizontalAlignment
         )
         return result.size
     }
@@ -282,7 +284,8 @@ struct FlowLayout: Layout {
         let result = FlowResult(
             in: bounds.width,
             subviews: subviews,
-            spacing: spacing
+            spacing: spacing,
+            horizontalAlignment: horizontalAlignment
         )
         for (index, subview) in subviews.enumerated() {
             subview.place(at: CGPoint(x: bounds.minX + result.frames[index].minX, y: bounds.minY + result.frames[index].minY), proposal: .unspecified)
@@ -293,27 +296,44 @@ struct FlowLayout: Layout {
         var size: CGSize = .zero
         var frames: [CGRect] = []
 
-        init(in maxWidth: CGFloat, subviews: Subviews, spacing: CGFloat) {
+        init(in maxWidth: CGFloat, subviews: Subviews, spacing: CGFloat, horizontalAlignment: HorizontalAlignment) {
+            var lines: [[(index: Int, frame: CGRect)]] = []
+            var currentLine: [(index: Int, frame: CGRect)] = []
             var currentX: CGFloat = 0
             var currentY: CGFloat = 0
             var lineHeight: CGFloat = 0
 
-            for subview in subviews {
+            for (index, subview) in subviews.enumerated() {
                 let size = subview.sizeThatFits(.unspecified)
 
                 if currentX + size.width > maxWidth && currentX > 0 {
-                    // 次の行へ
+                    lines.append(currentLine)
+                    currentLine = []
                     currentX = 0
                     currentY += lineHeight + spacing
                     lineHeight = 0
                 }
 
-                frames.append(CGRect(x: currentX, y: currentY, width: size.width, height: size.height))
+                currentLine.append((index, CGRect(x: currentX, y: currentY, width: size.width, height: size.height)))
                 lineHeight = max(lineHeight, size.height)
                 currentX += size.width + spacing
             }
 
-            self.size = CGSize(width: maxWidth, height: currentY + lineHeight)
+            if !currentLine.isEmpty {
+                lines.append(currentLine)
+            }
+
+            frames = Array(repeating: .zero, count: subviews.count)
+            for line in lines {
+                let lineWidth = line.map(\.frame.maxX).max() ?? 0
+                let xOffset: CGFloat = horizontalAlignment == .center ? max((maxWidth - lineWidth) / 2, 0) : 0
+                for item in line {
+                    frames[item.index] = item.frame.offsetBy(dx: xOffset, dy: 0)
+                }
+            }
+
+            let totalHeight = lines.last.map { $0.first!.frame.minY + lineHeight } ?? 0
+            size = CGSize(width: maxWidth, height: totalHeight)
         }
     }
 }

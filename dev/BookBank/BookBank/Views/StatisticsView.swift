@@ -301,6 +301,21 @@ struct YearlyChartContent: View {
     private var maxAmount: Int {
         chartData.map { $0.amount }.max() ?? 0
     }
+
+    /// 冊数グラフの最大値（Y軸ドメイン用）
+    private var maxCount: Int {
+        chartData.map { $0.count }.max() ?? 0
+    }
+
+    /// 金額グラフのY軸上限（全0のとき 0...0 にならないよう最低値を確保）
+    private var amountChartYUpperBound: Int {
+        maxAmount > 0 ? maxAmount : 100
+    }
+
+    /// 冊数グラフのY軸上限（全0のとき軸が消えないよう最低値を確保）
+    private var countChartYUpperBound: Int {
+        maxCount > 0 ? maxCount : 5
+    }
     
     // MARK: - Chart Computed Properties
     
@@ -532,7 +547,7 @@ struct YearlyChartContent: View {
                     }
                 }
                 .frame(height: 120)
-                .chartYScale(domain: 0...maxAmount)
+                .chartYScale(domain: 0...amountChartYUpperBound)
                 .chartYAxis {
                     AxisMarks(position: .trailing) { value in
                         AxisGridLine()
@@ -594,6 +609,7 @@ struct YearlyChartContent: View {
                     }
                 }
                 .frame(height: 120)
+                .chartYScale(domain: 0...countChartYUpperBound)
                 .chartYAxis {
                     AxisMarks(position: .trailing) { value in
                         AxisGridLine()
@@ -607,7 +623,8 @@ struct YearlyChartContent: View {
                     }
                 }
                 .chartXAxis {
-                    AxisMarks { value in
+                    AxisMarks(values: chartData.map(\.label)) { value in
+                        AxisGridLine()
                         AxisValueLabel(verticalSpacing: 20) {
                             if let label = value.as(String.self) {
                                 Text(label)

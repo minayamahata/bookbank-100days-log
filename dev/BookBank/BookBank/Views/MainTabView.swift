@@ -48,7 +48,7 @@ struct MainTabView: View {
     @Query(sort: \ReadingList.updatedAt) private var readingLists: [ReadingList]
     private var unlimitedManager: UnlimitedManager { UnlimitedManager.shared }
     @State private var selectedPassbook: Passbook?
-    @State private var isOverallMode = false
+    @State private var isOverallMode = true
     @State private var appShellState = AppShellState()
     @State private var showAddReadingList = false
     @State private var showUnlimitedPaywall = false
@@ -127,6 +127,7 @@ struct MainTabView: View {
                     isOverallMode = false
                     selectedPassbook = passbook
                     selectedTab = 1
+                    passbookNavPath = NavigationPath()
                 }
                 appShellState.onOverallSelected = {
                     isOverallMode = true
@@ -169,6 +170,7 @@ struct MainTabView: View {
                             isOverallMode = false
                             selectedPassbook = passbook
                             selectedTab = 1
+                            passbookNavPath = NavigationPath()
                         },
                         onOverallSelected: {
                             isOverallMode = true
@@ -464,6 +466,8 @@ struct BookSearchDestination: Hashable {
         container.mainContext.insert(book2)
         
         return MainTabView()
+        
+        
             .environment(ThemeManager())
             .environment(LanguageManager())
             .environment(CurrencyManager())

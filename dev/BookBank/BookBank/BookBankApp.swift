@@ -154,6 +154,8 @@ struct RootView: View {
             .environment(\.locale, languageManager.resolvedLocale)
         }
         .onAppear {
+            guard !PreviewRuntime.isActive else { return }
+
             CurrencyMigration.migrateIfNeeded(context: modelContext)
             Task {
                 await exchangeRateService.refreshIfNeeded()

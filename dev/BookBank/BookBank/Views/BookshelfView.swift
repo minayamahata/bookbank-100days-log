@@ -249,94 +249,43 @@ struct BookshelfView: View {
     
     private var filterSection: some View {
         HStack(spacing: 8) {
-            // All ボタン
-            Button(action: {
-                showFavoritesOnly = false
-                showWithMemoOnly = false
-            }) {
-                HStack(spacing: 6) {
-                    Text("common.all")
-                        .font(.system(size: 11, weight: .medium))
-                    Text("\(allBooksCount)")
-                        .font(.system(size: 10, weight: .medium))
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(
-                            Capsule()
-                                .fill(Color.white.opacity(0.2))
-                        )
-                }
-                .foregroundColor(!showFavoritesOnly && !showWithMemoOnly ? .white : .white.opacity(0.5))
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
-                .background(
-                    Capsule()
-                        .stroke(!showFavoritesOnly && !showWithMemoOnly ? Color.white : Color.white.opacity(0.3), lineWidth: 1)
-                )
-            }
-            
-            // Like ボタン
-            Button(action: {
-                showFavoritesOnly.toggle()
-                if showFavoritesOnly {
-                    showWithMemoOnly = false
-                }
-            }) {
-                HStack(spacing: 6) {
-                    Text("bookshelf.favorite")
-                        .font(.system(size: 11, weight: .medium))
-                    if favoriteCount > 0 {
-                        Text("\(favoriteCount)")
-                            .font(.system(size: 10, weight: .medium))
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(
-                                Capsule()
-                                    .fill(Color.white.opacity(0.2))
-                            )
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    filterPill(
+                        label: "common.all",
+                        count: allBooksCount,
+                        alwaysShowCount: true,
+                        isSelected: !showFavoritesOnly && !showWithMemoOnly
+                    ) {
+                        showFavoritesOnly = false
+                        showWithMemoOnly = false
+                    }
+
+                    filterPill(
+                        label: "bookshelf.favorite",
+                        count: favoriteCount,
+                        isSelected: showFavoritesOnly
+                    ) {
+                        showFavoritesOnly.toggle()
+                        if showFavoritesOnly {
+                            showWithMemoOnly = false
+                        }
+                    }
+
+                    filterPill(
+                        label: "bookshelf.memo",
+                        count: memoCount,
+                        isSelected: showWithMemoOnly
+                    ) {
+                        showWithMemoOnly.toggle()
+                        if showWithMemoOnly {
+                            showFavoritesOnly = false
+                        }
                     }
                 }
-                .foregroundColor(showFavoritesOnly ? .white : .white.opacity(0.5))
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
-                .background(
-                    Capsule()
-                        .stroke(showFavoritesOnly ? Color.white : Color.white.opacity(0.3), lineWidth: 1)
-                )
+                .padding(.vertical, 1)
             }
-            
-            // Memo ボタン
-            Button(action: {
-                showWithMemoOnly.toggle()
-                if showWithMemoOnly {
-                    showFavoritesOnly = false
-                }
-            }) {
-                HStack(spacing: 6) {
-                    Text("bookshelf.memo")
-                        .font(.system(size: 11, weight: .medium))
-                    if memoCount > 0 {
-                        Text("\(memoCount)")
-                            .font(.system(size: 10, weight: .medium))
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(
-                                Capsule()
-                                    .fill(Color.white.opacity(0.2))
-                            )
-                    }
-                }
-                .foregroundColor(showWithMemoOnly ? .white : .white.opacity(0.5))
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
-                .background(
-                    Capsule()
-                        .stroke(showWithMemoOnly ? Color.white : Color.white.opacity(0.3), lineWidth: 1)
-                )
-            }
-            
-            Spacer()
-            
+
             // カレンダービュー切り替えボタン
             Button(action: {
                 showCalendarView.toggle()
@@ -359,6 +308,43 @@ struct BookshelfView: View {
         .padding(.horizontal, 20)
         .padding(.top, 16)
         .padding(.bottom, 16)
+    }
+
+    private func filterPill(
+        label: LocalizedStringKey,
+        count: Int,
+        alwaysShowCount: Bool = false,
+        isSelected: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                Text(label)
+                    .font(.system(size: 11, weight: .medium))
+                    .lineLimit(1)
+
+                if alwaysShowCount || count > 0 {
+                    Text(count.formatted())
+                        .font(.system(size: 10, weight: .medium))
+                        .lineLimit(1)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(
+                            Capsule()
+                                .fill(Color.white.opacity(0.2))
+                        )
+                }
+            }
+            .fixedSize(horizontal: true, vertical: false)
+            .foregroundColor(isSelected ? .white : .white.opacity(0.5))
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .background(
+                Capsule()
+                    .strokeBorder(isSelected ? Color.white : Color.white.opacity(0.3), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
     }
     
     // MARK: - Grid Content

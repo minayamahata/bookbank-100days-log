@@ -18,6 +18,12 @@ class RakutenBooksService {
     
     /// APIのベースURL（総合検索API - 書籍・コミック・雑誌すべて対応）
     private let baseURL = "https://app.rakuten.co.jp/services/api/BooksTotal/Search/20170404"
+
+    /// 書籍検索API（発行形態 size を取得するため）
+    private let bookSearchURL = "https://app.rakuten.co.jp/services/api/BooksBook/Search/20170404"
+
+    /// ISBN → 発行形態のセッションキャッシュ
+    private var formatCache: [String: String] = [:]
     
     // MARK: - Initialization
     
@@ -161,30 +167,109 @@ class RakutenBooksService {
             return item.toRakutenBook()
         }
         
-        // キーワードフィルタリング（タイトルまたは著者名に含まれるもののみ）
-        guard let keyword = filterKeyword, !keyword.isEmpty else {
-            return books
+        let filteredBooks: [RakutenBook]
+        if let keyword = filterKeyword, !keyword.isEmpty {
+            // スペースを除去して比較用の文字列を作成
+            let normalizedKeyword = keyword
+                .lowercased()
+                .replacingOccurrences(of: " ", with: "")
+                .replacingOccurrences(of: "　", with: "")
+
+            filteredBooks = books.filter { book in
+                let normalizedTitle = book.title
+                    .lowercased()
+                    .replacingOccurrences(of: " ", with: "")
+                    .replacingOccurrences(of: "　", with: "")
+                let normalizedAuthor = book.author
+                    .lowercased()
+                    .replacingOccurrences(of: " ", with: "")
+                    .replacingOccurrences(of: "　", with: "")
+
+                return normalizedTitle.contains(normalizedKeyword) || normalizedAuthor.contains(normalizedKeyword)
+            }
+        } else {
+            filteredBooks = books
         }
-        
-        // スペースを除去して比較用の文字列を作成
-        let normalizedKeyword = keyword
-            .lowercased()
-            .replacingOccurrences(of: " ", with: "")
-            .replacingOccurrences(of: "　", with: "")  // 全角スペースも除去
-        
-        return books.filter { book in
-            // タイトルと著者名からもスペースを除去して比較
-            let normalizedTitle = book.title
-                .lowercased()
-                .replacingOccurrences(of: " ", with: "")
-                .replacingOccurrences(of: "　", with: "")
-            let normalizedAuthor = book.author
-                .lowercased()
-                .replacingOccurrences(of: " ", with: "")
-                .replacingOccurrences(of: "　", with: "")
-            
-            // キーワードがタイトルまたは著者名に含まれているかチェック
-            return normalizedTitle.contains(normalizedKeyword) || normalizedAuthor.contains(normalizedKeyword)
+
+        // 総合検索APIは size を返さないため、書籍検索APIでISBNごとに補完
+        return await enrichWithFormat(filteredBooks)
+    }
+
+    /// 書籍検索APIで発行形態（文庫・単行本・コミック等）を補完
+    private func enrichWithFormat(_ books: [RakutenBook]) async -> [RakutenBook] {
+        let indicesNeedingFormat = books.enumerated().compactMap { index, book -> Int? in
+            if let size = book.size, !size.isEmpty { return nil }
+            guard !book.isbn.isEmpty else { return nil }
+            return index
+        }
+
+        guard !indicesNeedingFormat.isEmpty else { return books }
+
+        var enriched = books
+        let maxConcurrent = 8
+
+        for chunkStart in stride(from: 0, to: indicesNeedingFormat.count, by: maxConcurrent) {
+            let chunk = Array(indicesNeedingFormat[chunkStart..<min(chunkStart + maxConcurrent, indicesNeedingFormat.count)])
+            await withTaskGroup(of: (Int, String?).self) { group in
+                for index in chunk {
+                    let isbn = books[index].isbn
+                    group.addTask {
+                        let format = await self.fetchFormatByISBN(isbn)
+                        return (index, format)
+                    }
+                }
+
+                for await (index, format) in group {
+                    if let format, !format.isEmpty {
+                        enriched[index] = enriched[index].withSize(format)
+                    }
+                }
+            }
+        }
+
+        #if DEBUG
+        let resolvedCount = enriched.filter { $0.displayFormat != nil }.count
+        print("📚 発行形態補完: \(resolvedCount)/\(enriched.count)件")
+        #endif
+
+        return enriched
+    }
+
+    /// ISBNで書籍検索APIから発行形態を取得
+    private func fetchFormatByISBN(_ isbn: String) async -> String? {
+        if let cached = formatCache[isbn] {
+            return cached
+        }
+
+        var components = URLComponents(string: bookSearchURL)
+        components?.queryItems = [
+            URLQueryItem(name: "applicationId", value: applicationId),
+            URLQueryItem(name: "isbn", value: isbn),
+            URLQueryItem(name: "format", value: "json"),
+            URLQueryItem(name: "hits", value: "1")
+        ]
+
+        guard let url = components?.url else { return nil }
+
+        do {
+            let (data, response) = try await URLSession.shared.data(from: url)
+            guard let httpResponse = response as? HTTPURLResponse,
+                  (200...299).contains(httpResponse.statusCode) else {
+                return nil
+            }
+
+            let searchResponse = try JSONDecoder().decode(RakutenBooksBookSearchResponse.self, from: data)
+            guard let size = searchResponse.Items.first?.Item.size, !size.isEmpty else {
+                return nil
+            }
+
+            formatCache[isbn] = size
+            return size
+        } catch {
+            #if DEBUG
+            print("⚠️ 発行形態取得失敗 ISBN=\(isbn): \(error.localizedDescription)")
+            #endif
+            return nil
         }
     }
 }

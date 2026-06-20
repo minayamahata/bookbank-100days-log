@@ -263,7 +263,7 @@ struct AccountListView: View {
             dismiss()
         }
     }
-    
+
     private static let unlimitedGradient = LinearGradient(
         colors: [
             Color(red: 180/255, green: 180/255, blue: 190/255),
@@ -333,6 +333,7 @@ struct AccountListView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(name)
                         .font(.subheadline)
+                        .fontWeight(.medium)
                         .foregroundColor(.primary)
                     
                     BooksCountText(count: bookCount, font: .caption)
@@ -341,6 +342,7 @@ struct AccountListView: View {
             } else {
                 Text(name)
                     .font(.headline)
+                    .fontWeight(.medium)
                     .foregroundColor(.primary)
             }
             

@@ -7,6 +7,8 @@
 
 import SwiftUI
 import SwiftData
+import PhotosUI
+import AVFoundation
 
 /// 検索結果の並べ替えオプション
 enum SortOption: CaseIterable {
@@ -32,6 +34,10 @@ struct BookSearchView: View {
     
     /// モーダルを閉じるためのアクション
     @Environment(\.dismiss) private var dismiss
+
+    @Environment(LanguageManager.self) private var languageManager
+    @Environment(CurrencyManager.self) private var currencyManager
+    @Environment(ExchangeRateService.self) private var exchangeRates
     
     // MARK: - Properties
     
@@ -98,6 +104,9 @@ struct BookSearchView: View {
     
     /// 追加読み込み中フラグ
     @State private var isLoadingMore: Bool = false
+
+    /// フィルター適用時の自動追加読み込み中フラグ
+    @State private var isAutoLoadingForFilters: Bool = false
     
     /// トースト通知の表示フラグ
     @State private var showToast: Bool = false
@@ -108,6 +117,12 @@ struct BookSearchView: View {
     /// 未登録のみ表示フラグ
     @State private var showUnregisteredOnly: Bool = false
 
+    /// 発行形態フィルター（文庫・単行本・コミック）
+    @State private var selectedFormatFilter: BookFormatKind?
+
+    /// 表紙登録シート用（画像なしの検索結果）
+    @State private var coverRegistrationBook: RakutenBook?
+    
     /// 選択中の並べ替えオプション
     @State private var selectedSortOption: SortOption = .newestFirst
     
@@ -131,6 +146,12 @@ struct BookSearchView: View {
     
     /// 楽天Books APIサービス
     private let rakutenService = RakutenBooksService()
+
+    /// 1ページあたりの取得件数
+    private let pageSize = 30
+
+    /// フィルター自動読み込みの最大ページ数
+    private let maxAutoLoadPages = 10
     
     // MARK: - Initialization
     
@@ -147,11 +168,21 @@ struct BookSearchView: View {
         registeredISBNs = Set(allUserBooks.compactMap { $0.isbn }.filter { !$0.isEmpty })
     }
     
+    /// 登録済み除外・発行形態フィルターを適用
+    private func applyActiveFilters(to results: [RakutenBook]) -> [RakutenBook] {
+        var filtered = results
+        if showUnregisteredOnly {
+            filtered = filtered.filter { !isBookRegistered($0) }
+        }
+        if let formatFilter = selectedFormatFilter {
+            filtered = filtered.filter { $0.formatKind == formatFilter }
+        }
+        return filtered
+    }
+
     /// フィルタリング・ソート済みの検索結果を更新
     private func updateFilteredResults() {
-        var results = showUnregisteredOnly
-            ? searchResults.filter { !isBookRegistered($0) }
-            : searchResults
+        var results = applyActiveFilters(to: searchResults)
 
         switch selectedSortOption {
         case .newestFirst:
@@ -179,6 +210,95 @@ struct BookSearchView: View {
         }
 
         filteredResults = results
+    }
+
+    /// クライアント側フィルターが有効か
+    private var hasActiveFilters: Bool {
+        showUnregisteredOnly || selectedFormatFilter != nil
+    }
+
+    /// 「次の30件」ボタンを表示するか
+    private var shouldShowLoadMore: Bool {
+        canLoadMore && !isAutoLoadingForFilters
+    }
+
+    /// フィルター変更後に結果を更新し、必要なら追加ページを自動読み込み
+    private func applyFilterChange() {
+        updateFilteredResults()
+        loadMoreIfNeededForFilters()
+    }
+
+    /// フィルター適用後、表示件数が足りなければ追加ページを自動読み込み
+    private func loadMoreIfNeededForFilters(
+        consecutiveEmptyPages: Int = 0,
+        pagesLoaded: Int = 0
+    ) {
+        guard hasActiveFilters else { return }
+        guard filteredResults.count < pageSize, canLoadMore else { return }
+        guard !isLoadingMore, !isSearching, !isAutoLoadingForFilters else { return }
+        guard consecutiveEmptyPages < 5, pagesLoaded < maxAutoLoadPages else { return }
+
+        loadMoreResults(
+            autoContinue: true,
+            consecutiveEmptyPages: consecutiveEmptyPages,
+            pagesLoaded: pagesLoaded
+        )
+    }
+
+    /// 発行形態フィルターのタイトル
+    private func formatFilterTitle(_ kind: BookFormatKind) -> LocalizedStringKey {
+        switch kind {
+        case .bunko: return "book.format.bunko"
+        case .tankobon: return "book.format.tankobon"
+        case .comic: return "book.format.comic"
+        case .other: return "book.format.other"
+        }
+    }
+
+    /// フィルター用カプセルボタン
+    private func filterCapsule(
+        _ title: LocalizedStringKey,
+        isSelected: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: 13, weight: isSelected ? .semibold : .regular))
+                .foregroundColor(isSelected ? Color(.systemBackground) : .primary)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .background {
+                    if isSelected {
+                        Capsule()
+                            .fill(Color.primary)
+                    } else {
+                        Capsule()
+                            .strokeBorder(Color.primary.opacity(0.2), lineWidth: 1)
+                    }
+                }
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// 発行形態フィルターのカプセルボタン
+    private func formatFilterCapsule(_ kind: BookFormatKind) -> some View {
+        let isSelected = selectedFormatFilter == kind
+        return filterCapsule(formatFilterTitle(kind), isSelected: isSelected) {
+            selectedFormatFilter = isSelected ? nil : kind
+            applyFilterChange()
+        }
+    }
+
+    /// トーストに表示するメッセージ
+    private var toastMessage: String {
+        let formattedAmount = MoneyDisplay.formattedPrice(
+            amount: toastAmount,
+            sourceCurrency: .jpy,
+            displayCurrency: currencyManager.displayCurrency,
+            exchangeRates: exchangeRates,
+            locale: languageManager.resolvedLocale
+        ) ?? toastAmount.formatted()
+        return L10n.format("book.search.deposit_toast", locale: languageManager.resolvedLocale, formattedAmount)
     }
 
     /// salesDateの文字列をDateに変換
@@ -229,6 +349,20 @@ struct BookSearchView: View {
 
         return nil
     }
+
+    /// 楽天Books API クレジット表記
+    private var apiCreditView: some View {
+        Link(destination: URL(string: "https://webservice.rakuten.co.jp/")!) {
+            HStack(spacing: 4) {
+                Image(systemName: "info.circle")
+                    .font(.caption2)
+                Text("book.search.api_credit")
+                    .font(.caption2)
+            }
+            .foregroundColor(.primary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
     
     // MARK: - Body
     
@@ -274,7 +408,12 @@ struct BookSearchView: View {
             .background(Color(.systemGray6))
             .cornerRadius(12)
             .padding(.horizontal)
-            .padding(.vertical, 8)
+            .padding(.top, 8)
+            .padding(.bottom, 10)
+
+            apiCreditView
+                .padding(.horizontal)
+                .padding(.bottom, 8)
             
             // 検索結果リスト or 空状態
             if isSearching {
@@ -311,107 +450,146 @@ struct BookSearchView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .padding()
-            } else if !filteredResults.isEmpty {
+            } else if hasSearched && !searchResults.isEmpty {
                 // 検索結果の表示
                 List {
-                    // フィルター・口座選択・並べ替えオプション（1列）
-                    HStack {
-                        // 登録済みを除外
-                        Toggle(isOn: $showUnregisteredOnly) {
+                    // フィルター・口座選択・並べ替え
+                    VStack(alignment: .leading, spacing: 10) {
+                        ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 4) {
-                                Image(systemName: showUnregisteredOnly ? "checkmark.square.fill" : "square")
-                                    .foregroundColor(showUnregisteredOnly ? .blue : .secondary)
-                                Text("book.search.exclude_registered")
-                                    .font(.system(size: 13))
+                                filterCapsule("book.search.exclude_registered", isSelected: showUnregisteredOnly) {
+                                    showUnregisteredOnly.toggle()
+                                    applyFilterChange()
+                                }
+
+                                formatFilterCapsule(.bunko)
+                                formatFilterCapsule(.tankobon)
+                                formatFilterCapsule(.comic)
                             }
-                        }
-                        .toggleStyle(.button)
-                        .buttonStyle(.plain)
-                        .onChange(of: showUnregisteredOnly) {
-                            updateFilteredResults()
+                            .padding(.vertical, 1)
                         }
 
-                        Spacer()
-                        
-                        // 口座選択（allowPassbookChangeがtrueの場合のみ表示）
-                        if allowPassbookChange {
+                        if isAutoLoadingForFilters {
+                            HStack(spacing: 6) {
+                                ProgressView()
+                                    .controlSize(.small)
+                                Text("book.search.loading_filtered")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+
+                        HStack(alignment: .center, spacing: 16) {
+                            // 口座選択（allowPassbookChangeがtrueの場合のみ表示）
+                            if allowPassbookChange {
+                                Menu {
+                                    ForEach(customPassbooks) { passbook in
+                                        Button(action: {
+                                            selectedPassbook = passbook
+                                        }) {
+                                            if selectedPassbook?.persistentModelID == passbook.persistentModelID {
+                                                Label(passbook.name, systemImage: "checkmark")
+                                            } else {
+                                                Text(passbook.name)
+                                            }
+                                        }
+                                    }
+                                } label: {
+                                    HStack(spacing: 4) {
+                                        ZStack {
+                                            Image("icon-tab-account-fill")
+                                                .renderingMode(.template)
+                                                .resizable()
+                                                .aspectRatio(contentMode: .fit)
+                                                .foregroundColor(themeColor.opacity(0.1))
+
+                                            Image("icon-tab-account")
+                                                .renderingMode(.template)
+                                                .resizable()
+                                                .aspectRatio(contentMode: .fit)
+                                                .foregroundColor(themeColor)
+                                        }
+                                        .frame(width: 20, height: 20)
+
+                                        Text("book.search.register_destination")
+                                            .font(.system(size: 14))
+                                            .foregroundColor(.primary)
+
+                                        Text(
+                                            L10n.format(
+                                                "book.search.register_destination_account",
+                                                locale: languageManager.resolvedLocale,
+                                                selectedPassbook?.name ?? L10n.string("account.title", locale: languageManager.resolvedLocale)
+                                            )
+                                        )
+                                        .font(.system(size: 14))
+                                        .foregroundColor(themeColor)
+                                    }
+                                    .fixedSize()
+                                }
+                            }
+
+                            Spacer(minLength: 0)
+
+                            // 並べ替え
                             Menu {
-                                ForEach(customPassbooks) { passbook in
+                                ForEach(SortOption.allCases, id: \.self) { option in
                                     Button(action: {
-                                        selectedPassbook = passbook
+                                        selectedSortOption = option
+                                        updateFilteredResults()
                                     }) {
-                                        if selectedPassbook?.persistentModelID == passbook.persistentModelID {
-                                            Label(passbook.name, systemImage: "checkmark")
+                                        if selectedSortOption == option {
+                                            Label(option.titleKey, systemImage: "checkmark")
                                         } else {
-                                            Text(passbook.name)
+                                            Text(option.titleKey)
                                         }
                                     }
                                 }
                             } label: {
-                                HStack(spacing: 4) {
-                                    ZStack {
-                                        Image("icon-tab-account-fill")
-                                            .renderingMode(.template)
-                                            .resizable()
-                                            .aspectRatio(contentMode: .fit)
-                                            .foregroundColor(themeColor.opacity(0.1))
-                                        
-                                        Image("icon-tab-account")
-                                            .renderingMode(.template)
-                                            .resizable()
-                                            .aspectRatio(contentMode: .fit)
-                                            .foregroundColor(themeColor)
-                                    }
-                                    .frame(width: 16, height: 16)
-                                    
-                                    Text(selectedPassbook?.name ?? String(localized: "account.title"))
-                                        .font(.system(size: 13))
-                                        .foregroundColor(themeColor)
+                                VStack(spacing: 4) {
+                                    Image("icon-sort")
+                                        .renderingMode(.template)
+                                        .resizable()
+                                        .aspectRatio(contentMode: .fit)
+                                        .frame(width: 20, height: 20)
+                                        .foregroundColor(.primary)
+
+                                    Text("book.search.sort_label")
+                                        .font(.system(size: 10))
+                                        .foregroundColor(.primary)
                                 }
                                 .fixedSize()
                             }
                         }
-
-                        // 並べ替え
-                        Menu {
-                            ForEach(SortOption.allCases, id: \.self) { option in
-                                Button(action: {
-                                    selectedSortOption = option
-                                    updateFilteredResults()
-                                }) {
-                                    if selectedSortOption == option {
-                                        Label(option.titleKey, systemImage: "checkmark")
-                                    } else {
-                                        Text(option.titleKey)
-                                    }
-                                }
-                            }
-                        } label: {
-                            HStack(spacing: 4) {
-                                Image("icon-sort")
-                                    .renderingMode(.template)
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fit)
-                                    .frame(width: 14, height: 14)
-                                    .foregroundColor(.primary)
-                                
-                                Text(selectedSortOption.titleKey)
-                                    .font(.system(size: 13))
-                                    .foregroundColor(.primary)
-                            }
-                            .fixedSize()
-                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.bottom, 20)
                     }
-                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
-                    .listRowBackground(Color.appGroupedBackground)
+                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 12, trailing: 16))
+                    .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
                     
+                    if filteredResults.isEmpty {
+                        Group {
+                            if showUnregisteredOnly && searchResults.allSatisfy({ isBookRegistered($0) }) {
+                                Text("book.search.all_registered_message")
+                            } else {
+                                Text("book.search.no_format_match")
+                            }
+                        }
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        .listRowSeparator(.hidden)
+                        .listRowInsets(EdgeInsets(top: 24, leading: 16, bottom: 24, trailing: 16))
+                    }
+
                     ForEach(filteredResults) { result in
                         let isAlreadyRegistered = isBookRegistered(result)
                         
                         Button(action: {
                             if !isAlreadyRegistered {
-                                saveBook(from: result)
+                                registerBook(from: result)
                             }
                         }) {
                             BookSearchResultRow(result: result, isRegistered: isAlreadyRegistered, themeColor: themeColor)
@@ -422,7 +600,7 @@ struct BookSearchView: View {
                     }
                     
                     // リストの最後に「次の30件」ボタン
-                    if canLoadMore {
+                    if shouldShowLoadMore {
                         Button(action: {
                             loadMoreResults()
                         }) {
@@ -438,7 +616,7 @@ struct BookSearchView: View {
                             .foregroundColor(.blue)
                             .padding(.vertical, 12)
                         }
-                        .disabled(isLoadingMore)
+                        .disabled(isLoadingMore || isAutoLoadingForFilters)
                         .listRowSeparator(.hidden)
                         .listRowInsets(EdgeInsets(top: 8, leading: 24, bottom: 8, trailing: 24))
                     }
@@ -470,23 +648,6 @@ struct BookSearchView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .padding()
-            } else if hasSearched && !searchResults.isEmpty && filteredResults.isEmpty {
-                // フィルター適用後に0件
-                VStack(spacing: 16) {
-                    Image(systemName: "checkmark.circle")
-                        .font(.system(size: 60))
-                        .foregroundColor(.green)
-                    
-                    Text("book.search.all_registered")
-                        .font(.headline)
-                        .foregroundColor(.secondary)
-                    
-                    Text("book.search.all_registered_message")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                        .multilineTextAlignment(.center)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 // 初期状態（検索前）
                 Spacer()
@@ -504,7 +665,7 @@ struct BookSearchView: View {
         .overlay(alignment: .top) {
             // トースト通知
             if showToast {
-                ToastView(amount: toastAmount, themeColor: themeColor, isBlackTheme: isBlackTheme)
+                ToastView(message: toastMessage, themeColor: themeColor, isBlackTheme: isBlackTheme)
                     .padding(.top, 8)
                     .transition(.move(edge: .top).combined(with: .opacity))
             }
@@ -518,6 +679,15 @@ struct BookSearchView: View {
                 .font(.footnote)
                 .foregroundColor(.primary)
             }
+        }
+        .sheet(item: $coverRegistrationBook) { book in
+            SearchResultCoverRegistrationSheet(
+                book: book,
+                onRegister: { image in
+                    saveBook(from: book, coverImage: image)
+                    coverRegistrationBook = nil
+                }
+            )
         }
         .sheet(isPresented: $isShowingManualEntry) {
             if let targetPassbook = selectedPassbook {
@@ -561,6 +731,7 @@ struct BookSearchView: View {
         canLoadMore = true
         searchResults = []
         filteredResults = []
+        selectedFormatFilter = nil
         
         // 検索前にキャッシュを更新
         updateRegisteredISBNsCache()
@@ -570,7 +741,7 @@ struct BookSearchView: View {
                 // 楽天Books APIで検索（タイトル・著者名両方）
                 let results = try await rakutenService.search(searchText, page: 1)
                 searchResults = results
-                canLoadMore = results.count >= 30
+                canLoadMore = results.count >= pageSize
                 updateFilteredResults()
                 isSearching = false
             } catch {
@@ -586,10 +757,17 @@ struct BookSearchView: View {
     }
     
     /// 追加で検索結果を読み込む
-    private func loadMoreResults() {
+    private func loadMoreResults(
+        autoContinue: Bool = false,
+        consecutiveEmptyPages: Int = 0,
+        pagesLoaded: Int = 0
+    ) {
         guard canLoadMore && !isLoadingMore else { return }
         
         isLoadingMore = true
+        if autoContinue {
+            isAutoLoadingForFilters = true
+        }
         currentPage += 1
         
         Task {
@@ -599,25 +777,47 @@ struct BookSearchView: View {
                 // 重複を除外して追加
                 let existingISBNs = Set(searchResults.map { $0.isbn })
                 let newResults = results.filter { !existingISBNs.contains($0.isbn) }
+                let filteredCountBefore = filteredResults.count
                 
                 searchResults.append(contentsOf: newResults)
-                canLoadMore = results.count >= 30
+                canLoadMore = results.count >= pageSize
                 updateFilteredResults()
+                
                 isLoadingMore = false
+                if autoContinue {
+                    isAutoLoadingForFilters = false
+                    let addedCount = filteredResults.count - filteredCountBefore
+                    let nextConsecutiveEmptyPages = addedCount == 0 ? consecutiveEmptyPages + 1 : 0
+                    loadMoreIfNeededForFilters(
+                        consecutiveEmptyPages: nextConsecutiveEmptyPages,
+                        pagesLoaded: pagesLoaded + 1
+                    )
+                }
             } catch {
                 #if DEBUG
                 print("追加読み込みエラー: \(error)")
                 #endif
                 isLoadingMore = false
+                isAutoLoadingForFilters = false
                 canLoadMore = false
             }
         }
     }
     
+    /// 検索結果を登録（画像なしの場合は表紙登録シートを表示）
+    private func registerBook(from result: RakutenBook) {
+        if result.hasCoverImageURL {
+            saveBook(from: result)
+        } else {
+            coverRegistrationBook = result
+        }
+    }
+
     /// 検索結果から本を保存
-    private func saveBook(from result: RakutenBook) {
+    private func saveBook(from result: RakutenBook, coverImage: UIImage? = nil) {
         guard let targetPassbook = selectedPassbook else { return }
-        let newBook = result.toUserBook(passbook: targetPassbook)
+        let imageData = coverImage.flatMap { compressedImageData(from: $0) }
+        let newBook = result.toUserBook(passbook: targetPassbook, coverImageData: imageData)
         
         context.insert(newBook)
         
@@ -649,6 +849,24 @@ struct BookSearchView: View {
             #endif
         }
     }
+
+    /// 画像をJPEGデータに変換（リサイズ含む）
+    private func compressedImageData(from image: UIImage) -> Data? {
+        let maxDimension: CGFloat = 800
+        let size = image.size
+        let scale: CGFloat
+        if size.width > maxDimension || size.height > maxDimension {
+            scale = maxDimension / max(size.width, size.height)
+        } else {
+            scale = 1.0
+        }
+        let newSize = CGSize(width: size.width * scale, height: size.height * scale)
+        let renderer = UIGraphicsImageRenderer(size: newSize)
+        let resized = renderer.image { _ in
+            image.draw(in: CGRect(origin: .zero, size: newSize))
+        }
+        return resized.jpegData(compressionQuality: 0.8)
+    }
     
     /// 本が既に登録済みかチェック（全口座を対象）
     private func isBookRegistered(_ book: RakutenBook) -> Bool {
@@ -670,6 +888,7 @@ struct BookSearchView: View {
         isSearchingByISBN = true
         searchResults = []
         filteredResults = []
+        selectedFormatFilter = nil
         searchText = isbn  // 検索バーにISBNを表示
         
         // 検索前にキャッシュを更新
@@ -692,8 +911,7 @@ struct BookSearchView: View {
                     // 1件だけの場合は自動的に詳細を表示（登録済みでない場合のみ）
                     if results.count == 1, let book = results.first {
                         if !isBookRegistered(book) {
-                            // 自動的に登録
-                            saveBook(from: book)
+                            registerBook(from: book)
                         }
                     }
                 }
@@ -714,29 +932,175 @@ struct BookSearchView: View {
     }
 }
 
+// MARK: - SearchResultCoverRegistrationSheet
+
+/// 画像なしの検索結果に表紙を追加して登録するシート
+struct SearchResultCoverRegistrationSheet: View {
+    let book: RakutenBook
+    let onRegister: (UIImage) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var selectedImage: UIImage?
+    @State private var selectedPhotoItem: PhotosPickerItem?
+    @State private var showPhotoPicker = false
+    @State private var showCamera = false
+    @State private var showCameraDeniedAlert = false
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(book.title)
+                            .font(.headline)
+                        if !book.author.isEmpty {
+                            Text(book.author)
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
+
+                Section {
+                    if let selectedImage {
+                        VStack(spacing: 8) {
+                            Image(uiImage: selectedImage)
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(height: 180)
+                                .clipShape(RoundedRectangle(cornerRadius: 2))
+                                .frame(maxWidth: .infinity)
+
+                            Button(role: .destructive) {
+                                withAnimation {
+                                    self.selectedImage = nil
+                                    self.selectedPhotoItem = nil
+                                }
+                            } label: {
+                                Text("book.cover_delete")
+                                    .font(.caption)
+                            }
+                        }
+                    } else {
+                        VStack(spacing: 12) {
+                            RoundedRectangle(cornerRadius: 2)
+                                .fill(Color.gray.opacity(0.12))
+                                .frame(width: 120, height: 180)
+                                .overlay {
+                                    Text("book.cover_none")
+                                        .font(.subheadline)
+                                        .foregroundColor(.secondary)
+                                }
+                                .frame(maxWidth: .infinity)
+
+                            Menu {
+                                Button {
+                                    showPhotoPicker = true
+                                } label: {
+                                    Label("book.library_select", systemImage: "photo.on.rectangle")
+                                }
+
+                                if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                                    Button {
+                                        requestCameraAccess()
+                                    } label: {
+                                        Label("book.camera_capture", systemImage: "camera")
+                                    }
+                                }
+                            } label: {
+                                Text("book.cover_register")
+                                    .font(.subheadline)
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 8)
+                                    .background(Color.primary.opacity(0.06))
+                                    .clipShape(Capsule())
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+                .listRowBackground(Color.clear)
+            }
+            .navigationTitle("book.search.add_cover")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("common.cancel") {
+                        dismiss()
+                    }
+                    .foregroundColor(.primary)
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("common.save") {
+                        if let selectedImage {
+                            onRegister(selectedImage)
+                            dismiss()
+                        }
+                    }
+                    .disabled(selectedImage == nil)
+                }
+            }
+            .photosPicker(isPresented: $showPhotoPicker, selection: $selectedPhotoItem, matching: .images)
+            .onChange(of: selectedPhotoItem) { _, newItem in
+                loadPhoto(from: newItem)
+            }
+            .fullScreenCover(isPresented: $showCamera) {
+                CameraImagePicker { image in
+                    selectedImage = image
+                }
+            }
+            .alert("book.camera.denied.title", isPresented: $showCameraDeniedAlert) {
+                Button("common.close", role: .cancel) { }
+            } message: {
+                Text("book.camera.denied.message")
+            }
+        }
+    }
+
+    private func loadPhoto(from item: PhotosPickerItem?) {
+        guard let item else { return }
+        Task {
+            if let data = try? await item.loadTransferable(type: Data.self),
+               let uiImage = UIImage(data: data) {
+                await MainActor.run {
+                    selectedImage = uiImage
+                }
+            }
+        }
+    }
+
+    private func requestCameraAccess() {
+        switch AVCaptureDevice.authorizationStatus(for: .video) {
+        case .authorized:
+            showCamera = true
+        case .notDetermined:
+            AVCaptureDevice.requestAccess(for: .video) { granted in
+                DispatchQueue.main.async {
+                    if granted {
+                        showCamera = true
+                    } else {
+                        showCameraDeniedAlert = true
+                    }
+                }
+            }
+        case .denied, .restricted:
+            showCameraDeniedAlert = true
+        @unknown default:
+            showCameraDeniedAlert = true
+        }
+    }
+}
+
 // MARK: - ToastView
 
 /// トースト通知ビュー（リキッドガラス）
 struct ToastView: View {
-    let amount: Int
+    let message: String
     var themeColor: Color = .blue
     var isBlackTheme: Bool = false
     
     @Environment(\.colorScheme) private var colorScheme
-    @Environment(CurrencyManager.self) private var currencyManager
-    @Environment(ExchangeRateService.self) private var exchangeRates
-    @Environment(LanguageManager.self) private var languageManager
-    
-    /// 登録時価格は JPY 固定
-    private var formattedAmount: String {
-        MoneyDisplay.formattedPrice(
-            amount: amount,
-            sourceCurrency: .jpy,
-            displayCurrency: currencyManager.displayCurrency,
-            exchangeRates: exchangeRates,
-            locale: languageManager.resolvedLocale
-        ) ?? amount.formatted()
-    }
 
     /// テキストの色（黒テーマ+ダークモードでは黒、それ以外は白）
     private var textColor: Color {
@@ -747,7 +1111,7 @@ struct ToastView: View {
     }
 
     var body: some View {
-        Text(L10n.format("book.search.deposit_toast", formattedAmount))
+        Text(message)
             .font(.system(size: 13))
             .foregroundColor(textColor)
             .padding(.horizontal, 20)
@@ -790,8 +1154,11 @@ struct BookSearchResultRow: View {
                         .fill(Color.gray.opacity(0.2))
                         .frame(width: 50, height: 75)
                         .overlay {
-                            Image(systemName: "book")
-                                .foregroundColor(.gray)
+                            Text("book.cover_none")
+                                .font(.system(size: 8))
+                                .foregroundColor(.secondary)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal, 4)
                         }
                 }
                 
@@ -823,6 +1190,14 @@ struct BookSearchResultRow: View {
                         .foregroundColor(.secondary)
                         .lineLimit(1)
                 }
+
+                // 発行形態（文庫・単行本・コミック等）
+                if let format = result.displayFormat {
+                    Text(format)
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                }
             }
             
             Spacer()
@@ -838,6 +1213,8 @@ struct BookSearchResultRow: View {
 // MARK: - Preview
 
 #Preview {
-    BookSearchView(passbook: Passbook.createOverall())
-        .modelContainer(for: [Passbook.self, UserBook.self, Subscription.self])
+    NavigationStack {
+        BookSearchView(passbook: Passbook.createOverall())
+    }
+    .bookBankPreviewEnvironment()
 }

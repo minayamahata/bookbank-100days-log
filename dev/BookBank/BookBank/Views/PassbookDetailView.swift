@@ -8,6 +8,12 @@
 import SwiftUI
 import SwiftData
 
+/// スクロール折りたたみ進捗（コンパクトヘッダー専用・画面全体の再描画を避ける）
+@Observable
+final class PassbookScrollCollapse {
+    var progress: CGFloat = 0
+}
+
 /// 通帳画面
 /// 選択した口座の詳細と、登録されている書籍の一覧を表示
 struct PassbookDetailView: View {
@@ -31,11 +37,12 @@ struct PassbookDetailView: View {
     @Environment(LanguageManager.self) private var languageManager
     @Environment(CurrencyManager.self) private var currencyManager
     @Environment(ExchangeRateService.self) private var exchangeRates
+    @Environment(AppShellState.self) private var appShellState
     
     // MARK: - State
     
-    /// コラプス進捗（0.0 = 展開、1.0 = 折りたたみ）
-    @State private var collapseProgress: CGFloat = 0
+    /// コラプス進捗はコンパクトヘッダーだけが購読（リスト全体の再描画を防ぐ）
+    @State private var scrollCollapse = PassbookScrollCollapse()
     
     // MARK: - SwiftData Query
     
@@ -133,23 +140,18 @@ struct PassbookDetailView: View {
                 ScrollViewReader { scrollProxy in
                     ScrollView {
                         VStack(spacing: 0) {
-                            // 口座情報セクション（スクロールでフェードアウト）
+                            // 口座情報セクション（スクロールで自然に隠れる）
                             accountInfoSection
-                                .opacity(1 - collapseProgress)
-                                .scaleEffect(1 - collapseProgress * 0.1, anchor: .top)
-                                .animation(nil, value: collapseProgress)
                                 .id("top")
                             
                             // コンテンツカード（ボトムシート風）
                             VStack(alignment: .leading, spacing: 0) {
-                                // ハンドル（スクロールでフェードアウト）
+                                // ハンドル
                                 RoundedRectangle(cornerRadius: 2.5)
                                     .fill(Color.secondary.opacity(0.4))
                                     .frame(width: 36, height: 5)
                                     .frame(maxWidth: .infinity)
                                     .padding(.top, 10)
-                                    .opacity(1.0 - min(collapseProgress * 2, 1.0))
-                                    .animation(nil, value: collapseProgress)
                                 
                                 // ヘッダー（入金履歴ラベル）
                                 HStack {
@@ -178,95 +180,33 @@ struct PassbookDetailView: View {
                         geometry.contentOffset.y
                     } action: { _, newValue in
                         let progress = min(max(newValue / 150, 0), 1)
-                        var transaction = Transaction()
-                        transaction.disablesAnimations = true
-                        withTransaction(transaction) {
-                            collapseProgress = progress
+                        if abs(scrollCollapse.progress - progress) > 0.001 {
+                            scrollCollapse.progress = progress
                         }
                     }
-                    // コンパクトヘッダー（画面上部に固定、下から出現）
                     .overlay(alignment: .top) {
-                        stickyCompactHeader(scrollProxy: scrollProxy)
+                        PassbookCompactHeaderOverlay(
+                            scrollProxy: scrollProxy,
+                            totalValue: totalValue,
+                            accentColor: accentColor,
+                            isOverallAccount: isOverallAccount,
+                            themeColor: themeColor
+                        )
                     }
                 }
             }
         }
+        .environment(scrollCollapse)
         .id(passbook?.persistentModelID.hashValue.description ?? "overall")
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.hidden, for: .navigationBar)
-        .toolbar(collapseProgress > 0.5 ? .hidden : .visible, for: .navigationBar)
         .toolbar {
             ToolbarItem(placement: .principal) {
                 Text("passbook.title")
                     .font(.system(size: 17))
             }
         }
-        .animation(.easeInOut(duration: 0.2), value: collapseProgress > 0.5)
     }
-    
-    // MARK: - Sticky Compact Header
-    
-    /// 画面上部に固定されるコンパクトヘッダー
-    @ViewBuilder
-    private func stickyCompactHeader(scrollProxy: ScrollViewProxy) -> some View {
-        let appearProgress = min(max((collapseProgress - 0.2) / 0.25, 0), 1.0)
-        
-        HStack(spacing: 12) {
-            // 下に戻すボタン
-            Button {
-                withAnimation(.easeOut(duration: 0.3)) {
-                    scrollProxy.scrollTo("top", anchor: .top)
-                }
-            } label: {
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(accentColor)
-                    .frame(width: 32, height: 32)
-            }
-            
-            Spacer()
-            
-            // 金額表示
-            DisplayCurrencyPriceText(
-                amount: totalValue,
-                font: .system(size: 18, weight: .semibold),
-                symbolFont: .system(size: 12, weight: .medium)
-            )
-            .foregroundStyle(stickyHeaderPriceStyle)
-            
-            Spacer()
-            
-            // バランス用スペーサー
-            Color.clear
-                .frame(width: 32, height: 32)
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
-        .background(
-            Color(.systemBackground)
-                .ignoresSafeArea(edges: .top)
-        )
-        .opacity(appearProgress)
-        .animation(nil, value: collapseProgress)
-    }
-    
-    private var stickyHeaderPriceStyle: AnyShapeStyle {
-        if isOverallAccount {
-            return AnyShapeStyle(accentColor)
-        }
-        return AnyShapeStyle(
-            LinearGradient(
-                stops: [
-                    Gradient.Stop(color: themeColor, location: 0),
-                    Gradient.Stop(color: themeColor, location: 0.6),
-                    Gradient.Stop(color: themeColor.opacity(0.3), location: 1.0)
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-        )
-    }
-
     private var accountHeaderPrimaryTextColor: Color {
         isOverallAccount ? .primary : .white
     }
@@ -347,6 +287,11 @@ struct PassbookDetailView: View {
             if isOverallAccount {
                 overallAccountActionButtons
                     .padding(.top, 32)
+
+                if !customPassbooks.isEmpty {
+                    overallAccountPassbookLinks
+                        .padding(.top, 32)
+                }
             } else {
                 HStack(spacing: 12) {
                     if let registrationPassbook {
@@ -357,8 +302,7 @@ struct PassbookDetailView: View {
                                 .foregroundColor(accountActionButtonTextColor)
                                 .padding(.horizontal, 20)
                                 .padding(.vertical, 12)
-                                .glassEffect(.regular.tint(accountActionButtonGlassTint))
-                                .clipShape(Capsule())
+                                .passbookCapsuleGlass(tint: accountActionButtonGlassTint)
                         }
                     }
                     
@@ -369,8 +313,7 @@ struct PassbookDetailView: View {
                             .foregroundColor(accountActionButtonTextColor)
                             .padding(.horizontal, 20)
                             .padding(.vertical, 12)
-                            .glassEffect(.regular.tint(accountActionButtonGlassTint))
-                            .clipShape(Capsule())
+                            .passbookCapsuleGlass(tint: accountActionButtonGlassTint)
                     }
                 }
                 .padding(.top, 32)
@@ -464,13 +407,13 @@ struct PassbookDetailView: View {
                 .buttonStyle(.plain)
             }
 
-            NavigationLink(destination: BookshelfView(passbook: passbook)) {
-                overallAccountActionButtonLabel(title: "passbook.view_bookshelf", icon: "icon-tab-bookshelf")
+            NavigationLink(destination: AccountListView()) {
+                overallAccountActionButtonLabel(title: "passbook.view_accounts", icon: "icon-tab-account")
             }
             .buttonStyle(.plain)
 
-            NavigationLink(destination: AccountListView()) {
-                overallAccountActionButtonLabel(title: "passbook.view_accounts", icon: "icon-tab-account")
+            NavigationLink(destination: BookshelfView(passbook: passbook)) {
+                overallAccountActionButtonLabel(title: "passbook.view_bookshelf", icon: "icon-tab-bookshelf")
             }
             .buttonStyle(.plain)
 
@@ -480,6 +423,32 @@ struct PassbookDetailView: View {
             .buttonStyle(.plain)
         }
         .frame(maxWidth: .infinity)
+    }
+
+    /// 総合口座：各カスタム口座へのカプセルリンク
+    private var overallAccountPassbookLinks: some View {
+        FlowLayout(spacing: 8, horizontalAlignment: .center) {
+            ForEach(customPassbooks) { passbook in
+                Button {
+                    appShellState.selectPassbook(passbook)
+                } label: {
+                    Text(passbook.name)
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 12)
+                        .passbookCapsuleGlass(tint: passbookLinkGlassTint(for: passbook))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 16)
+        .frame(maxWidth: .infinity)
+    }
+
+    private func passbookLinkGlassTint(for passbook: Passbook) -> Color {
+        PassbookColor.color(for: passbook, in: customPassbooks)
     }
 
     private func overallAccountActionButtonLabel(
@@ -502,8 +471,7 @@ struct PassbookDetailView: View {
             }
             .foregroundColor(.primary)
             .frame(width: 56, height: 56)
-            .glassEffect(.regular.tint(accountActionButtonGlassTint))
-            .clipShape(Circle())
+            .passbookCircleGlass(tint: accountActionButtonGlassTint)
 
             Text(title)
                 .font(.caption2)
@@ -652,21 +620,89 @@ struct PassbookDetailView: View {
     }
 }
 
+// MARK: - Compact Header Overlay
+
+/// スクロール連動コンパクトヘッダー（この View だけが progress を購読する）
+private struct PassbookCompactHeaderOverlay: View {
+    @Environment(PassbookScrollCollapse.self) private var scrollCollapse
+
+    let scrollProxy: ScrollViewProxy
+    let totalValue: Int
+    let accentColor: Color
+    let isOverallAccount: Bool
+    let themeColor: Color
+
+    private var opacity: CGFloat {
+        min(max((scrollCollapse.progress - 0.2) / 0.3, 0), 1)
+    }
+
+    private var priceStyle: AnyShapeStyle {
+        if isOverallAccount {
+            return AnyShapeStyle(accentColor)
+        }
+        return AnyShapeStyle(
+            LinearGradient(
+                stops: [
+                    Gradient.Stop(color: themeColor, location: 0),
+                    Gradient.Stop(color: themeColor, location: 0.6),
+                    Gradient.Stop(color: themeColor.opacity(0.3), location: 1.0)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        )
+    }
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Button {
+                withAnimation(.easeOut(duration: 0.3)) {
+                    scrollProxy.scrollTo("top", anchor: .top)
+                }
+            } label: {
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(accentColor)
+                    .frame(width: 32, height: 32)
+            }
+
+            Spacer()
+
+            DisplayCurrencyPriceText(
+                amount: totalValue,
+                font: .system(size: 18, weight: .semibold),
+                symbolFont: .system(size: 12, weight: .medium)
+            )
+            .foregroundStyle(priceStyle)
+
+            Spacer()
+
+            Color.clear
+                .frame(width: 32, height: 32)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(Color(.systemBackground))
+        .opacity(opacity)
+        .allowsHitTesting(opacity > 0.05)
+    }
+}
+
 // MARK: - Preview
 
-#Preview {
-    let config = ModelConfiguration(isStoredInMemoryOnly: true)
-    let container = try! ModelContainer(for: Passbook.self, UserBook.self, configurations: config)
-    
-    let passbook = Passbook(name: "漫画", type: .custom, sortOrder: 1)
-    container.mainContext.insert(passbook)
-    
-    return NavigationStack {
-        PassbookDetailView(passbook: passbook)
+#Preview("総合口座") {
+    NavigationStack {
+        PassbookDetailView(passbook: nil)
     }
-    .environment(LanguageManager())
-    .environment(CurrencyManager())
-    .environment(ExchangeRateService.shared)
-    .modelContainer(container)
+    .bookBankPreviewEnvironment()
+    .environment(AppShellState())
+}
+
+#Preview("カスタム口座") {
+    NavigationStack {
+        PassbookDetailView(passbook: PreviewSupport.passbook(named: "漫画"))
+    }
+    .bookBankPreviewEnvironment()
+    .environment(AppShellState())
 }
 

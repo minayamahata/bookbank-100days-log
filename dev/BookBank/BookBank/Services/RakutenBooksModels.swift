@@ -141,13 +141,83 @@ struct RakutenBook: Codable, Identifiable {
         
         return nil
     }
+
+    /// 表示用の発行形態（APIの size、未取得時は nil）
+    var displayFormat: String? {
+        guard let size, !size.isEmpty else { return nil }
+        return size
+    }
+
+    /// 文庫・単行本・コミックなどの判別（displayFormat から分類）
+    var formatKind: BookFormatKind? {
+        BookFormatKind.from(displayFormat)
+    }
+
+    /// 楽天APIから表紙URLが取得できているか
+    var hasCoverImageURL: Bool {
+        guard let urlString = largeImageUrl ?? mediumImageUrl,
+              !urlString.isEmpty,
+              URL(string: urlString) != nil else {
+            return false
+        }
+        return true
+    }
+
+    /// 発行形態（size）を差し替えたコピーを返す
+    func withSize(_ newSize: String?) -> RakutenBook {
+        RakutenBook(
+            title: title,
+            author: author,
+            publisherName: publisherName,
+            isbn: isbn,
+            itemPrice: itemPrice,
+            salesDate: salesDate,
+            itemCaption: itemCaption,
+            mediumImageUrl: mediumImageUrl,
+            largeImageUrl: largeImageUrl,
+            size: newSize ?? size,
+            seriesName: seriesName,
+            booksGenreId: booksGenreId
+        )
+    }
+}
+
+/// 検索結果の発行形態カテゴリ
+enum BookFormatKind: String, CaseIterable, Hashable {
+    case bunko
+    case tankobon
+    case comic
+    case other
+
+    /// 楽天APIの size 文字列から判別
+    static func from(_ size: String?) -> BookFormatKind? {
+        guard let size, !size.isEmpty else { return nil }
+        if size.contains("文庫") { return .bunko }
+        if size.contains("単行本") { return .tankobon }
+        if size.contains("コミック") || size.contains("漫画") { return .comic }
+        return .other
+    }
+}
+
+// MARK: - 書籍検索API（発行形態 size 取得用）
+
+struct RakutenBooksBookSearchResponse: Codable {
+    let Items: [RakutenBooksBookSearchItem]
+}
+
+struct RakutenBooksBookSearchItem: Codable {
+    let Item: RakutenBookSearchItemDetail
+}
+
+struct RakutenBookSearchItemDetail: Codable {
+    let size: String?
 }
 
 // MARK: - UserBookへの変換
 
 extension RakutenBook {
     /// RakutenBookからUserBookを生成
-    func toUserBook(passbook: Passbook) -> UserBook {
+    func toUserBook(passbook: Passbook, coverImageData: Data? = nil) -> UserBook {
         UserBook(
             title: title,
             author: author.isEmpty ? nil : author,
@@ -157,7 +227,8 @@ extension RakutenBook {
             seriesName: seriesName,
             price: itemPrice,
             imageURL: largeImageUrl ?? mediumImageUrl,
-            bookFormat: size,
+            coverImageData: coverImageData,
+            bookFormat: displayFormat,
             pageCount: extractPageCount(),
             source: .api,
             passbook: passbook,
@@ -198,10 +269,30 @@ final class ExchangeRateService {
 
     private init() {
         loadCache()
+        if Self.isRunningForPreviews {
+            seedPreviewRatesIfNeeded()
+        }
+    }
+
+    private static var isRunningForPreviews: Bool {
+        ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
+    }
+
+    private func seedPreviewRatesIfNeeded() {
+        guard !hasValidRates else { return }
+        ratesFromJPY = [
+            "JPY": 1.0,
+            "USD": 0.0067,
+            "TWD": 0.21,
+            "CNY": 0.048,
+            "KRW": 9.2
+        ]
+        lastUpdated = Date()
     }
 
     /// 必要に応じて API からレートを取得
     func refreshIfNeeded() async {
+        guard !Self.isRunningForPreviews else { return }
         if hasValidRates,
            let lastUpdated,
            Date().timeIntervalSince(lastUpdated) < refreshInterval {
@@ -216,6 +307,8 @@ final class ExchangeRateService {
     }
 
     func refresh() async {
+        guard !Self.isRunningForPreviews else { return }
+
         guard let url = URL(string: "https://open.er-api.com/v6/latest/JPY") else { return }
 
         do {
