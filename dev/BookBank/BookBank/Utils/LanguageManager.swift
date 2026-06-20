@@ -121,6 +121,28 @@ enum AppCurrency: String, CaseIterable, Identifiable {
         }
         self = value
     }
+
+    /// 通貨記号・桁区切り用 locale（UI 言語ではなく通貨に合わせる）
+    var formattingLocale: Locale {
+        switch self {
+        case .jpy: return Locale(identifier: "ja_JP")
+        case .usd: return Locale(identifier: "en_US")
+        case .twd: return Locale(identifier: "zh_TW")
+        case .cny: return Locale(identifier: "zh_CN")
+        case .krw: return Locale(identifier: "ko_KR")
+        }
+    }
+
+    /// 表示用通貨記号（NumberFormatter が UI locale で誤った記号を返すのを防ぐ）
+    var displaySymbol: String {
+        switch self {
+        case .jpy: return "¥"
+        case .usd: return "$"
+        case .twd: return "NT$"
+        case .cny: return "元"
+        case .krw: return "₩"
+        }
+    }
 }
 
 /// アプリ全体の表示通貨を管理するクラス
@@ -174,33 +196,46 @@ enum MoneyDisplay {
     }
 
     static func format(amount: Int, currency: AppCurrency, locale: Locale) -> String {
+        let currencyLocale = currency.formattingLocale
         let formatter = NumberFormatter()
         formatter.numberStyle = .currency
         formatter.currencyCode = currency.code
-        formatter.locale = locale
+        formatter.currencySymbol = currency.displaySymbol
+        formatter.locale = currencyLocale
         formatter.maximumFractionDigits = 0
         formatter.minimumFractionDigits = 0
-        return formatter.string(from: NSNumber(value: amount)) ?? "\(amount)"
+        return formatter.string(from: NSNumber(value: amount)) ?? "\(currency.displaySymbol)\(amount)"
     }
 
     /// 通貨記号と金額を分離（記号のみ別フォントサイズにする用途）
     static func formatParts(amount: Int, currency: AppCurrency, locale: Locale) -> (prefix: String, amount: String, suffix: String) {
+        let currencyLocale = currency.formattingLocale
         let currencyFormatter = NumberFormatter()
         currencyFormatter.numberStyle = .currency
         currencyFormatter.currencyCode = currency.code
-        currencyFormatter.locale = locale
+        currencyFormatter.currencySymbol = currency.displaySymbol
+        currencyFormatter.locale = currencyLocale
         currencyFormatter.maximumFractionDigits = 0
         currencyFormatter.minimumFractionDigits = 0
 
         let decimalFormatter = NumberFormatter()
         decimalFormatter.numberStyle = .decimal
-        decimalFormatter.locale = locale
+        decimalFormatter.locale = currencyLocale
         decimalFormatter.maximumFractionDigits = 0
         decimalFormatter.minimumFractionDigits = 0
 
         let amountText = decimalFormatter.string(from: NSNumber(value: amount)) ?? "\(amount)"
+        let symbol = currency.displaySymbol
+
         guard let fullText = currencyFormatter.string(from: NSNumber(value: amount)) else {
-            return ("", amountText, "")
+            return (symbol, amountText, "")
+        }
+
+        if fullText.hasPrefix(symbol) {
+            return (symbol, amountText, "")
+        }
+        if fullText.hasSuffix(symbol) {
+            return ("", amountText, symbol)
         }
 
         if fullText.hasPrefix(amountText) {
@@ -212,15 +247,6 @@ enum MoneyDisplay {
             return (prefix, amountText, "")
         }
 
-        if let symbol = currencyFormatter.currencySymbol {
-            if fullText.hasPrefix(symbol) {
-                return (symbol, amountText, "")
-            }
-            if fullText.hasSuffix(symbol) {
-                return ("", amountText, symbol)
-            }
-        }
-
-        return ("", fullText, "")
+        return (symbol, amountText, "")
     }
 }

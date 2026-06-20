@@ -359,7 +359,7 @@ struct AddBookView: View {
             memo: nil,
             isFavorite: false,
             passbook: targetPassbook,
-            currencyCode: currencyManager.displayCurrency.code
+            currencyCode: AppCurrency.jpy.code
         )
         
         context.insert(newBook)

@@ -38,13 +38,31 @@ enum ExportType {
 
 // MARK: - Passbook Export
 
+/// エクスポート時の表示通貨・換算設定
+struct ExportFormattingContext {
+    let displayCurrency: AppCurrency
+    let exchangeRates: ExchangeRateService
+    let locale: Locale
+}
+
 /// 口座のマークダウンを生成
-func generatePassbookMarkdown(passbook: Passbook, books: [UserBook], exportType: ExportType) -> String {
+@MainActor
+func generatePassbookMarkdown(
+    passbook: Passbook,
+    books: [UserBook],
+    exportType: ExportType,
+    formatting: ExportFormattingContext
+) -> String {
     var markdown = "\(String(localized: "export.passbook_header"))\n\n"
     
     // 口座情報
-    let totalValue = books.reduce(0) { $0 + ($1.priceAtRegistration ?? 0) }
-    markdown += L10n.format("export.section_header", passbook.name, Int64(books.count), totalValue.formatted()) + "\n\n"
+    let totalValue = books.totalDisplayAmount(in: formatting.displayCurrency, exchangeRates: formatting.exchangeRates)
+    let totalText = MoneyDisplay.format(
+        amount: totalValue,
+        currency: formatting.displayCurrency,
+        locale: formatting.locale
+    )
+    markdown += L10n.format("export.section_header", passbook.name, Int64(books.count), totalText) + "\n\n"
     
     // 本のリスト
     for book in books {
@@ -57,8 +75,14 @@ func generatePassbookMarkdown(passbook: Passbook, books: [UserBook], exportType:
             if let author = book.author, !author.isEmpty {
                 markdown += "- \(String(localized: "export.md.author"))\(author)\n"
             }
-            if let price = book.priceAtRegistration {
-                markdown += "- \(String(localized: "export.md.price"))\(L10n.format("export.price_yen", price.formatted()))\n"
+            if let priceText = MoneyDisplay.formattedPrice(
+                amount: book.priceAtRegistration,
+                sourceCurrency: book.storedCurrency,
+                displayCurrency: formatting.displayCurrency,
+                exchangeRates: formatting.exchangeRates,
+                locale: formatting.locale
+            ) {
+                markdown += "- \(String(localized: "export.md.price"))\(priceText)\n"
             }
             if let publisher = book.publisher, !publisher.isEmpty {
                 markdown += "- \(String(localized: "export.md.publisher"))\(publisher)\n"
@@ -95,13 +119,23 @@ func generatePassbookMarkdown(passbook: Passbook, books: [UserBook], exportType:
 // MARK: - Reading List Export
 
 /// 読了リストのマークダウンを生成
-func generateReadingListMarkdown(readingList: ReadingList, exportType: ExportType) -> String {
+@MainActor
+func generateReadingListMarkdown(
+    readingList: ReadingList,
+    exportType: ExportType,
+    formatting: ExportFormattingContext
+) -> String {
     var markdown = "\(String(localized: "export.readinglist_header"))\n\n"
     
     // リスト情報
     let books = readingList.books
-    let totalValue = books.reduce(0) { $0 + ($1.priceAtRegistration ?? 0) }
-    markdown += L10n.format("export.section_header", readingList.title, Int64(books.count), totalValue.formatted()) + "\n\n"
+    let totalValue = books.totalDisplayAmount(in: formatting.displayCurrency, exchangeRates: formatting.exchangeRates)
+    let totalText = MoneyDisplay.format(
+        amount: totalValue,
+        currency: formatting.displayCurrency,
+        locale: formatting.locale
+    )
+    markdown += L10n.format("export.section_header", readingList.title, Int64(books.count), totalText) + "\n\n"
     
     if let description = readingList.listDescription, !description.isEmpty {
         markdown += "> \(description)\n\n"
@@ -118,8 +152,14 @@ func generateReadingListMarkdown(readingList: ReadingList, exportType: ExportTyp
             if let author = book.author, !author.isEmpty {
                 markdown += "- \(String(localized: "export.md.author"))\(author)\n"
             }
-            if let price = book.priceAtRegistration {
-                markdown += "- \(String(localized: "export.md.price"))\(L10n.format("export.price_yen", price.formatted()))\n"
+            if let priceText = MoneyDisplay.formattedPrice(
+                amount: book.priceAtRegistration,
+                sourceCurrency: book.storedCurrency,
+                displayCurrency: formatting.displayCurrency,
+                exchangeRates: formatting.exchangeRates,
+                locale: formatting.locale
+            ) {
+                markdown += "- \(String(localized: "export.md.price"))\(priceText)\n"
             }
             if let publisher = book.publisher, !publisher.isEmpty {
                 markdown += "- \(String(localized: "export.md.publisher"))\(publisher)\n"
@@ -167,9 +207,24 @@ struct ExportSheetView: View {
     let bookCount: Int
     let totalValue: Int
     let sampleBooks: [String]  // 最初の数冊のタイトル
-    let sampleDetailedBook: (title: String, author: String?, price: Int?, publisher: String?, date: String, isbn: String?, imageURL: String?, memo: String?, isFavorite: Bool)?
+    let sampleDetailedBook: (
+        title: String,
+        author: String?,
+        price: Int?,
+        sourceCurrency: AppCurrency,
+        publisher: String?,
+        date: String,
+        isbn: String?,
+        imageURL: String?,
+        memo: String?,
+        isFavorite: Bool
+    )?
     let onExportTitleOnly: () -> Void
     let onExportDetailed: () -> Void
+    
+    @Environment(CurrencyManager.self) private var currencyManager
+    @Environment(ExchangeRateService.self) private var exchangeRates
+    @Environment(LanguageManager.self) private var languageManager
     
     private var unlimitedManager: UnlimitedManager { UnlimitedManager.shared }
     @State private var showUnlimitedPaywall = false
@@ -202,6 +257,9 @@ struct ExportSheetView: View {
     )
     
     var body: some View {
+        let _ = currencyManager.displayCurrency
+        let _ = exchangeRates.lastUpdated
+
         NavigationStack {
             ScrollView {
                 VStack(spacing: 40) {
@@ -326,7 +384,7 @@ struct ExportSheetView: View {
     private var titleOnlyAttributedContent: some View {
         VStack(alignment: .leading, spacing: 2) {
             // 見出し
-            Text(L10n.format("export.preview_heading", title, Int64(bookCount), totalValue.formatted()))
+            Text(L10n.format("export.preview_heading", title, Int64(bookCount), formattedTotalValue))
                 .font(.system(size: 11, design: .monospaced))
                 .foregroundColor(headingColor)
             
@@ -355,7 +413,7 @@ struct ExportSheetView: View {
     private var detailedAttributedContent: some View {
         VStack(alignment: .leading, spacing: 2) {
             // 口座名ヘッダー（h1）
-            Text(L10n.format("export.preview_heading", title, Int64(bookCount), totalValue.formatted()))
+            Text(L10n.format("export.preview_heading", title, Int64(bookCount), formattedTotalValue))
                 .font(.system(size: 11, design: .monospaced))
                 .foregroundColor(headingColor)
             
@@ -375,7 +433,7 @@ struct ExportSheetView: View {
                 
                 // プロパティ（すべて表示してフォーマットを示す）
                 propertyLine(marker: "- ", key: String(localized: "export.md.author"), value: book.author ?? String(localized: "export.sample.author"))
-                propertyLine(marker: "- ", key: String(localized: "export.md.price"), value: book.price != nil ? L10n.format("export.price_yen", book.price!.formatted()) : String(localized: "export.sample.price"))
+                propertyLine(marker: "- ", key: String(localized: "export.md.price"), value: formattedSamplePrice(for: book))
                 propertyLine(marker: "- ", key: String(localized: "export.md.publisher"), value: book.publisher ?? String(localized: "export.sample.publisher"))
                 propertyLine(marker: "- ", key: String(localized: "export.md.registration_date"), value: book.date)
                 propertyLine(marker: "- ", key: String(localized: "export.md.isbn"), value: book.isbn ?? "9784000000000")
@@ -412,5 +470,36 @@ struct ExportSheetView: View {
                 .foregroundColor(textColor)
         }
         .font(.system(size: 11, design: .monospaced))
+    }
+
+    private var formattedTotalValue: String {
+        MoneyDisplay.format(
+            amount: totalValue,
+            currency: currencyManager.displayCurrency,
+            locale: languageManager.resolvedLocale
+        )
+    }
+
+    private func formattedSamplePrice(
+        for book: (
+            title: String,
+            author: String?,
+            price: Int?,
+            sourceCurrency: AppCurrency,
+            publisher: String?,
+            date: String,
+            isbn: String?,
+            imageURL: String?,
+            memo: String?,
+            isFavorite: Bool
+        )
+    ) -> String {
+        MoneyDisplay.formattedPrice(
+            amount: book.price,
+            sourceCurrency: book.sourceCurrency,
+            displayCurrency: currencyManager.displayCurrency,
+            exchangeRates: exchangeRates,
+            locale: languageManager.resolvedLocale
+        ) ?? String(localized: "export.sample.price")
     }
 }

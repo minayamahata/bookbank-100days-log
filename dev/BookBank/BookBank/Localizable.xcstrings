@@ -5736,7 +5736,6 @@
       }
     },
     "passbook.register_book" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -5747,7 +5746,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "本を登録する"
+            "value" : "本を登録"
           }
         },
         "ko" : {
@@ -5839,6 +5838,40 @@
         }
       }
     },
+    "passbook.view_accounts" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Manage Accounts"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "口座管理"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "계좌 관리"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "账户管理"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "帳戶管理"
+          }
+        }
+      }
+    },
     "passbook.view_bookshelf" : {
       "localizations" : {
         "en" : {
@@ -5869,6 +5902,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "查看書架"
+          }
+        }
+      }
+    },
+    "passbook.view_calendar" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Calendar"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "カレンダー"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "캘린더"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "日历"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "日曆"
           }
         }
       }

@@ -202,12 +202,17 @@ final class ExchangeRateService {
 
     /// 必要に応じて API からレートを取得
     func refreshIfNeeded() async {
-        if let lastUpdated,
-           Date().timeIntervalSince(lastUpdated) < refreshInterval,
-           ratesFromJPY.count > 1 {
+        if hasValidRates,
+           let lastUpdated,
+           Date().timeIntervalSince(lastUpdated) < refreshInterval {
             return
         }
         await refresh()
+    }
+
+    /// サポート通貨のレートが揃っているか
+    private var hasValidRates: Bool {
+        AppCurrency.allCases.allSatisfy { ratesFromJPY[$0.code] != nil }
     }
 
     func refresh() async {
@@ -218,7 +223,7 @@ final class ExchangeRateService {
             let response = try JSONDecoder().decode(ExchangeRateResponse.self, from: data)
             guard response.result == "success" else { return }
 
-            var rates = response.conversionRates
+            var rates = response.rates
             rates["JPY"] = 1.0
             ratesFromJPY = rates
             lastUpdated = Date()
@@ -272,24 +277,49 @@ final class ExchangeRateService {
 private struct ExchangeRateResponse: Decodable {
     let result: String
     let baseCode: String
-    let conversionRates: [String: Double]
+    let rates: [String: Double]
 
     enum CodingKeys: String, CodingKey {
         case result
         case baseCode = "base_code"
+        case rates
         case conversionRates = "conversion_rates"
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        result = try container.decode(String.self, forKey: .result)
+        baseCode = try container.decode(String.self, forKey: .baseCode)
+        if let rates = try container.decodeIfPresent([String: Double].self, forKey: .rates) {
+            self.rates = rates
+        } else if let conversionRates = try container.decodeIfPresent([String: Double].self, forKey: .conversionRates) {
+            self.rates = conversionRates
+        } else {
+            throw DecodingError.keyNotFound(
+                CodingKeys.rates,
+                .init(codingPath: decoder.codingPath, debugDescription: "Missing rates or conversion_rates")
+            )
+        }
     }
 }
 
 // MARK: - 通貨マイグレーション
 
 enum CurrencyMigration {
-    private static let didMigrateKey = "didMigrateCurrencyCodeV1"
+    private static let didMigrateV1Key = "didMigrateCurrencyCodeV1"
+    private static let didMigrateV2Key = "didMigrateCurrencyCodeV2"
+
+    /// 通貨コード未設定の既存書籍に JPY を付与し、誤保存された通貨コードを修正
+    @MainActor
+    static func migrateIfNeeded(context: ModelContext) {
+        migrateV1IfNeeded(context: context)
+        migrateV2IfNeeded(context: context)
+    }
 
     /// 通貨コード未設定の既存書籍に JPY を付与
     @MainActor
-    static func migrateIfNeeded(context: ModelContext) {
-        guard !UserDefaults.standard.bool(forKey: didMigrateKey) else { return }
+    private static func migrateV1IfNeeded(context: ModelContext) {
+        guard !UserDefaults.standard.bool(forKey: didMigrateV1Key) else { return }
 
         let descriptor = FetchDescriptor<UserBook>()
         guard let books = try? context.fetch(descriptor) else { return }
@@ -306,6 +336,29 @@ enum CurrencyMigration {
             try? context.save()
         }
 
-        UserDefaults.standard.set(true, forKey: didMigrateKey)
+        UserDefaults.standard.set(true, forKey: didMigrateV1Key)
+    }
+
+    /// 手動・API 登録の価格は日本円建て。表示通貨が誤って保存された書籍を JPY に戻す
+    @MainActor
+    private static func migrateV2IfNeeded(context: ModelContext) {
+        guard !UserDefaults.standard.bool(forKey: didMigrateV2Key) else { return }
+
+        let descriptor = FetchDescriptor<UserBook>()
+        guard let books = try? context.fetch(descriptor) else { return }
+
+        var changed = false
+        for book in books {
+            guard book.currencyCode != AppCurrency.jpy.code else { continue }
+            guard book.source == .api || book.source == .manual else { continue }
+            book.currencyCode = AppCurrency.jpy.code
+            changed = true
+        }
+
+        if changed {
+            try? context.save()
+        }
+
+        UserDefaults.standard.set(true, forKey: didMigrateV2Key)
     }
 }

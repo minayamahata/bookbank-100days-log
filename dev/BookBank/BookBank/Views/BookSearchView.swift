@@ -235,12 +235,13 @@ struct BookSearchView: View {
     var body: some View {
         VStack(spacing: 0) {
             // 検索バー（固定位置）
-            HStack(spacing: 8) {
+            HStack(spacing: 10) {
                 Image(systemName: "magnifyingglass")
+                    .font(.system(size: 17))
                     .foregroundColor(.secondary)
                 
                 TextField("book.search.placeholder", text: $searchText)
-                    .font(.system(size: 14))
+                    .font(.system(size: 17))
                     .textFieldStyle(.plain)
                     .focused($isSearchFocused)
                     .submitLabel(.search)
@@ -253,6 +254,7 @@ struct BookSearchView: View {
                         searchText = ""
                     }) {
                         Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 18))
                             .foregroundColor(.secondary)
                     }
                 }
@@ -262,14 +264,15 @@ struct BookSearchView: View {
                     isShowingBarcodeScanner = true
                 }) {
                     Image(systemName: "barcode.viewfinder")
-                        .font(.system(size: 20))
+                        .font(.system(size: 24))
                         .foregroundColor(.secondary)
                 }
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 14)
+            .frame(minHeight: 52)
             .background(Color(.systemGray6))
-            .cornerRadius(10)
+            .cornerRadius(12)
             .padding(.horizontal)
             .padding(.vertical, 8)
             

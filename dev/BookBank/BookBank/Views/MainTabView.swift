@@ -9,6 +9,21 @@ import SwiftUI
 import SwiftData
 
 @Observable
+class AppShellState {
+    var showAppMenu = false
+    var onPassbookSelected: ((Passbook) -> Void)?
+    var onOverallSelected: (() -> Void)?
+
+    func selectPassbook(_ passbook: Passbook) {
+        onPassbookSelected?(passbook)
+    }
+
+    func selectOverall() {
+        onOverallSelected?()
+    }
+}
+
+@Observable
 class FloatingButtonState {
     var isHidden = false
 }
@@ -34,7 +49,7 @@ struct MainTabView: View {
     private var unlimitedManager: UnlimitedManager { UnlimitedManager.shared }
     @State private var selectedPassbook: Passbook?
     @State private var isOverallMode = false
-    @State private var showAppMenu = false
+    @State private var appShellState = AppShellState()
     @State private var showAddReadingList = false
     @State private var showUnlimitedPaywall = false
     @State private var floatingButtonState = FloatingButtonState()
@@ -91,6 +106,13 @@ struct MainTabView: View {
         guard let passbook = currentPassbook else { return false }
         return PassbookColor.isBlackTheme(for: passbook, in: customPassbooks)
     }
+
+    private var appMenuPresentation: Binding<Bool> {
+        Binding(
+            get: { appShellState.showAppMenu },
+            set: { appShellState.showAppMenu = $0 }
+        )
+    }
     
     var body: some View {
         let _ = themeManager.currentTheme
@@ -98,7 +120,19 @@ struct MainTabView: View {
         let _ = currencyManager.displayCurrency
 
         mainTabContent
+            .environment(appShellState)
             .environment(\.floatingButtonState, floatingButtonState)
+            .onAppear {
+                appShellState.onPassbookSelected = { passbook in
+                    isOverallMode = false
+                    selectedPassbook = passbook
+                    selectedTab = 1
+                }
+                appShellState.onOverallSelected = {
+                    isOverallMode = true
+                    selectedTab = 1
+                }
+            }
             .sheet(isPresented: $showAddReadingList) {
                 AddReadingListView(themeColor: currentThemeColor) {
                     selectedTab = 1
@@ -107,9 +141,9 @@ struct MainTabView: View {
             .sheet(isPresented: $showUnlimitedPaywall) {
                 UnlimitedPaywallView()
             }
-            .fullScreenCover(isPresented: $showAppMenu) {
+            .fullScreenCover(isPresented: appMenuPresentation) {
                 NavigationStack {
-                    AppMenuView(onDismiss: { showAppMenu = false })
+                    AppMenuView(onDismiss: { appShellState.showAppMenu = false })
                 }
                 .environment(themeManager)
                 .environment(languageManager)
@@ -141,11 +175,6 @@ struct MainTabView: View {
                             selectedTab = 1
                         }
                     )
-                    .toolbar {
-                        ToolbarItem(placement: .topBarTrailing) {
-                            AppMenuButton(isPresented: $showAppMenu)
-                        }
-                    }
                 }
                 .tabItem {
                     Label("tab.account", image: "icon-tab-account")
@@ -172,7 +201,7 @@ struct MainTabView: View {
                             }
                         }
                         ToolbarItem(placement: .topBarTrailing) {
-                            AppMenuButton(isPresented: $showAppMenu)
+                            AppMenuButton(isPresented: appMenuPresentation)
                         }
                     }
                 }
@@ -201,7 +230,7 @@ struct MainTabView: View {
                             }
                         }
                         ToolbarItem(placement: .topBarTrailing) {
-                            AppMenuButton(isPresented: $showAppMenu)
+                            AppMenuButton(isPresented: appMenuPresentation)
                         }
                     }
                 }
@@ -230,7 +259,7 @@ struct MainTabView: View {
                             }
                         }
                         ToolbarItem(placement: .topBarTrailing) {
-                            AppMenuButton(isPresented: $showAppMenu)
+                            AppMenuButton(isPresented: appMenuPresentation)
                         }
                     }
                 }
@@ -249,7 +278,7 @@ struct MainTabView: View {
                     }
                     .toolbar {
                         ToolbarItem(placement: .topBarTrailing) {
-                            AppMenuButton(isPresented: $showAppMenu)
+                            AppMenuButton(isPresented: appMenuPresentation)
                         }
                     }
                 }
@@ -338,11 +367,32 @@ struct MainTabView: View {
                 if isOverallMode {
                     Text("account.overall")
                 } else {
-                    Text(L10n.format("account.passbook_suffix", locale: languageManager.resolvedLocale, currentPassbook?.name ?? ""))
+                    Text(passbookSwitcherTitle)
                 }
             }
                 .font(.caption)
                 .foregroundColor(.primary)
+                .lineLimit(1)
+        }
+    }
+
+    /// 英語は口座名のみ、他言語は「◯◯口座」形式
+    private var passbookSwitcherTitle: String {
+        let name = currentPassbook?.name ?? ""
+        if isEnglishDisplay {
+            return name
+        }
+        return L10n.format("account.passbook_suffix", locale: languageManager.resolvedLocale, name)
+    }
+
+    private var isEnglishDisplay: Bool {
+        switch languageManager.currentLanguage {
+        case .english:
+            return true
+        case .system:
+            return AppLanguage.inferred() == .english
+        default:
+            return false
         }
     }
     

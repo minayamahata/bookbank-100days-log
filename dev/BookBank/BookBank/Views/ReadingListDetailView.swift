@@ -24,6 +24,7 @@ struct ReadingListDetailView: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(CurrencyManager.self) private var currencyManager
     @Environment(ExchangeRateService.self) private var exchangeRates
+    @Environment(LanguageManager.self) private var languageManager
     
     /// 表示通貨での合計金額
     private var displayTotalValue: Int {
@@ -203,6 +204,7 @@ struct ReadingListDetailView: View {
                         title: book.title,
                         author: book.author,
                         price: book.priceAtRegistration,
+                        sourceCurrency: book.storedCurrency,
                         publisher: book.publisher,
                         date: formatExportDate(book.registeredAt),
                         isbn: book.isbn,
@@ -243,7 +245,12 @@ struct ReadingListDetailView: View {
     // MARK: - Export Helper
     
     private func prepareExport(type: ExportType) {
-        let markdown = generateReadingListMarkdown(readingList: readingList, exportType: type)
+        let formatting = ExportFormattingContext(
+            displayCurrency: currencyManager.displayCurrency,
+            exchangeRates: exchangeRates,
+            locale: languageManager.resolvedLocale
+        )
+        let markdown = generateReadingListMarkdown(readingList: readingList, exportType: type, formatting: formatting)
         exportDocument = MarkdownDocument(text: markdown)
         exportFileName = "\(readingList.title).md"
         showExporter = true
@@ -666,6 +673,7 @@ struct EditReadingListView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(CurrencyManager.self) private var currencyManager
     @Environment(ExchangeRateService.self) private var exchangeRates
+    @Environment(LanguageManager.self) private var languageManager
     
     @State private var title: String = ""
     @State private var listDescription: String = ""
@@ -819,6 +827,7 @@ struct EditReadingListView: View {
                             title: book.title,
                             author: book.author,
                             price: book.priceAtRegistration,
+                            sourceCurrency: book.storedCurrency,
                             publisher: book.publisher,
                             date: formatExportDate(book.registeredAt),
                             isbn: book.isbn,
@@ -858,7 +867,12 @@ struct EditReadingListView: View {
     }
     
     private func prepareExport(type: ExportType) {
-        let markdown = generateReadingListMarkdown(readingList: readingList, exportType: type)
+        let formatting = ExportFormattingContext(
+            displayCurrency: currencyManager.displayCurrency,
+            exchangeRates: exchangeRates,
+            locale: languageManager.resolvedLocale
+        )
+        let markdown = generateReadingListMarkdown(readingList: readingList, exportType: type, formatting: formatting)
         exportDocument = MarkdownDocument(text: markdown)
         exportFileName = "\(readingList.title).md"
         showExporter = true
@@ -1218,6 +1232,7 @@ struct SharePreviewSheet: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(CurrencyManager.self) private var currencyManager
     @Environment(ExchangeRateService.self) private var exchangeRates
+    @Environment(LanguageManager.self) private var languageManager
     @State private var isCopied = false
     
     /// 表示通貨での合計金額
@@ -1236,6 +1251,9 @@ struct SharePreviewSheet: View {
     }
     
     var body: some View {
+        let _ = currencyManager.displayCurrency
+        let _ = exchangeRates.lastUpdated
+
         NavigationStack {
             ScrollView {
                 VStack(spacing: 16) {
@@ -1495,9 +1513,8 @@ struct SharePreviewSheet: View {
             Spacer()
             
             // 金額
-            if let price = book.priceAtRegistration {
-                Text(L10n.format("export.price_yen", price.formatted()))
-                    .font(.subheadline)
+            if book.priceAtRegistration != nil {
+                BookPriceText(book: book, font: .subheadline, fontWeight: .medium)
                     .foregroundColor(themeColor)
             }
         }

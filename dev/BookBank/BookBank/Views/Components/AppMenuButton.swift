@@ -43,12 +43,16 @@ struct FormattedPriceText: View {
     }
 
     var body: some View {
-        let _ = currencyManager.displayCurrency
+        let displayCurrency = currencyManager.displayCurrency
+        // 為替レート取得後に再描画して換算結果を反映する
+        let _ = exchangeRates.lastUpdated
+        let _ = exchangeRates.ratesFromJPY[displayCurrency.code]
 
         if let amount {
+            let converted = exchangeRates.convert(amount, from: sourceCurrency, to: displayCurrency)
             let parts = MoneyDisplay.formatParts(
-                amount: exchangeRates.convert(amount, from: sourceCurrency, to: currencyManager.displayCurrency),
-                currency: currencyManager.displayCurrency,
+                amount: converted,
+                currency: displayCurrency,
                 locale: languageManager.resolvedLocale
             )
 

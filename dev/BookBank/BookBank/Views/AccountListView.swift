@@ -14,7 +14,9 @@ struct AccountListView: View {
     @Environment(LanguageManager.self) private var languageManager
     @Environment(CurrencyManager.self) private var currencyManager
     @Environment(ExchangeRateService.self) private var exchangeRates
+    @Environment(AppShellState.self) private var appShellState
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.dismiss) private var dismiss
     @Query(sort: \Passbook.sortOrder) private var passbooks: [Passbook]
     @Query private var allBooks: [UserBook]
     private var unlimitedManager: UnlimitedManager { UnlimitedManager.shared }
@@ -163,9 +165,7 @@ struct AccountListView: View {
                     }
                     .frame(height: 260)
                     
-                    Button(action: {
-                        onOverallSelected?()
-                    }) {
+                    Button(action: handleOverallSelected) {
                         accountRow(
                             name: L10n.string("account.bookbank_overall", locale: languageManager.resolvedLocale),
                             bookCount: totalBookCount,
@@ -187,9 +187,7 @@ struct AccountListView: View {
                 // カスタム口座リスト
                 VStack(spacing: 6) {
                     ForEach(customPassbooks) { passbook in
-                        Button(action: {
-                            onPassbookSelected?(passbook)
-                        }) {
+                        Button(action: { handlePassbookSelected(passbook) }) {
                             accountRow(
                                 passbook: passbook,
                                 showEditButton: true
@@ -220,9 +218,16 @@ struct AccountListView: View {
             }
             .padding(.horizontal, 16)
             }
+            .contentMargins(.bottom, 100, for: .scrollContent)
         }
         .navigationTitle(L10n.string("account.list.title", locale: languageManager.resolvedLocale))
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.visible, for: .navigationBar)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                AppMenuButton(isPresented: appMenuPresentation)
+            }
+        }
         .sheet(item: $passbookToEdit) { passbook in
             EditPassbookView(passbook: passbook)
         }
@@ -231,6 +236,31 @@ struct AccountListView: View {
         }
         .sheet(isPresented: $showUnlimitedPaywall) {
             UnlimitedPaywallView()
+        }
+    }
+
+    private var appMenuPresentation: Binding<Bool> {
+        Binding(
+            get: { appShellState.showAppMenu },
+            set: { appShellState.showAppMenu = $0 }
+        )
+    }
+
+    private func handlePassbookSelected(_ passbook: Passbook) {
+        if let onPassbookSelected {
+            onPassbookSelected(passbook)
+        } else {
+            appShellState.selectPassbook(passbook)
+            dismiss()
+        }
+    }
+
+    private func handleOverallSelected() {
+        if let onOverallSelected {
+            onOverallSelected()
+        } else {
+            appShellState.selectOverall()
+            dismiss()
         }
     }
     
@@ -430,6 +460,7 @@ private extension View {
         .environment(LanguageManager())
         .environment(CurrencyManager())
         .environment(ExchangeRateService.shared)
+        .environment(AppShellState())
         .modelContainer(container)
         .preferredColorScheme(.light)
     } catch {
@@ -462,6 +493,7 @@ private extension View {
         .environment(LanguageManager())
         .environment(CurrencyManager())
         .environment(ExchangeRateService.shared)
+        .environment(AppShellState())
         .modelContainer(container)
         .preferredColorScheme(.dark)
     } catch {

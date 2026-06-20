@@ -17,6 +17,8 @@ struct BookshelfView: View {
     let passbook: Passbook?
 
     @Environment(LanguageManager.self) private var languageManager
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.modelContext) private var context
     
     // MARK: - SwiftData Query
     
@@ -29,13 +31,19 @@ struct BookshelfView: View {
     // MARK: - State
     
     /// お気に入りフィルター
-    @State private var showFavoritesOnly = false
+    @State private var showFavoritesOnly: Bool
     
     /// メモありフィルター
-    @State private var showWithMemoOnly = false
+    @State private var showWithMemoOnly: Bool
     
     /// カレンダー表示モード
-    @State private var showCalendarView = false
+    @State private var showCalendarView: Bool
+
+    /// 月別メモ編集用（総合口座のみ）
+    @State private var showMonthlyMemo: Bool
+    @State private var memoTargetYear: Int
+    @State private var memoTargetMonth: Int
+    @State private var memoText: String
     
     /// 口座に紐づく書籍（総合口座の場合は全書籍）
     private var passbookBooks: [UserBook] {
@@ -179,8 +187,15 @@ struct BookshelfView: View {
 
     // MARK: - Initialization
     
-    init(passbook: Passbook?) {
+    init(passbook: Passbook?, startsWithCalendarView: Bool = false) {
         self.passbook = passbook
+        _showFavoritesOnly = State(initialValue: false)
+        _showWithMemoOnly = State(initialValue: false)
+        _showCalendarView = State(initialValue: startsWithCalendarView)
+        _showMonthlyMemo = State(initialValue: false)
+        _memoTargetYear = State(initialValue: 0)
+        _memoTargetMonth = State(initialValue: 0)
+        _memoText = State(initialValue: "")
         // registeredAt の降順でソート（新しい本が上に表示される）
         _allUserBooks = Query(sort: \UserBook.registeredAt, order: .reverse)
     }
@@ -215,6 +230,19 @@ struct BookshelfView: View {
         }
         .navigationTitle("bookshelf.title")
         .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $showMonthlyMemo) {
+            MemoEditorView(memo: Binding(
+                get: { memoText },
+                set: { _ in }
+            )) { newText in
+                MonthlyMemoRepository.save(
+                    year: memoTargetYear,
+                    month: memoTargetMonth,
+                    text: newText,
+                    context: context
+                )
+            }
+        }
     }
     
     // MARK: - Filter Section
@@ -376,14 +404,29 @@ struct BookshelfView: View {
     private func calendarMonthSection(year: Int, month: Int, books: [UserBook]) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             // 月ヘッダー
-            HStack {
+            HStack(spacing: 8) {
                 Text(formattedYearMonth(year: year, month: month))
                     .font(.title3)
                     .fontWeight(.semibold)
-                    .foregroundColor(.white)
+                    .foregroundColor(colorScheme == .dark ? .white : .black)
+
+                if isOverallAccount {
+                    Button {
+                        openMonthlyMemo(year: year, month: month)
+                    } label: {
+                        Image(systemName: "ellipsis")
+                            .font(.system(size: 16))
+                            .foregroundColor(colorScheme == .dark ? .white.opacity(0.6) : .black.opacity(0.6))
+                            .frame(width: 32, height: 32)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                Spacer()
 
                 BooksCountText(count: books.count, font: .system(size: 14), locale: languageManager.resolvedLocale)
-                    .foregroundColor(.white.opacity(0.6))
+                    .foregroundColor(colorScheme == .dark ? .white.opacity(0.6) : .black.opacity(0.6))
             }
             
             // 5カラムグリッドで本を並べる
@@ -424,6 +467,13 @@ struct BookshelfView: View {
         .aspectRatio(2/3, contentMode: .fit)
         .frame(maxWidth: .infinity)
         .clipShape(RoundedRectangle(cornerRadius: 2))
+    }
+
+    private func openMonthlyMemo(year: Int, month: Int) {
+        memoTargetYear = year
+        memoTargetMonth = month
+        memoText = MonthlyMemoRepository.fetch(year: year, month: month, context: context)?.text ?? ""
+        showMonthlyMemo = true
     }
 }
 

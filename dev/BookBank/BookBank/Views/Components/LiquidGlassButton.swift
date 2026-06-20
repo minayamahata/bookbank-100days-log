@@ -23,9 +23,9 @@ struct LiquidGlassButton: View {
         return color
     }
     
-    /// 白テーマ＋ダークモード時はテキストを黒に
+    /// ダークモードでガラスが白系のときだけ黒、それ以外は白
     private var textColor: Color {
-        if colorScheme == .dark && isBlackTheme {
+        if colorScheme == .dark && effectiveColor.luminance > 0.5 {
             return .black
         }
         return .white

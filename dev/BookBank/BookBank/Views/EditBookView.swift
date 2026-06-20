@@ -191,7 +191,7 @@ struct EditBookView: View {
                                 .disabled(!isManual)
                                 .foregroundColor(isManual ? .primary : .secondary)
                                 .fixedSize()
-                            Text(currencyManager.displayCurrency.code)
+                            Text(book.storedCurrency.code)
                                 .foregroundColor(.secondary)
                         }
                     }

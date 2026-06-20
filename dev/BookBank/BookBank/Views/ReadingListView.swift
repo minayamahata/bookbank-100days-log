@@ -14,6 +14,8 @@ struct ReadingListView: View {
     var onNavigateToPassbook: (() -> Void)?
     
     @Environment(\.modelContext) private var context
+    @Environment(CurrencyManager.self) private var currencyManager
+    @Environment(ExchangeRateService.self) private var exchangeRates
     @Query(sort: \ReadingList.updatedAt, order: .reverse) private var readingLists: [ReadingList]
     
     @State private var showAddList = false
@@ -26,6 +28,9 @@ struct ReadingListView: View {
     ]
     
     var body: some View {
+        let _ = currencyManager.displayCurrency
+        let _ = exchangeRates.lastUpdated
+
         ScrollView {
             if readingLists.isEmpty {
                 // 空状態
@@ -133,13 +138,15 @@ struct ReadingListView: View {
                     BooksCountText(count: list.bookCount, font: .caption)
                         .foregroundColor(.secondary)
                     
-                    if list.totalValue > 0 {
+                    if convertedTotalValue(for: list) > 0 {
                         Text("・")
                             .font(.caption)
                             .foregroundColor(.secondary)
-                        Text(list.displayTotalValue)
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+                        DisplayCurrencyPriceText(
+                            amount: convertedTotalValue(for: list),
+                            font: .caption
+                        )
+                        .foregroundColor(.secondary)
                     }
                 }
             }
@@ -155,6 +162,10 @@ struct ReadingListView: View {
             }
         )
         .clipShape(RoundedRectangle(cornerRadius: 16))
+    }
+
+    private func convertedTotalValue(for list: ReadingList) -> Int {
+        list.books.totalDisplayAmount(in: currencyManager.displayCurrency, exchangeRates: exchangeRates)
     }
     
     /// 5カラム×最大2行サムネイル（最大10冊、本の比率 2:3）
@@ -241,5 +252,7 @@ struct ReadingListView: View {
         ReadingListView()
     }
     .environment(ThemeManager())
+    .environment(CurrencyManager())
+    .environment(ExchangeRateService.shared)
     .modelContainer(for: [ReadingList.self, UserBook.self, Passbook.self])
 }

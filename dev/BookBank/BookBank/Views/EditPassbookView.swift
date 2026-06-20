@@ -13,6 +13,9 @@ import UniformTypeIdentifiers
 struct EditPassbookView: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
+    @Environment(CurrencyManager.self) private var currencyManager
+    @Environment(ExchangeRateService.self) private var exchangeRates
+    @Environment(LanguageManager.self) private var languageManager
     
     @Bindable var passbook: Passbook
     @State private var editingName: String = ""
@@ -322,7 +325,10 @@ struct EditPassbookView: View {
                 ExportSheetView(
                     title: passbook.name,
                     bookCount: passbookBooks.count,
-                    totalValue: passbookBooks.reduce(0) { $0 + ($1.priceAtRegistration ?? 0) },
+                    totalValue: passbookBooks.totalDisplayAmount(
+                        in: currencyManager.displayCurrency,
+                        exchangeRates: exchangeRates
+                    ),
                     sampleBooks: passbookBooks.prefix(4).map { book in
                         if let author = book.author, !author.isEmpty {
                             return "\(book.title) / \(author)"
@@ -335,6 +341,7 @@ struct EditPassbookView: View {
                             title: book.title,
                             author: book.author,
                             price: book.priceAtRegistration,
+                            sourceCurrency: book.storedCurrency,
                             publisher: book.publisher,
                             date: formatExportDate(book.registeredAt),
                             isbn: book.isbn,
@@ -380,7 +387,17 @@ struct EditPassbookView: View {
     }
     
     private func prepareExport(type: ExportType) {
-        let markdown = generatePassbookMarkdown(passbook: passbook, books: passbookBooks, exportType: type)
+        let formatting = ExportFormattingContext(
+            displayCurrency: currencyManager.displayCurrency,
+            exchangeRates: exchangeRates,
+            locale: languageManager.resolvedLocale
+        )
+        let markdown = generatePassbookMarkdown(
+            passbook: passbook,
+            books: passbookBooks,
+            exportType: type,
+            formatting: formatting
+        )
         exportDocument = MarkdownDocument(text: markdown)
         exportFileName = "\(passbook.name).md"
         showExporter = true
