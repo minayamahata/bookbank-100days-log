@@ -60,7 +60,6 @@ struct PassbookDepositSheet<ListContent: View>: View {
     var body: some View {
         GeometryReader { geometry in
             let containerHeight = geometry.size.height
-            // 上方向オフセット分だけ高さを伸ばし、下端を画面下に固定したまま口座エリアを覆う
             let sheetHeight = max(containerHeight - currentTop, containerHeight)
 
             sheetContent
@@ -141,7 +140,7 @@ struct PassbookDepositSheet<ListContent: View>: View {
 
     private var sheetHeaderHeight: CGFloat {
         let collapsedHeight: CGFloat = 22
-        let expandedHeight: CGFloat = 48 + expandedHeaderInset
+        let expandedHeight: CGFloat = 10 + expandedHeaderInset
         return collapsedHeight + (expandedHeight - collapsedHeight) * expansionProgress
     }
 
@@ -155,6 +154,8 @@ struct PassbookDepositSheet<ListContent: View>: View {
                 .padding(.top, 8)
                 .padding(.bottom, 2)
 
+            // 金額はナビバー（固定位置）が担当。ドラッグ中にスライドして
+            // 悪目立ちしないよう、シート内のコンパクト金額は表示しない。
             PassbookSheetCompactHeader(
                 totalValue: totalValue,
                 accentColor: accentColor,
@@ -162,9 +163,8 @@ struct PassbookDepositSheet<ListContent: View>: View {
                 themeColor: themeColor,
                 onCollapse: collapseSheet
             )
-            .opacity(expansionProgress)
-            .allowsHitTesting(detent == .expanded)
-            .padding(.top, expandedHeaderInset * expansionProgress)
+            .opacity(0)
+            .allowsHitTesting(false)
         }
         .frame(height: sheetHeaderHeight, alignment: .top)
         .frame(maxWidth: .infinity)

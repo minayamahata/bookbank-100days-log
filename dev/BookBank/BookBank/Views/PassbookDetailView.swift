@@ -44,9 +44,22 @@ struct PassbookDetailView: View {
     @State private var selectedBook: UserBook?
 
     private let sheetGap: CGFloat = 20
-    /// 展開時にシート上端を画面最上部まで伸ばすための追加オフセット
+    private let navBarHeight: CGFloat = 44
+
+    /// 画面上端からコンテンツ開始まで（未計測時は safeArea + ナビバー）
+    private var effectiveContentTopInset: CGFloat {
+        contentTopInset > 0 ? contentTopInset : safeAreaTopInset + navBarHeight
+    }
+
+    /// 展開時：シート上端を画面最上部まで伸ばす
     private var sheetExpandedTop: CGFloat {
-        -(accountSectionHeight + sheetGap + contentTopInset)
+        -(accountSectionHeight + sheetGap + effectiveContentTopInset)
+    }
+
+    /// 展開ヘッダーの上余白（Dynamic Island のすぐ下に置く）
+    /// ※ この数値を増やすとヘッダーが下がり、減らすと上がる
+    private var expandedHeaderTopInset: CGFloat {
+        max(safeAreaTopInset - 0, 4)
     }
     
     // MARK: - SwiftData Query
@@ -106,6 +119,24 @@ struct PassbookDetailView: View {
     private var accentColor: Color {
         isOverallAccount ? PassbookColor.overallAccentColor : themeColor
     }
+
+    /// 展開時にナビバーへ表示する金額のスタイル（シート側ヘッダーと同じ配色）
+    private var headerPriceStyle: AnyShapeStyle {
+        if isOverallAccount {
+            return AnyShapeStyle(accentColor)
+        }
+        return AnyShapeStyle(
+            LinearGradient(
+                stops: [
+                    .init(color: themeColor, location: 0),
+                    .init(color: themeColor, location: 0.6),
+                    .init(color: themeColor.opacity(0.3), location: 1.0)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        )
+    }
     
     /// テーマカラーが黒かどうか
     private var isBlackTheme: Bool {
@@ -161,13 +192,14 @@ struct PassbookDetailView: View {
                     themeColor: themeColor,
                     collapsedTop: 0,
                     expandedTop: sheetExpandedTop,
-                    expandedHeaderInset: safeAreaTopInset + 8,
+                    expandedHeaderInset: expandedHeaderTopInset,
                     detent: $sheetDetent,
                     locksRowNavigation: $locksRowNavigation
                 ) {
                     listContent
                 }
                 .frame(maxHeight: .infinity)
+                .ignoresSafeArea(.container, edges: .bottom)
                 .zIndex(sheetDetent == .expanded ? 1 : 0)
             }
         }
@@ -184,7 +216,13 @@ struct PassbookDetailView: View {
             safeAreaTopInset = top
         }
         .onChange(of: sheetDetent) { _, detent in
-            passbookSheetChromeState.isExpanded = detent == .expanded
+            // ナビバー項目の入れ替えがスプリングに乗って左上へバウンドするのを防ぐため、
+            // 表示判定に使うフラグはアニメーション無効で更新する（シートのスライドは別途継続）。
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                passbookSheetChromeState.isExpanded = detent == .expanded
+            }
         }
         .onAppear {
             passbookSheetChromeState.isExpanded = sheetDetent == .expanded
@@ -209,9 +247,30 @@ struct PassbookDetailView: View {
         .toolbarBackground(.hidden, for: .navigationBar)
         .toolbar {
             ToolbarItem(placement: .principal) {
-                Text("passbook.title")
-                    .font(.system(size: 17))
-                    .opacity(sheetDetent == .expanded ? 0 : 1)
+                if passbookSheetChromeState.isExpanded {
+                    DisplayCurrencyPriceText(
+                        amount: totalValue,
+                        font: .system(size: 18, weight: .semibold),
+                        symbolFont: .system(size: 12, weight: .medium)
+                    )
+                    .foregroundStyle(headerPriceStyle)
+                } else {
+                    Text("passbook.title")
+                        .font(.system(size: 17))
+                }
+            }
+            ToolbarItem(placement: .topBarLeading) {
+                if passbookSheetChromeState.isExpanded {
+                    Button {
+                        withAnimation(.spring(response: 0.38, dampingFraction: 0.88)) {
+                            sheetDetent = .collapsed
+                        }
+                    } label: {
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(accentColor)
+                    }
+                }
             }
         }
     }
@@ -433,7 +492,7 @@ struct PassbookDetailView: View {
                         .foregroundColor(.white)
                         .padding(.horizontal, 20)
                         .padding(.vertical, 12)
-                        .passbookCapsuleGlass(tint: passbookLinkGlassTint(for: passbook))
+                        .passbookCapsuleGradient(tint: passbookLinkGlassTint(for: passbook))
                 }
                 .buttonStyle(.plain)
             }
@@ -469,7 +528,7 @@ struct PassbookDetailView: View {
             .passbookCircleGlass(tint: accountActionButtonGlassTint)
 
             Text(title)
-                .font(.caption2)
+                .font(.footnote)
                 .foregroundColor(.primary)
                 .multilineTextAlignment(.center)
                 .lineLimit(2)

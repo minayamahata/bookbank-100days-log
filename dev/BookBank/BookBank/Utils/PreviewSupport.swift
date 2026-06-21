@@ -65,6 +65,28 @@ extension View {
         }
     }
 
+    /// カプセルの塗りを横方向グラデーション（左=tint70% → 右=tint100%）にする
+    /// 縁取りは右下の＋ボタン（リキッドグラス）と同じ光沢リム風
+    @ViewBuilder
+    func passbookCapsuleGradient(tint: Color) -> some View {
+        let fill = LinearGradient(
+            colors: [tint.opacity(0.4), tint],
+            startPoint: .leading,
+            endPoint: .trailing
+        )
+        let glassRim = LinearGradient(
+            stops: [
+                .init(color: .white.opacity(0.55), location: 0),
+                .init(color: .white.opacity(0.14), location: 0.5),
+                .init(color: .primary.opacity(0.1), location: 1)
+            ],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+        background(fill, in: Capsule())
+            .overlay(Capsule().strokeBorder(glassRim, lineWidth: 0.5))
+    }
+
     @ViewBuilder
     func passbookCircleGlass(tint: Color) -> some View {
         if PreviewRuntime.isActive {
