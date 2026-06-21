@@ -36,6 +36,7 @@ struct BookSearchView: View {
     @Environment(LanguageManager.self) private var languageManager
     @Environment(CurrencyManager.self) private var currencyManager
     @Environment(ExchangeRateService.self) private var exchangeRates
+    @Environment(\.floatingButtonState) private var floatingButtonState
     
     // MARK: - Properties
     
@@ -652,10 +653,15 @@ struct BookSearchView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.hidden, for: .tabBar)
         .onAppear {
+            // 開き方（NavigationLink / navPath）に依存せず確実に＋ボタンを隠す
+            floatingButtonState.isHidden = true
             // 画面表示時に自動的に検索バーにフォーカス
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                 isSearchFocused = true
             }
+        }
+        .onDisappear {
+            floatingButtonState.isHidden = false
         }
         .overlay(alignment: .top) {
             // トースト通知

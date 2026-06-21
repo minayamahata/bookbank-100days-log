@@ -82,12 +82,12 @@ struct PassbookDepositSheet<ListContent: View>: View {
             HStack {
                 Text("passbook.deposit_history")
                     .font(.footnote)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(.primary)
                 Spacer()
             }
             .padding(.horizontal)
             .padding(.top, expansionProgress > 0.5 ? 4 : 8)
-            .padding(.bottom, 12)
+            .padding(.bottom, 8)
             .contentShape(Rectangle())
             .gesture(detent == .collapsed ? expandDragGesture : nil)
             .simultaneousGesture(detent == .expanded ? collapseDragGesture : nil)
@@ -140,7 +140,7 @@ struct PassbookDepositSheet<ListContent: View>: View {
 
     private var sheetHeaderHeight: CGFloat {
         let collapsedHeight: CGFloat = 22
-        let expandedHeight: CGFloat = 10 + expandedHeaderInset
+        let expandedHeight: CGFloat = 0 + expandedHeaderInset
         return collapsedHeight + (expandedHeight - collapsedHeight) * expansionProgress
     }
 

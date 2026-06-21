@@ -120,6 +120,18 @@ struct PassbookDetailView: View {
         isOverallAccount ? PassbookColor.overallAccentColor : themeColor
     }
 
+    /// 展開時の＋ボタンのグラス色（右下のリキッドグラスボタンと同じ配色）
+    private var expandedAddTint: Color {
+        if colorScheme == .dark && isBlackTheme { return .white }
+        return accentColor
+    }
+
+    /// 展開時の＋ボタンの記号色（右下のリキッドグラスボタンと同じ判定）
+    private var expandedAddIconColor: Color {
+        if colorScheme == .dark && expandedAddTint.luminance > 0.5 { return .black }
+        return .white
+    }
+
     /// 展開時にナビバーへ表示する金額のスタイル（シート側ヘッダーと同じ配色）
     private var headerPriceStyle: AnyShapeStyle {
         if isOverallAccount {
@@ -228,6 +240,12 @@ struct PassbookDetailView: View {
             passbookSheetChromeState.isExpanded = sheetDetent == .expanded
         }
         .onDisappear {
+            // 別ページへ遷移したら画面外で折りたたみ、戻ったときに展開状態が残らないようにする
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                sheetDetent = .collapsed
+            }
             passbookSheetChromeState.isExpanded = false
         }
         .onChange(of: passbook?.persistentModelID) { _, _ in
@@ -270,6 +288,19 @@ struct PassbookDetailView: View {
                             .font(.system(size: 14, weight: .semibold))
                             .foregroundColor(accentColor)
                     }
+                }
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                if passbookSheetChromeState.isExpanded, let registrationPassbook {
+                    NavigationLink {
+                        BookSearchView(passbook: registrationPassbook, allowPassbookChange: true)
+                    } label: {
+                        Image(systemName: "plus")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(expandedAddIconColor)
+                    }
+                    .buttonStyle(.glassProminent)
+                    .tint(expandedAddTint)
                 }
             }
         }
@@ -391,6 +422,12 @@ struct PassbookDetailView: View {
                     .foregroundColor(.black)
 
                 Spacer()
+
+                if UnlimitedManager.shared.isUnlimited {
+                    Text("paywall.unlimited")
+                        .font(.custom("Fearlessly Authentic", size: 16))
+                        .foregroundColor(.black)
+                }
             }
             .padding(.horizontal, 20)
             .padding(.vertical, 14)

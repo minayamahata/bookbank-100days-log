@@ -295,7 +295,8 @@ struct MainTabView: View {
             
             // プラスボタン（右下に配置、タブバーの上）- リキッドグラス風
             // 口座タブ(0)、ナビゲーション中、詳細画面表示中は非表示
-            if !isNavigating && !floatingButtonState.isHidden && selectedTab != 0 && !passbookSheetChromeState.isExpanded {
+            // 総合口座の通帳タブ(1)では丸アクションボタンに「本の追加」があるため非表示
+            if !isNavigating && !floatingButtonState.isHidden && selectedTab != 0 && !passbookSheetChromeState.isExpanded && !(selectedTab == 1 && isOverallMode) {
                 HStack {
                     Spacer()
                     

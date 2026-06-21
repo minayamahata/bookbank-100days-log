@@ -277,10 +277,14 @@ struct AccountListView: View {
     private static let goldColor = Color(red: 161/255, green: 151/255, blue: 93/255)
     
     private var unlimitedBadgeSection: some View {
-        Text("paywall.unlimited")
-            .font(.custom("Fearlessly Authentic", size: 16))
+        Image("icon-favorite")
+            .renderingMode(.template)
+            .resizable()
+            .scaledToFit()
+            .frame(width: 16, height: 16)
             .foregroundColor(.primary)
             .frame(maxWidth: .infinity, alignment: .center)
+            .padding(.bottom, 4)
     }
     
     // 口座行のビュー（カスタム口座用）
