@@ -33,6 +33,12 @@ class PassbookSheetChromeState {
     var isExpanded = false
 }
 
+@Observable
+class BookshelfChromeState {
+    /// 本棚タブがカレンダー表示中か
+    var isCalendar = false
+}
+
 private struct FloatingButtonStateKey: EnvironmentKey {
     static let defaultValue = FloatingButtonState()
 }
@@ -59,6 +65,7 @@ struct MainTabView: View {
     @State private var showUnlimitedPaywall = false
     @State private var floatingButtonState = FloatingButtonState()
     @State private var passbookSheetChromeState = PassbookSheetChromeState()
+    @State private var bookshelfChromeState = BookshelfChromeState()
     
     /// 各タブのナビゲーションパス
     @State private var accountListNavPath = NavigationPath()
@@ -125,6 +132,7 @@ struct MainTabView: View {
         mainTabContent
             .environment(appShellState)
             .environment(passbookSheetChromeState)
+            .environment(bookshelfChromeState)
             .environment(\.floatingButtonState, floatingButtonState)
             .onAppear {
                 appShellState.onPassbookSelected = { passbook in
@@ -220,7 +228,7 @@ struct MainTabView: View {
                         if customPassbooks.isEmpty {
                             emptyStateView
                         } else {
-                            BookshelfView(passbook: displayPassbook)
+                            BookshelfView(passbook: displayPassbook, managesCalendarChrome: true)
                                 .id("bookshelf-\(displayPassbookID)")
                         }
                     }
@@ -228,8 +236,16 @@ struct MainTabView: View {
                         BookSearchView(passbook: destination.passbook, allowPassbookChange: true)
                     }
                     .toolbar {
-                        if !customPassbooks.isEmpty {
-                            ToolbarItem(placement: .topBarLeading) {
+                        ToolbarItem(placement: .topBarLeading) {
+                            if bookshelfChromeState.isCalendar {
+                                Button {
+                                    bookshelfChromeState.isCalendar = false
+                                } label: {
+                                    Image(systemName: "chevron.left")
+                                        .font(.body.weight(.semibold))
+                                        .foregroundColor(.primary)
+                                }
+                            } else if !customPassbooks.isEmpty {
                                 passbookSwitcherButton
                             }
                         }

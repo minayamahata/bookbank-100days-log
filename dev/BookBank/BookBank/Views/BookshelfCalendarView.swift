@@ -9,7 +9,7 @@ import SwiftUI
 
 /// 本棚のカレンダービュー
 /// 登録日ごとに表紙を月間カレンダー上へ配置する
-struct BookshelfCalendarView: View {
+struct BookshelfCalendarView<Header: View>: View {
 
     /// 表示対象の書籍（フィルタ適用後）
     let books: [UserBook]
@@ -19,6 +19,9 @@ struct BookshelfCalendarView: View {
 
     /// 月メモを開くコールバック（year, month）
     let onMonthlyMemo: (Int, Int) -> Void
+
+    /// スクロールに追従して流れる先頭要素（フィルター行など）
+    @ViewBuilder var header: () -> Header
 
     @Environment(LanguageManager.self) private var languageManager
     @Environment(CurrencyManager.self) private var currencyManager
@@ -101,22 +104,28 @@ struct BookshelfCalendarView: View {
     // MARK: - Body
 
     var body: some View {
-        LazyVStack(alignment: .leading, spacing: 0) {
-            ForEach(booksByYear) { yearData in
-                yearHeader(year: yearData.year)
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
+                header()
 
-                ForEach(yearData.months) { monthData in
-                    monthSection(year: monthData.year, month: monthData.month, books: monthData.books)
-                        .padding(.top, monthData.id == yearData.months.first?.id ? 0 : 32)
+                ForEach(booksByYear) { yearData in
+                    Section {
+                        ForEach(yearData.months) { monthData in
+                            monthSection(year: monthData.year, month: monthData.month, books: monthData.books)
+                                .padding(.top, monthData.id == yearData.months.first?.id ? 12 : 32)
+                        }
+                        .padding(.bottom, 32)
+                    } header: {
+                        yearHeader(year: yearData.year)
+                    }
                 }
-                .padding(.bottom, 32)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.bottom, 100)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.bottom, 100)
     }
 
-    // MARK: - 年見出し
+    // MARK: - 年見出し（スクロール時に上部固定）
 
     private func yearHeader(year: Int) -> some View {
         Text(verbatim: String(year))
@@ -156,10 +165,14 @@ struct BookshelfCalendarView: View {
                         onMonthlyMemo(year, month)
                     } label: {
                         Image(systemName: "ellipsis")
-                            .font(.system(size: 16))
-                            .foregroundColor(colorScheme == .dark ? .white.opacity(0.6) : .black.opacity(0.6))
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(colorScheme == .dark ? .white : .black)
                             .frame(width: 32, height: 32)
-                            .contentShape(Rectangle())
+                            .background(
+                                Circle()
+                                    .fill(colorScheme == .dark ? Color.white.opacity(0.12) : Color.black.opacity(0.06))
+                            )
+                            .contentShape(Circle())
                     }
                     .buttonStyle(.plain)
                 }
@@ -208,6 +221,9 @@ struct BookshelfCalendarView: View {
     /// 本が登録された日のセル（表紙＋日付＋緑チェック＋複数時バッジ）
     private func filledDayCell(day: Int, latest: UserBook, extraCount: Int) -> some View {
         cover(for: latest)
+            .overlay {
+                Color.black.opacity(0.2)
+            }
             .clipShape(RoundedRectangle(cornerRadius: 2))
             .overlay {
                 Text("\(day)")
@@ -232,7 +248,7 @@ struct BookshelfCalendarView: View {
     /// 本がない日のセル（薄い日付数字のみ）
     private func emptyDayCell(day: Int) -> some View {
         RoundedRectangle(cornerRadius: 2)
-            .fill(Color.primary.opacity(0.05))
+            .fill(colorScheme == .dark ? Color.white.opacity(0.12) : Color.black.opacity(0.05))
             .aspectRatio(2 / 3, contentMode: .fit)
             .frame(maxWidth: .infinity)
             .overlay {

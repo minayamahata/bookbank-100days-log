@@ -16,9 +16,13 @@ struct BookshelfView: View {
     /// 表示対象の口座（nil = 総合口座）
     let passbook: Passbook?
 
+    /// 本棚タブのルートとして表示しているか（カレンダー時の戻るボタン制御を共有状態と同期する）
+    let managesCalendarChrome: Bool
+
     @Environment(LanguageManager.self) private var languageManager
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.modelContext) private var context
+    @Environment(BookshelfChromeState.self) private var bookshelfChromeState
     
     // MARK: - SwiftData Query
     
@@ -128,8 +132,9 @@ struct BookshelfView: View {
     
     // MARK: - Initialization
     
-    init(passbook: Passbook?, startsWithCalendarView: Bool = false) {
+    init(passbook: Passbook?, startsWithCalendarView: Bool = false, managesCalendarChrome: Bool = false) {
         self.passbook = passbook
+        self.managesCalendarChrome = managesCalendarChrome
         _showFavoritesOnly = State(initialValue: false)
         _showWithMemoOnly = State(initialValue: false)
         _showCalendarView = State(initialValue: startsWithCalendarView)
@@ -146,28 +151,37 @@ struct BookshelfView: View {
     var body: some View {
         let _ = languageManager.currentLanguage
 
-        ScrollView {
-            VStack(spacing: 0) {
-                // フィルターセクション
-                filterSection
+        Group {
+            if showCalendarView {
+                // カレンダー：フィルター行・切替ボタンは不要（左上の戻るボタンで本棚へ戻る）
+                BookshelfCalendarView(
+                    books: passbookBooks,
+                    isOverallAccount: isOverallAccount,
+                    onMonthlyMemo: { year, month in
+                        openMonthlyMemo(year: year, month: month)
+                    },
+                    header: {
+                        EmptyView()
+                    }
+                )
+            } else {
+                ScrollView {
+                    VStack(spacing: 0) {
+                        // フィルターセクション
+                        filterSection
 
-                // 本棚グリッドまたはカレンダービュー
-                if showCalendarView {
-                    BookshelfCalendarView(
-                        books: passbookBooks,
-                        isOverallAccount: isOverallAccount,
-                        onMonthlyMemo: { year, month in
-                            openMonthlyMemo(year: year, month: month)
-                        }
-                    )
-                } else {
-                    gridContent
+                        // 本棚グリッド
+                        gridContent
+                    }
                 }
             }
         }
         .id(passbook?.persistentModelID.hashValue.description ?? "overall")
         .background {
-            if isOverallAccount {
+            if showCalendarView && colorScheme == .light {
+                // カレンダー表示のライトモードは silver を敷かず白背景にする
+                Color.white.ignoresSafeArea()
+            } else if isOverallAccount {
                 OverallAccountBackgroundView()
             } else {
                 ThemedBackgroundView(themeColor: themeColor, isBlackTheme: isBlackTheme)
@@ -175,11 +189,31 @@ struct BookshelfView: View {
         }
         .navigationTitle(showCalendarView ? "bookshelf.calendar_title" : "bookshelf.title")
         .navigationBarTitleDisplayMode(.inline)
+        .onAppear {
+            if managesCalendarChrome {
+                bookshelfChromeState.isCalendar = showCalendarView
+            }
+        }
+        .onDisappear {
+            if managesCalendarChrome {
+                bookshelfChromeState.isCalendar = false
+            }
+        }
+        .onChange(of: showCalendarView) { _, newValue in
+            if managesCalendarChrome {
+                bookshelfChromeState.isCalendar = newValue
+            }
+        }
+        .onChange(of: bookshelfChromeState.isCalendar) { _, newValue in
+            if managesCalendarChrome, showCalendarView != newValue {
+                showCalendarView = newValue
+            }
+        }
         .sheet(isPresented: $showMonthlyMemo) {
             MemoEditorView(memo: Binding(
                 get: { memoText },
                 set: { _ in }
-            )) { newText in
+            ), title: "bookshelf.monthly_log") { newText in
                 MonthlyMemoRepository.save(
                     year: memoTargetYear,
                     month: memoTargetMonth,
@@ -194,61 +228,57 @@ struct BookshelfView: View {
     
     private var filterSection: some View {
         HStack(spacing: 8) {
-            if showCalendarView {
-                Spacer()
-            } else {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 4) {
-                        filterPill(
-                            label: "common.all",
-                            count: allBooksCount,
-                            alwaysShowCount: true,
-                            isSelected: !showFavoritesOnly && !showWithMemoOnly
-                        ) {
-                            showFavoritesOnly = false
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 4) {
+                    filterPill(
+                        label: "common.all",
+                        count: allBooksCount,
+                        alwaysShowCount: true,
+                        isSelected: !showFavoritesOnly && !showWithMemoOnly
+                    ) {
+                        showFavoritesOnly = false
+                        showWithMemoOnly = false
+                    }
+
+                    filterPill(
+                        label: "bookshelf.favorite",
+                        count: favoriteCount,
+                        isSelected: showFavoritesOnly
+                    ) {
+                        showFavoritesOnly.toggle()
+                        if showFavoritesOnly {
                             showWithMemoOnly = false
                         }
+                    }
 
-                        filterPill(
-                            label: "bookshelf.favorite",
-                            count: favoriteCount,
-                            isSelected: showFavoritesOnly
-                        ) {
-                            showFavoritesOnly.toggle()
-                            if showFavoritesOnly {
-                                showWithMemoOnly = false
-                            }
-                        }
-
-                        filterPill(
-                            label: "bookshelf.memo",
-                            count: memoCount,
-                            isSelected: showWithMemoOnly
-                        ) {
-                            showWithMemoOnly.toggle()
-                            if showWithMemoOnly {
-                                showFavoritesOnly = false
-                            }
+                    filterPill(
+                        label: "bookshelf.memo",
+                        count: memoCount,
+                        isSelected: showWithMemoOnly
+                    ) {
+                        showWithMemoOnly.toggle()
+                        if showWithMemoOnly {
+                            showFavoritesOnly = false
                         }
                     }
-                    .padding(.vertical, 1)
                 }
+                .padding(.vertical, 1)
             }
 
-            // カレンダービュー切り替えボタン
+            // カレンダービューへ切り替え（グリッド表示時のみ表示）
             Button(action: {
-                showCalendarView.toggle()
+                showCalendarView = true
             }) {
                 Image("icon-calendar")
                     .renderingMode(.template)
                     .resizable()
                     .scaledToFit()
                     .frame(width: 20, height: 20)
-                    .foregroundColor(showCalendarView ? .white : .white.opacity(0.7))
+                    .foregroundColor(.white.opacity(0.7))
                     .frame(width: 36, height: 36)
                     .background(
                         Circle()
-                            .fill(showCalendarView ? Color.white.opacity(0.22) : Color.white.opacity(0.12))
+                            .fill(Color.white.opacity(0.12))
                     )
                     .contentShape(Circle())
             }
@@ -347,4 +377,5 @@ struct BookshelfView: View {
         BookshelfView(passbook: passbook)
     }
     .modelContainer(container)
+    .environment(BookshelfChromeState())
 }

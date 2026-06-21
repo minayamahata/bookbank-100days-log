@@ -15,11 +15,13 @@ struct MemoEditorView: View {
     @State private var showCancelAlert = false
     @FocusState private var isFocused: Bool
     
+    let title: LocalizedStringKey
     let onSave: (String) -> Void
     
-    init(memo: Binding<String>, onSave: @escaping (String) -> Void) {
+    init(memo: Binding<String>, title: LocalizedStringKey = "book.memo", onSave: @escaping (String) -> Void) {
         self._memo = memo
         self._editedText = State(initialValue: memo.wrappedValue)
+        self.title = title
         self.onSave = onSave
     }
     
@@ -41,7 +43,7 @@ struct MemoEditorView: View {
                     .focused($isFocused)
             }
             .padding(.horizontal, 20)
-            .navigationTitle("book.memo")
+            .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 // 左：キャンセルボタン
