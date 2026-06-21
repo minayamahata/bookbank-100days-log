@@ -126,65 +126,6 @@ struct BookshelfView: View {
         GridItem(.flexible(), spacing: 8)
     ]
     
-    // カレンダー用の5カラムグリッド
-    private let calendarColumns = Array(repeating: GridItem(.flexible(), spacing: 4), count: 5)
-    
-    /// 月別にグループ化した書籍データ
-    private var booksByMonth: [(year: Int, month: Int, books: [UserBook])] {
-        let calendar = Calendar.current
-        var grouped: [String: (year: Int, month: Int, books: [UserBook])] = [:]
-        
-        for book in userBooks {
-            let components = calendar.dateComponents([.year, .month], from: book.registeredAt)
-            let key = "\(components.year ?? 0)-\(components.month ?? 0)"
-            if grouped[key] == nil {
-                grouped[key] = (year: components.year ?? 0, month: components.month ?? 0, books: [])
-            }
-            grouped[key]?.books.append(book)
-        }
-        
-        return grouped.values.sorted { ($0.year, $0.month) > ($1.year, $1.month) }
-    }
-    
-    /// 年別にグループ化した書籍データ（Stickyヘッダー用）
-    private var booksByYear: [(year: Int, months: [(month: Int, books: [UserBook])])] {
-        var grouped: [Int: [(month: Int, books: [UserBook])]] = [:]
-        
-        for monthData in booksByMonth {
-            if grouped[monthData.year] == nil {
-                grouped[monthData.year] = []
-            }
-            grouped[monthData.year]?.append((month: monthData.month, books: monthData.books))
-        }
-        
-        return grouped.map { (year: $0.key, months: $0.value) }
-            .sorted { $0.year > $1.year }
-    }
-    
-    /// 言語に応じた年月表記（例: 2026年6月 / June 2026）
-    private func formattedYearMonth(year: Int, month: Int) -> String {
-        var components = DateComponents()
-        components.year = year
-        components.month = month
-        components.day = 1
-
-        let calendar = Calendar(identifier: .gregorian)
-        guard let date = calendar.date(from: components) else {
-            return L10n.format(
-                "bookshelf.year_month",
-                locale: languageManager.resolvedLocale,
-                Int64(year),
-                Int64(month)
-            )
-        }
-
-        let formatter = DateFormatter()
-        formatter.locale = languageManager.resolvedLocale
-        formatter.calendar = calendar
-        formatter.setLocalizedDateFormatFromTemplate("yMMMM")
-        return formatter.string(from: date)
-    }
-
     // MARK: - Initialization
     
     init(passbook: Passbook?, startsWithCalendarView: Bool = false) {
@@ -205,18 +146,22 @@ struct BookshelfView: View {
     var body: some View {
         let _ = languageManager.currentLanguage
 
-        GeometryReader { geometry in
-            ScrollView {
-                VStack(spacing: 0) {
-                    // フィルターセクション
-                    filterSection
-                    
-                    // 本棚グリッドまたはカレンダービュー
-                    if showCalendarView {
-                        calendarContent
-                    } else {
-                        gridContent
-                    }
+        ScrollView {
+            VStack(spacing: 0) {
+                // フィルターセクション
+                filterSection
+
+                // 本棚グリッドまたはカレンダービュー
+                if showCalendarView {
+                    BookshelfCalendarView(
+                        books: passbookBooks,
+                        isOverallAccount: isOverallAccount,
+                        onMonthlyMemo: { year, month in
+                            openMonthlyMemo(year: year, month: month)
+                        }
+                    )
+                } else {
+                    gridContent
                 }
             }
         }
@@ -228,7 +173,7 @@ struct BookshelfView: View {
                 ThemedBackgroundView(themeColor: themeColor, isBlackTheme: isBlackTheme)
             }
         }
-        .navigationTitle("bookshelf.title")
+        .navigationTitle(showCalendarView ? "bookshelf.calendar_title" : "bookshelf.title")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showMonthlyMemo) {
             MemoEditorView(memo: Binding(
@@ -249,41 +194,45 @@ struct BookshelfView: View {
     
     private var filterSection: some View {
         HStack(spacing: 8) {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 4) {
-                    filterPill(
-                        label: "common.all",
-                        count: allBooksCount,
-                        alwaysShowCount: true,
-                        isSelected: !showFavoritesOnly && !showWithMemoOnly
-                    ) {
-                        showFavoritesOnly = false
-                        showWithMemoOnly = false
-                    }
-
-                    filterPill(
-                        label: "bookshelf.favorite",
-                        count: favoriteCount,
-                        isSelected: showFavoritesOnly
-                    ) {
-                        showFavoritesOnly.toggle()
-                        if showFavoritesOnly {
+            if showCalendarView {
+                Spacer()
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 4) {
+                        filterPill(
+                            label: "common.all",
+                            count: allBooksCount,
+                            alwaysShowCount: true,
+                            isSelected: !showFavoritesOnly && !showWithMemoOnly
+                        ) {
+                            showFavoritesOnly = false
                             showWithMemoOnly = false
                         }
-                    }
 
-                    filterPill(
-                        label: "bookshelf.memo",
-                        count: memoCount,
-                        isSelected: showWithMemoOnly
-                    ) {
-                        showWithMemoOnly.toggle()
-                        if showWithMemoOnly {
-                            showFavoritesOnly = false
+                        filterPill(
+                            label: "bookshelf.favorite",
+                            count: favoriteCount,
+                            isSelected: showFavoritesOnly
+                        ) {
+                            showFavoritesOnly.toggle()
+                            if showFavoritesOnly {
+                                showWithMemoOnly = false
+                            }
+                        }
+
+                        filterPill(
+                            label: "bookshelf.memo",
+                            count: memoCount,
+                            isSelected: showWithMemoOnly
+                        ) {
+                            showWithMemoOnly.toggle()
+                            if showWithMemoOnly {
+                                showFavoritesOnly = false
+                            }
                         }
                     }
+                    .padding(.vertical, 1)
                 }
-                .padding(.vertical, 1)
             }
 
             // カレンダービュー切り替えボタン
@@ -375,85 +324,7 @@ struct BookshelfView: View {
         .padding(.bottom, 100)
     }
     
-    // MARK: - Calendar Content
-    
-    private var calendarContent: some View {
-        LazyVStack(spacing: 50) {
-            ForEach(Array(booksByMonth.enumerated()), id: \.offset) { _, monthData in
-                calendarMonthSection(year: monthData.year, month: monthData.month, books: monthData.books)
-            }
-        }
-        .padding(.horizontal, 16)
-        .padding(.bottom, 100)
-    }
-    
-    private func calendarMonthSection(year: Int, month: Int, books: [UserBook]) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // 月ヘッダー
-            HStack(spacing: 8) {
-                Text(formattedYearMonth(year: year, month: month))
-                    .font(.title3)
-                    .fontWeight(.semibold)
-                    .foregroundColor(colorScheme == .dark ? .white : .black)
-
-                if isOverallAccount {
-                    Button {
-                        openMonthlyMemo(year: year, month: month)
-                    } label: {
-                        Image(systemName: "ellipsis")
-                            .font(.system(size: 16))
-                            .foregroundColor(colorScheme == .dark ? .white.opacity(0.6) : .black.opacity(0.6))
-                            .frame(width: 32, height: 32)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                }
-
-                Spacer()
-
-                BooksCountText(count: books.count, font: .system(size: 14), locale: languageManager.resolvedLocale)
-                    .foregroundColor(colorScheme == .dark ? .white.opacity(0.6) : .black.opacity(0.6))
-            }
-            
-            // 5カラムグリッドで本を並べる
-            LazyVGrid(columns: calendarColumns, spacing: 4) {
-                ForEach(books) { book in
-                    NavigationLink(destination: UserBookDetailView(book: book)) {
-                        calendarBookCover(for: book)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-        }
-    }
-    
-    /// カレンダー表示用の表紙（2:3・列幅いっぱい）
-    private func calendarBookCover(for book: UserBook) -> some View {
-        GeometryReader { geometry in
-            Group {
-                if let coverImage = book.coverUIImage {
-                    Image(uiImage: coverImage)
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(width: geometry.size.width, height: geometry.size.height)
-                        .clipped()
-                } else if let imageURL = book.coverImageURL,
-                          let url = URL(string: imageURL) {
-                    CachedAsyncImage(
-                        url: url,
-                        width: geometry.size.width,
-                        height: geometry.size.height
-                    )
-                } else {
-                    RoundedRectangle(cornerRadius: 2)
-                        .fill(Color.white.opacity(0.1))
-                }
-            }
-        }
-        .aspectRatio(2/3, contentMode: .fit)
-        .frame(maxWidth: .infinity)
-        .clipShape(RoundedRectangle(cornerRadius: 2))
-    }
+    // MARK: - Monthly Memo
 
     private func openMonthlyMemo(year: Int, month: Int) {
         memoTargetYear = year
