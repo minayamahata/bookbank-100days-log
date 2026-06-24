@@ -57,6 +57,7 @@ struct PassbookDetailView: View {
     }
 
     /// 展開ヘッダーの上余白（Dynamic Island のすぐ下に置く）
+    /// 
     /// ※ この数値を増やすとヘッダーが下がり、減らすと上がる
     private var expandedHeaderTopInset: CGFloat {
         max(safeAreaTopInset - 0, 4)
@@ -87,9 +88,7 @@ struct PassbookDetailView: View {
     
     /// 今日の日付文字列
     private var todayString: String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy.MM.dd"
-        return formatter.string(from: Date())
+        AppDateFormat.display(Date())
     }
 
     /// 登録書籍数
@@ -292,9 +291,7 @@ struct PassbookDetailView: View {
             }
             ToolbarItem(placement: .topBarTrailing) {
                 if passbookSheetChromeState.isExpanded, let registrationPassbook {
-                    NavigationLink {
-                        BookSearchView(passbook: registrationPassbook, allowPassbookChange: true)
-                    } label: {
+                    NavigationLink(value: BookSearchDestination(passbook: registrationPassbook)) {
                         Image(systemName: "plus")
                             .font(.system(size: 13, weight: .semibold))
                             .foregroundStyle(expandedAddIconColor)
@@ -380,7 +377,7 @@ struct PassbookDetailView: View {
             } else {
                 HStack(spacing: 12) {
                     if let registrationPassbook {
-                        NavigationLink(destination: BookSearchView(passbook: registrationPassbook, allowPassbookChange: true)) {
+                        NavigationLink(value: BookSearchDestination(passbook: registrationPassbook)) {
                             Text("book.register")
                                 .font(.subheadline)
                                 .fontWeight(.medium)
@@ -391,7 +388,7 @@ struct PassbookDetailView: View {
                         }
                     }
                     
-                    NavigationLink(destination: BookshelfView(passbook: passbook)) {
+                    NavigationLink(value: PassbookActionDestination.bookshelf) {
                         Text("passbook.view_bookshelf")
                             .font(.subheadline)
                             .fontWeight(.medium)
@@ -492,23 +489,23 @@ struct PassbookDetailView: View {
     private var overallAccountActionButtons: some View {
         HStack(alignment: .top, spacing: 8) {
             if let registrationPassbook {
-                NavigationLink(destination: BookSearchView(passbook: registrationPassbook, allowPassbookChange: true)) {
+                NavigationLink(value: BookSearchDestination(passbook: registrationPassbook)) {
                     overallAccountActionButtonLabel(title: "passbook.register_book", systemImage: "plus")
                 }
                 .buttonStyle(.plain)
             }
 
-            NavigationLink(destination: AccountListView()) {
+            NavigationLink(value: PassbookActionDestination.accounts) {
                 overallAccountActionButtonLabel(title: "passbook.view_accounts", icon: "icon-tab-account")
             }
             .buttonStyle(.plain)
 
-            NavigationLink(destination: BookshelfView(passbook: passbook)) {
+            NavigationLink(value: PassbookActionDestination.bookshelf) {
                 overallAccountActionButtonLabel(title: "passbook.view_bookshelf", icon: "icon-tab-bookshelf")
             }
             .buttonStyle(.plain)
 
-            NavigationLink(destination: BookshelfView(passbook: passbook, startsWithCalendarView: true)) {
+            NavigationLink(value: PassbookActionDestination.calendar) {
                 overallAccountActionButtonLabel(title: "passbook.view_calendar", icon: "icon-calendar")
             }
             .buttonStyle(.plain)
@@ -717,11 +714,9 @@ struct PassbookDetailView: View {
 
     // MARK: - Actions
     
-    /// 日付をYYYY.MM.DD形式でフォーマット
+    /// 日付を言語に応じた表記でフォーマット
     private func formatDate(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy.MM.dd"
-        return formatter.string(from: date)
+        AppDateFormat.display(date)
     }
 }
 

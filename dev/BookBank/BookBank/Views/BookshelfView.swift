@@ -44,10 +44,17 @@ struct BookshelfView: View {
     @State private var showCalendarView: Bool
 
     /// 月別メモ編集用（総合口座のみ）
-    @State private var showMonthlyMemo: Bool
-    @State private var memoTargetYear: Int
-    @State private var memoTargetMonth: Int
-    @State private var memoText: String
+    /// 年・月・本文を1つの値で持ち、`.sheet(item:)` で開くことで
+    /// 常に正しい月のデータで開き直され、別の月のメモを保存してしまう不具合を防ぐ
+    @State private var monthlyMemoTarget: MonthlyMemoTarget?
+
+    /// 月別メモシートの対象
+    private struct MonthlyMemoTarget: Identifiable {
+        let year: Int
+        let month: Int
+        let text: String
+        var id: String { "\(year)-\(month)" }
+    }
     
     /// 口座に紐づく書籍（総合口座の場合は全書籍）
     private var passbookBooks: [UserBook] {
@@ -104,6 +111,23 @@ struct BookshelfView: View {
         guard let passbook else { return false }
         return PassbookColor.isBlackTheme(for: passbook, in: customPassbooks)
     }
+
+    /// 本を登録する対象口座（総合口座のときは先頭のカスタム口座）
+    private var registrationPassbook: Passbook? {
+        passbook ?? customPassbooks.first
+    }
+
+    /// カレンダー右上の＋ボタンの塗り色（通帳シート展開時の＋ボタンと同じ判定）
+    private var calendarAddTint: Color {
+        if colorScheme == .dark && isBlackTheme { return .white }
+        return accentColor
+    }
+
+    /// カレンダー右上の＋ボタンの記号色
+    private var calendarAddIconColor: Color {
+        if colorScheme == .dark && calendarAddTint.luminance > 0.5 { return .black }
+        return .white
+    }
     
     /// この口座の全書籍数
     private var allBooksCount: Int {
@@ -138,10 +162,7 @@ struct BookshelfView: View {
         _showFavoritesOnly = State(initialValue: false)
         _showWithMemoOnly = State(initialValue: false)
         _showCalendarView = State(initialValue: startsWithCalendarView)
-        _showMonthlyMemo = State(initialValue: false)
-        _memoTargetYear = State(initialValue: 0)
-        _memoTargetMonth = State(initialValue: 0)
-        _memoText = State(initialValue: "")
+        _monthlyMemoTarget = State(initialValue: nil)
         // registeredAt の降順でソート（新しい本が上に表示される）
         _allUserBooks = Query(sort: \UserBook.registeredAt, order: .reverse)
     }
@@ -189,6 +210,20 @@ struct BookshelfView: View {
         }
         .navigationTitle(showCalendarView ? "bookshelf.calendar_title" : "bookshelf.title")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            // 通帳ページから開いたカレンダーの右上に、シート展開時と同じ＋ボタンを表示
+            if showCalendarView, !managesCalendarChrome, let registrationPassbook {
+                ToolbarItem(placement: .topBarTrailing) {
+                    NavigationLink(value: BookSearchDestination(passbook: registrationPassbook)) {
+                        Image(systemName: "plus")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(calendarAddIconColor)
+                    }
+                    .buttonStyle(.glassProminent)
+                    .tint(calendarAddTint)
+                }
+            }
+        }
         .onAppear {
             if managesCalendarChrome {
                 bookshelfChromeState.isCalendar = showCalendarView
@@ -209,14 +244,14 @@ struct BookshelfView: View {
                 showCalendarView = newValue
             }
         }
-        .sheet(isPresented: $showMonthlyMemo) {
-            MemoEditorView(memo: Binding(
-                get: { memoText },
-                set: { _ in }
-            ), title: "bookshelf.monthly_log") { newText in
+        .sheet(item: $monthlyMemoTarget) { target in
+            MemoEditorView(
+                memo: .constant(target.text),
+                title: "bookshelf.monthly_log"
+            ) { newText in
                 MonthlyMemoRepository.save(
-                    year: memoTargetYear,
-                    month: memoTargetMonth,
+                    year: target.year,
+                    month: target.month,
                     text: newText,
                     context: context
                 )
@@ -357,25 +392,17 @@ struct BookshelfView: View {
     // MARK: - Monthly Memo
 
     private func openMonthlyMemo(year: Int, month: Int) {
-        memoTargetYear = year
-        memoTargetMonth = month
-        memoText = MonthlyMemoRepository.fetch(year: year, month: month, context: context)?.text ?? ""
-        showMonthlyMemo = true
+        let text = MonthlyMemoRepository.fetch(year: year, month: month, context: context)?.text ?? ""
+        monthlyMemoTarget = MonthlyMemoTarget(year: year, month: month, text: text)
     }
 }
 
 // MARK: - Preview
 
 #Preview {
-    let config = ModelConfiguration(isStoredInMemoryOnly: true)
-    let container = try! ModelContainer(for: Passbook.self, UserBook.self, configurations: config)
-    
-    let passbook = Passbook(name: "漫画", type: .custom, sortOrder: 1)
-    container.mainContext.insert(passbook)
-    
-    return NavigationStack {
-        BookshelfView(passbook: passbook)
+    NavigationStack {
+        BookshelfView(passbook: PreviewSupport.passbook(named: "漫画"))
     }
-    .modelContainer(container)
+    .bookBankPreviewEnvironment()
     .environment(BookshelfChromeState())
 }

@@ -103,7 +103,7 @@ struct AddBookView: View {
     /// 保存ボタンが有効かどうか（タイトルと金額が必須）
     private var canSave: Bool {
         let hasTitle = !title.trimmingCharacters(in: .whitespaces).isEmpty
-        let hasValidPrice = Int(priceText) != nil && !priceText.isEmpty
+        let hasValidPrice = currencyManager.displayCurrency.minorUnits(fromInput: priceText) != nil
         return hasTitle && hasValidPrice
     }
     
@@ -133,6 +133,7 @@ struct AddBookView: View {
                                 Text("book.cover_delete")
                                     .font(.caption)
                             }
+                            .buttonStyle(.borderless)
                         }
                     } else {
                         VStack(spacing: 12) {
@@ -213,10 +214,10 @@ struct AddBookView: View {
                         .foregroundColor(.secondary)
 
                         HStack {
-                            Text("¥")
+                            Text(currencyManager.displayCurrency.displaySymbol)
                                 .foregroundColor(.secondary)
                             TextField("book.price_placeholder", text: $priceText)
-                                .keyboardType(.numberPad)
+                                .keyboardType(currencyManager.displayCurrency.fractionDigits > 0 ? .decimalPad : .numberPad)
                                 .focused($focusedField, equals: .price)
                         }
                     }
@@ -339,7 +340,7 @@ struct AddBookView: View {
     
     /// 本を保存する
     private func saveBook() {
-        guard let price = Int(priceText),
+        guard let price = currencyManager.displayCurrency.minorUnits(fromInput: priceText),
               let targetPassbook = selectedPassbook else {
             return
         }
@@ -359,7 +360,7 @@ struct AddBookView: View {
             memo: nil,
             isFavorite: false,
             passbook: targetPassbook,
-            currencyCode: AppCurrency.jpy.code
+            currencyCode: currencyManager.displayCurrency.code
         )
         
         context.insert(newBook)

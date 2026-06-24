@@ -148,14 +148,19 @@ struct BookshelfCalendarView<Header: View>: View {
                     .foregroundColor(colorScheme == .dark ? .white : .black)
 
                 if !books.isEmpty {
-                    BooksCountText(count: books.count, font: .system(size: 14), locale: languageManager.resolvedLocale)
-                        .foregroundColor(colorScheme == .dark ? .white.opacity(0.6) : .black.opacity(0.6))
+                    HStack(spacing: 0) {
+                        DisplayCurrencyPriceText(
+                            amount: books.totalDisplayAmount(in: currencyManager.displayCurrency, exchangeRates: exchangeRates),
+                            font: .system(size: 16)
+                        )
 
-                    DisplayCurrencyPriceText(
-                        amount: books.totalDisplayAmount(in: currencyManager.displayCurrency, exchangeRates: exchangeRates),
-                        font: .system(size: 14)
-                    )
-                    .foregroundColor(colorScheme == .dark ? .white.opacity(0.6) : .black.opacity(0.6))
+                        Text(" （")
+                            .font(.system(size: 16))
+                        BooksCountText(count: books.count, font: .system(size: 16), locale: languageManager.resolvedLocale)
+                        Text(" ）")
+                            .font(.system(size: 16))
+                    }
+                    .foregroundColor(.primary)
                 }
 
                 Spacer()
@@ -178,9 +183,33 @@ struct BookshelfCalendarView<Header: View>: View {
                 }
             }
 
+            weekdayHeader
+
             calendarGrid(year: year, month: month, books: books)
         }
         .padding(.horizontal, 16)
+    }
+
+    // MARK: - 曜日見出し
+
+    /// firstWeekday に合わせて並べた曜日記号（言語に追従）
+    private var weekdaySymbols: [String] {
+        var localeCalendar = Calendar(identifier: .gregorian)
+        localeCalendar.locale = languageManager.resolvedLocale
+        let symbols = localeCalendar.shortWeekdaySymbols // 0 = 日曜
+        let first = calendar.firstWeekday - 1 // 0 始まりに変換
+        return (0..<7).map { symbols[(first + $0) % 7] }
+    }
+
+    private var weekdayHeader: some View {
+        LazyVGrid(columns: weekColumns, spacing: 4) {
+            ForEach(Array(weekdaySymbols.enumerated()), id: \.offset) { _, symbol in
+                Text(symbol)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(colorScheme == .dark ? .white.opacity(0.5) : .black.opacity(0.5))
+                    .frame(maxWidth: .infinity)
+            }
+        }
     }
 
     // MARK: - カレンダーグリッド
@@ -341,4 +370,36 @@ struct BookshelfCalendarView<Header: View>: View {
         formatter.setLocalizedDateFormatFromTemplate("MMMM")
         return formatter.string(from: date)
     }
+}
+
+// MARK: - Preview
+
+#Preview {
+    let calendar = Calendar.current
+    let now = Date()
+
+    func sampleBook(_ title: String, monthsAgo: Int, price: Int) -> UserBook {
+        let book = UserBook(title: title, price: price, currencyCode: AppCurrency.jpy.code)
+        book.registeredAt = calendar.date(byAdding: .month, value: -monthsAgo, to: now) ?? now
+        return book
+    }
+
+    let books = [
+        sampleBook("本A", monthsAgo: 0, price: 1200),
+        sampleBook("本B", monthsAgo: 0, price: 800),
+        sampleBook("本C", monthsAgo: 2, price: 1500),
+        sampleBook("本D", monthsAgo: 8, price: 2000)
+    ]
+
+    return NavigationStack {
+        BookshelfCalendarView(
+            books: books,
+            isOverallAccount: true,
+            onMonthlyMemo: { _, _ in }
+        ) {
+            EmptyView()
+        }
+    }
+    .bookBankPreviewEnvironment()
+    .environment(BookshelfChromeState())
 }

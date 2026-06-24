@@ -347,9 +347,7 @@ struct BookSelectorView: View {
     }
     
     private func formatDate(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy.MM.dd"
-        return formatter.string(from: date)
+        AppDateFormat.display(date)
     }
 }
 

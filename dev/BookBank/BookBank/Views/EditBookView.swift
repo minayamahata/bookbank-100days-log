@@ -69,7 +69,7 @@ struct EditBookView: View {
     private var hasChanges: Bool {
         let titleChanged = title.trimmingCharacters(in: .whitespaces) != (book.title)
         let authorChanged = author.trimmingCharacters(in: .whitespaces) != (book.author ?? "")
-        let priceChanged = priceText != (book.price.map { String($0) } ?? "")
+        let priceChanged = priceText != (book.price.map { book.storedCurrency.inputString(fromMinor: $0) } ?? "")
         let dateChanged = !Calendar.current.isDate(registeredAt, inSameDayAs: book.registeredAt)
         let passbookChanged = selectedPassbookID != book.passbook?.persistentModelID
         return titleChanged || authorChanged || priceChanged || imageChanged || dateChanged || passbookChanged
@@ -79,7 +79,7 @@ struct EditBookView: View {
         guard hasChanges else { return false }
         if isManual {
             let hasTitle = !title.trimmingCharacters(in: .whitespaces).isEmpty
-            let hasValidPrice = Int(priceText) != nil && !priceText.isEmpty
+            let hasValidPrice = book.storedCurrency.minorUnits(fromInput: priceText) != nil
             return hasTitle && hasValidPrice
         }
         return true
@@ -162,6 +162,10 @@ struct EditBookView: View {
                             .disabled(!isManual)
                             .foregroundColor(isManual ? .primary : .secondary)
                     }
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        if isManual { focusedField = .title }
+                    }
                     
                     // 著者名
                     HStack {
@@ -175,6 +179,10 @@ struct EditBookView: View {
                             .focused($focusedField, equals: .author)
                             .disabled(!isManual)
                             .foregroundColor(isManual ? .primary : .secondary)
+                    }
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        if isManual { focusedField = .author }
                     }
                     
                     // 価格
@@ -192,7 +200,7 @@ struct EditBookView: View {
                             Spacer()
                             TextField("book.price_placeholder_short", text: $priceText)
                                 .multilineTextAlignment(.trailing)
-                                .keyboardType(.numberPad)
+                                .keyboardType(book.storedCurrency.fractionDigits > 0 ? .decimalPad : .numberPad)
                                 .focused($focusedField, equals: .price)
                                 .disabled(!isManual)
                                 .foregroundColor(isManual ? .primary : .secondary)
@@ -200,6 +208,10 @@ struct EditBookView: View {
                             Text(book.storedCurrency.code)
                                 .foregroundColor(.secondary)
                         }
+                    }
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        if isManual { focusedField = .price }
                     }
                     
                     if !isManual {
@@ -209,7 +221,7 @@ struct EditBookView: View {
                         if let year = book.publishedYear {
                             readOnlyRow(
                                 label: "book.published_year",
-                                value: L10n.format("book.year_suffix", locale: languageManager.resolvedLocale, Int64(year))
+                                value: L10n.format("book.year_suffix", locale: languageManager.resolvedLocale, String(year))
                             )
                         }
                         if let format = book.bookFormat, !format.isEmpty {
@@ -304,7 +316,7 @@ struct EditBookView: View {
             .onAppear {
                 title = book.title
                 author = book.author ?? ""
-                priceText = book.price.map { String($0) } ?? ""
+                priceText = book.price.map { book.storedCurrency.inputString(fromMinor: $0) } ?? ""
                 registeredAt = book.registeredAt
                 selectedPassbookID = book.passbook?.persistentModelID
                 if let coverImage = book.coverUIImage {
@@ -465,9 +477,7 @@ struct EditBookView: View {
     }
     
     private func formatDate(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy.MM.dd"
-        return formatter.string(from: date)
+        AppDateFormat.display(date)
     }
     
     // MARK: - Actions
@@ -527,7 +537,7 @@ struct EditBookView: View {
         if isManual {
             book.title = title.trimmingCharacters(in: .whitespaces)
             book.author = author.isEmpty ? nil : author.trimmingCharacters(in: .whitespaces)
-            if let price = Int(priceText) {
+            if let price = book.storedCurrency.minorUnits(fromInput: priceText) {
                 book.price = price
                 book.priceAtRegistration = price
             }

@@ -167,10 +167,35 @@ struct MainTabView: View {
             }
     }
     
+    /// タブ選択用バインディング。すでに選択中のタブを再タップしたら、そのタブの
+    /// ナビゲーションをルートまで戻す（例：通帳タブ→通帳ページを必ず表示）
+    private var tabSelection: Binding<Int> {
+        Binding(
+            get: { selectedTab },
+            set: { newValue in
+                if newValue == selectedTab {
+                    resetNavigation(for: newValue)
+                }
+                selectedTab = newValue
+            }
+        )
+    }
+
+    private func resetNavigation(for tab: Int) {
+        switch tab {
+        case 0: accountListNavPath = NavigationPath()
+        case 1: passbookNavPath = NavigationPath()
+        case 2: bookshelfNavPath = NavigationPath()
+        case 3: statisticsNavPath = NavigationPath()
+        case 4: readingListNavPath = NavigationPath()
+        default: break
+        }
+    }
+
     private var mainTabContent: some View {
         ZStack(alignment: .bottom) {
             // 標準のTabView
-            TabView(selection: $selectedTab) {
+            TabView(selection: tabSelection) {
                 // 口座一覧タブ
                 NavigationStack(path: $accountListNavPath) {
                     AccountListView(
@@ -203,6 +228,16 @@ struct MainTabView: View {
                     }
                     .navigationDestination(for: BookSearchDestination.self) { destination in
                         BookSearchView(passbook: destination.passbook, allowPassbookChange: true)
+                    }
+                    .navigationDestination(for: PassbookActionDestination.self) { destination in
+                        switch destination {
+                        case .accounts:
+                            AccountListView()
+                        case .bookshelf:
+                            BookshelfView(passbook: displayPassbook)
+                        case .calendar:
+                            BookshelfView(passbook: displayPassbook, startsWithCalendarView: true)
+                        }
                     }
                     .toolbar {
                         if !customPassbooks.isEmpty, !passbookSheetChromeState.isExpanded {
@@ -445,6 +480,13 @@ struct BookSearchDestination: Hashable {
     static func == (lhs: BookSearchDestination, rhs: BookSearchDestination) -> Bool {
         lhs.passbook.persistentModelID == rhs.passbook.persistentModelID
     }
+}
+
+/// 通帳ページのアクションボタンからの遷移先（値ベースナビゲーション）
+enum PassbookActionDestination: Hashable {
+    case accounts
+    case bookshelf
+    case calendar
 }
 
 // MARK: - Preview

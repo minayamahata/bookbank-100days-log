@@ -404,9 +404,7 @@ struct EditPassbookView: View {
     }
     
     private func formatExportDate(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy.MM.dd"
-        return formatter.string(from: date)
+        AppDateFormat.display(date)
     }
     
     private func savePassbook() {

@@ -194,9 +194,7 @@ func generateReadingListMarkdown(
 // MARK: - Helper
 
 private func formatDate(_ date: Date) -> String {
-    let formatter = DateFormatter()
-    formatter.dateFormat = "yyyy.MM.dd"
-    return formatter.string(from: date)
+    AppDateFormat.display(date)
 }
 
 // MARK: - Export Sheet View

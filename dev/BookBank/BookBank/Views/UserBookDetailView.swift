@@ -23,6 +23,28 @@ struct UserBookDetailView: View {
     @State private var showDeleteAlert = false
     @State private var showEditBook = false
 
+    /// 詳細パネル（ボトムシート）のスナップ位置
+    private enum SheetDetent {
+        case collapsed
+        case expanded
+    }
+
+    @State private var sheetDetent: SheetDetent = .collapsed
+    @State private var dragOffset: CGFloat = 0
+
+    /// カバー画像の高さ
+    private let coverHeight: CGFloat = 370
+    /// 折りたたみ時のシート上端位置（カバーを大きく見せる）
+    private let collapsedTop: CGFloat = 330
+    /// 展開時のシート上端位置（カバー上部だけ覗かせる）
+    private let expandedTop: CGFloat = 110
+
+    /// 現在のシート上端位置（ドラッグ量を反映しつつ範囲内に収める）
+    private var currentSheetTop: CGFloat {
+        let base = sheetDetent == .collapsed ? collapsedTop : expandedTop
+        return min(max(base + dragOffset, expandedTop), collapsedTop)
+    }
+
     private var customPassbooks: [Passbook] {
         allPassbooks.filter { $0.type == .custom && $0.isActive }
     }
@@ -52,33 +74,23 @@ struct UserBookDetailView: View {
         let _ = languageManager.currentLanguage
 
         GeometryReader { geometry in
-            ScrollView {
-                VStack(spacing: 0) {
-                    coverSection(screenWidth: geometry.size.width)
-                    
-                    // ボトムシート風コンテンツ
-                    VStack(spacing: 24) {
-                        // ハンドル
-                        RoundedRectangle(cornerRadius: 2.5)
-                            .fill(Color.secondary.opacity(0.4))
-                            .frame(width: 36, height: 5)
-                            .padding(.top, 10)
-                        
-                        titleSection
-                        detailSection
+            ZStack(alignment: .top) {
+                // 背景：本のカバー（固定）
+                coverSection(screenWidth: geometry.size.width)
+
+                // ハンドルでドラッグして開閉できる詳細パネル
+                // 高さは画面いっぱいで固定し、位置(offset)だけ動かすことで
+                // ドラッグ中の再レイアウトを避けて滑らかにする
+                bookSheet
+                    .frame(height: geometry.size.height, alignment: .top)
+                    .frame(maxWidth: .infinity)
+                    .offset(y: currentSheetTop)
+                    .animation(.spring(response: 0.35, dampingFraction: 0.88), value: sheetDetent)
+                    .transaction { transaction in
+                        if dragOffset != 0 {
+                            transaction.animation = nil
+                        }
                     }
-                    .frame(minHeight: geometry.size.height - 280)
-                    .background(Color(.systemBackground))
-                    .clipShape(
-                        UnevenRoundedRectangle(
-                            topLeadingRadius: 40,
-                            bottomLeadingRadius: 0,
-                            bottomTrailingRadius: 0,
-                            topTrailingRadius: 40
-                        )
-                    )
-                    .offset(y: -40)
-                }
             }
         }
         .ignoresSafeArea(edges: .top)
@@ -138,6 +150,88 @@ struct UserBookDetailView: View {
         }
         .onAppear { floatingButtonState.isHidden = true }
         .onDisappear { floatingButtonState.isHidden = false }
+    }
+
+    // MARK: - 詳細パネル（ドラッグ可能なボトムシート）
+
+    private var bookSheet: some View {
+        VStack(spacing: 0) {
+            sheetHandle
+
+            ScrollView {
+                VStack(spacing: 24) {
+                    titleSection
+                    detailSection
+                }
+                .padding(.top, 4)
+                .padding(.bottom, 90)
+            }
+            .scrollDisabled(sheetDetent == .collapsed)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .background(Color(.systemBackground))
+        .clipShape(
+            UnevenRoundedRectangle(
+                topLeadingRadius: 40,
+                bottomLeadingRadius: 0,
+                bottomTrailingRadius: 0,
+                topTrailingRadius: 40
+            )
+        )
+        // シート全面をドラッグ対象にする
+        // 折りたたみ時: シートのどこを掴んでも開閉できる（スクロールは無効）
+        // 展開時: 中身のスクロール／ボタンを優先（閉じる操作はハンドルが担当）
+        .contentShape(Rectangle())
+        .gesture(
+            sheetDragGesture,
+            including: sheetDetent == .collapsed ? .gesture : .subviews
+        )
+    }
+
+    /// ハンドル（この帯の部分をドラッグで開閉できる）
+    private var sheetHandle: some View {
+        RoundedRectangle(cornerRadius: 2.5)
+            .fill(Color.secondary.opacity(0.4))
+            .frame(width: 40, height: 5)
+            .frame(maxWidth: .infinity)
+            .frame(height: 44)
+            .contentShape(Rectangle())
+            .highPriorityGesture(sheetDragGesture)
+    }
+
+    /// ハンドルのドラッグで折りたたみ／展開を切り替える
+    private var sheetDragGesture: some Gesture {
+        DragGesture(minimumDistance: 0, coordinateSpace: .global)
+            .onChanged { value in
+                var transaction = Transaction()
+                transaction.animation = nil
+                withTransaction(transaction) {
+                    dragOffset = value.translation.height
+                }
+            }
+            .onEnded { value in
+                let velocity = value.predictedEndTranslation.height - value.translation.height
+                snapSheet(velocity: velocity)
+            }
+    }
+
+    private func snapSheet(velocity: CGFloat) {
+        let base = sheetDetent == .collapsed ? collapsedTop : expandedTop
+        let projected = base + dragOffset
+        let midpoint = (collapsedTop + expandedTop) / 2
+
+        withAnimation(.spring(response: 0.38, dampingFraction: 0.88)) {
+            if sheetDetent == .collapsed {
+                if velocity < -120 || projected < midpoint {
+                    sheetDetent = .expanded
+                }
+            } else {
+                if velocity > 120 || projected > midpoint {
+                    sheetDetent = .collapsed
+                }
+            }
+            dragOffset = 0
+        }
     }
     
     // MARK: - Subviews
@@ -283,7 +377,7 @@ struct UserBookDetailView: View {
                 if let publishedYear = book.publishedYear {
                     DetailInfoRow(
                         label: "book.published_year",
-                        value: L10n.format("book.year_suffix", locale: languageManager.resolvedLocale, Int64(publishedYear))
+                        value: L10n.format("book.year_suffix", locale: languageManager.resolvedLocale, String(publishedYear))
                     )
                 }
 
@@ -357,11 +451,9 @@ struct UserBookDetailView: View {
         }
     }
     
-    /// 日付をYYYY.MM.DD形式でフォーマット
+    /// 日付を言語に応じた表記でフォーマット
     private func formatDate(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy.MM.dd"
-        return formatter.string(from: date)
+        AppDateFormat.display(date)
     }
 }
 

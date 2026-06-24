@@ -143,6 +143,51 @@ enum AppCurrency: String, CaseIterable, Identifiable {
         case .krw: return "₩"
         }
     }
+
+    /// 小数桁数（例: USD/CNY は 2、JPY/KRW/TWD は 0）
+    /// 金額はこの桁数に基づく「最小通貨単位（USD ならセント）」の整数で保存する
+    var fractionDigits: Int {
+        switch self {
+        case .jpy, .twd, .krw: return 0
+        case .usd, .cny: return 2
+        }
+    }
+
+    /// メジャー単位 → 最小単位の倍率（10^fractionDigits）
+    /// 例: USD は 100（$1 = 100 セント）、JPY は 1
+    var minorUnitDivisor: Int {
+        var result = 1
+        for _ in 0..<fractionDigits { result *= 10 }
+        return result
+    }
+
+    /// 入力文字列（メジャー単位の "12.99" など）を最小単位の整数へ変換
+    /// - 小数点はロケール非依存で "." として解釈する
+    func minorUnits(fromInput text: String) -> Int? {
+        let trimmed = text.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty,
+              let value = Decimal(string: trimmed, locale: Locale(identifier: "en_US_POSIX")) else {
+            return nil
+        }
+        var scaled = value * Decimal(minorUnitDivisor)
+        var rounded = Decimal()
+        NSDecimalRound(&rounded, &scaled, 0, .plain)
+        return NSDecimalNumber(decimal: rounded).intValue
+    }
+
+    /// 最小単位の整数を、入力欄に表示するメジャー単位の文字列へ変換
+    /// 例: USD で 1299 → "12.99"、JPY で 500 → "500"
+    func inputString(fromMinor minor: Int) -> String {
+        guard fractionDigits > 0 else { return String(minor) }
+        let value = Decimal(minor) / Decimal(minorUnitDivisor)
+        let formatter = NumberFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.numberStyle = .decimal
+        formatter.usesGroupingSeparator = false
+        formatter.minimumFractionDigits = 0
+        formatter.maximumFractionDigits = fractionDigits
+        return formatter.string(from: NSDecimalNumber(decimal: value)) ?? String(minor)
+    }
 }
 
 /// アプリ全体の表示通貨を管理するクラス
@@ -195,6 +240,7 @@ enum MoneyDisplay {
         return format(amount: converted, currency: displayCurrency, locale: locale)
     }
 
+    /// 金額（最小通貨単位の整数）を通貨表記の文字列へ
     static func format(amount: Int, currency: AppCurrency, locale: Locale) -> String {
         let currencyLocale = currency.formattingLocale
         let formatter = NumberFormatter()
@@ -202,32 +248,36 @@ enum MoneyDisplay {
         formatter.currencyCode = currency.code
         formatter.currencySymbol = currency.displaySymbol
         formatter.locale = currencyLocale
-        formatter.maximumFractionDigits = 0
-        formatter.minimumFractionDigits = 0
-        return formatter.string(from: NSNumber(value: amount)) ?? "\(currency.displaySymbol)\(amount)"
+        formatter.maximumFractionDigits = currency.fractionDigits
+        formatter.minimumFractionDigits = currency.fractionDigits
+        let major = Decimal(amount) / Decimal(currency.minorUnitDivisor)
+        return formatter.string(from: NSDecimalNumber(decimal: major)) ?? "\(currency.displaySymbol)\(amount)"
     }
 
     /// 通貨記号と金額を分離（記号のみ別フォントサイズにする用途）
     static func formatParts(amount: Int, currency: AppCurrency, locale: Locale) -> (prefix: String, amount: String, suffix: String) {
         let currencyLocale = currency.formattingLocale
+        let major = Decimal(amount) / Decimal(currency.minorUnitDivisor)
+        let majorNumber = NSDecimalNumber(decimal: major)
+
         let currencyFormatter = NumberFormatter()
         currencyFormatter.numberStyle = .currency
         currencyFormatter.currencyCode = currency.code
         currencyFormatter.currencySymbol = currency.displaySymbol
         currencyFormatter.locale = currencyLocale
-        currencyFormatter.maximumFractionDigits = 0
-        currencyFormatter.minimumFractionDigits = 0
+        currencyFormatter.maximumFractionDigits = currency.fractionDigits
+        currencyFormatter.minimumFractionDigits = currency.fractionDigits
 
         let decimalFormatter = NumberFormatter()
         decimalFormatter.numberStyle = .decimal
         decimalFormatter.locale = currencyLocale
-        decimalFormatter.maximumFractionDigits = 0
-        decimalFormatter.minimumFractionDigits = 0
+        decimalFormatter.maximumFractionDigits = currency.fractionDigits
+        decimalFormatter.minimumFractionDigits = currency.fractionDigits
 
-        let amountText = decimalFormatter.string(from: NSNumber(value: amount)) ?? "\(amount)"
+        let amountText = decimalFormatter.string(from: majorNumber) ?? "\(major)"
         let symbol = currency.displaySymbol
 
-        guard let fullText = currencyFormatter.string(from: NSNumber(value: amount)) else {
+        guard let fullText = currencyFormatter.string(from: majorNumber) else {
             return (symbol, amountText, "")
         }
 

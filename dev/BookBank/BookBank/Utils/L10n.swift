@@ -51,6 +51,30 @@ enum L10n {
     }
 }
 
+/// 日付の表示フォーマット（言語に応じて表記を切り替える）
+/// - 英語: "June 20, 2026"（英語らしい表記）
+/// - それ以外（日本語・韓国語・中国語など）: "2026.06.20"
+enum AppDateFormat {
+    /// 表示用の日付文字列を返す
+    /// - Parameter locale: 省略時はアプリの言語設定から解決
+    static func display(_ date: Date, locale: Locale? = nil) -> String {
+        let resolved = locale ?? LanguageManager.resolvedLocaleForFormatting
+        let isEnglish = resolved.language.languageCode?.identifier == "en"
+
+        let formatter = DateFormatter()
+        if isEnglish {
+            // 例: June 20, 2026
+            formatter.locale = Locale(identifier: "en_US")
+            formatter.setLocalizedDateFormatFromTemplate("MMMMdyyyy")
+        } else {
+            // 例: 2026.06.20
+            formatter.locale = Locale(identifier: "en_US_POSIX")
+            formatter.dateFormat = "yyyy.MM.dd"
+        }
+        return formatter.string(from: date)
+    }
+}
+
 extension LanguageManager {
     /// View 外（エクスポート等）でも使える locale 解決
     static var resolvedLocaleForFormatting: Locale {

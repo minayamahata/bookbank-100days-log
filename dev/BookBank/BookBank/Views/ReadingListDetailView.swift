@@ -257,9 +257,7 @@ struct ReadingListDetailView: View {
     }
     
     private func formatExportDate(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy.MM.dd"
-        return formatter.string(from: date)
+        AppDateFormat.display(date)
     }
     
     // MARK: - List Info Section
@@ -879,9 +877,7 @@ struct EditReadingListView: View {
     }
     
     private func formatExportDate(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy.MM.dd"
-        return formatter.string(from: date)
+        AppDateFormat.display(date)
     }
     
     private func saveChanges() {

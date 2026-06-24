@@ -323,28 +323,37 @@ final class ExchangeRateService {
         }
     }
 
-    /// 元通貨の整数金額を表示通貨に換算
+    /// 元通貨の金額（最小通貨単位の整数）を表示通貨の最小単位へ換算
     func convert(_ amount: Int, from source: AppCurrency, to target: AppCurrency) -> Int {
         if source == target { return amount }
 
-        let amountInJPY: Double
+        // 最小単位 → メジャー単位
+        let sourceMajor = Double(amount) / Double(source.minorUnitDivisor)
+
+        // メジャー単位を一旦 JPY 建てに揃える
+        let majorInJPY: Double
         if source == .jpy {
-            amountInJPY = Double(amount)
+            majorInJPY = sourceMajor
         } else {
             guard let sourceRate = ratesFromJPY[source.code], sourceRate > 0 else {
                 return amount
             }
-            amountInJPY = Double(amount) / sourceRate
+            majorInJPY = sourceMajor / sourceRate
         }
 
+        // JPY 建てから表示通貨のメジャー単位へ
+        let targetMajor: Double
         if target == .jpy {
-            return Int(amountInJPY.rounded())
+            targetMajor = majorInJPY
+        } else {
+            guard let targetRate = ratesFromJPY[target.code] else {
+                return amount
+            }
+            targetMajor = majorInJPY * targetRate
         }
 
-        guard let targetRate = ratesFromJPY[target.code] else {
-            return amount
-        }
-        return Int((amountInJPY * targetRate).rounded())
+        // メジャー単位 → 最小単位（整数）
+        return Int((targetMajor * Double(target.minorUnitDivisor)).rounded())
     }
 
     private func loadCache() {

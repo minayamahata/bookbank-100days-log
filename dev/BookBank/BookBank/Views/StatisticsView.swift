@@ -297,9 +297,28 @@ struct YearlyChartContent: View {
         booksInYear.filter { $0.memo != nil && !($0.memo?.isEmpty ?? true) }.count
     }
     
-    /// 金額グラフの最大値（Y軸ドメイン用）
-    private var maxAmount: Int {
-        chartData.map { $0.amount }.max() ?? 0
+    /// 金額の最小単位 → メジャー単位の倍率
+    private var amountMinorUnitDivisor: Double {
+        Double(displayCurrency.minorUnitDivisor)
+    }
+
+    /// 最小単位の金額をメジャー単位（グラフ表示用）へ
+    private func chartMajorAmount(_ minor: Int) -> Double {
+        Double(minor) / amountMinorUnitDivisor
+    }
+
+    /// 金額グラフのラベル（メジャー単位・通貨記号なし）
+    private func chartAmountLabel(_ major: Double) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        formatter.locale = displayCurrency.formattingLocale
+        formatter.maximumFractionDigits = 0
+        return formatter.string(from: NSNumber(value: major)) ?? "\(Int(major.rounded()))"
+    }
+
+    /// 金額グラフの最大値（メジャー単位・Y軸ドメイン用）
+    private var maxAmount: Double {
+        chartData.map { chartMajorAmount($0.amount) }.max() ?? 0
     }
 
     /// 冊数グラフの最大値（Y軸ドメイン用）
@@ -308,7 +327,7 @@ struct YearlyChartContent: View {
     }
 
     /// 金額グラフのY軸上限（全0のとき 0...0 にならないよう最低値を確保）
-    private var amountChartYUpperBound: Int {
+    private var amountChartYUpperBound: Double {
         maxAmount > 0 ? maxAmount : 100
     }
 
@@ -515,7 +534,7 @@ struct YearlyChartContent: View {
                     ForEach(chartData.filter { hasDataBeforeMonth($0.month) }) { dataPoint in
                         AreaMark(
                             x: .value("Month", dataPoint.label),
-                            y: .value("Amount", dataPoint.amount)
+                            y: .value("Amount", chartMajorAmount(dataPoint.amount))
                         )
                         .foregroundStyle(
                             LinearGradient(
@@ -534,7 +553,7 @@ struct YearlyChartContent: View {
                     ForEach(chartData.filter { hasDataBeforeMonth($0.month) }) { dataPoint in
                         LineMark(
                             x: .value("Month", dataPoint.label),
-                            y: .value("Amount", dataPoint.amount)
+                            y: .value("Amount", chartMajorAmount(dataPoint.amount))
                         )
                         .foregroundStyle(themeColor)
                         .interpolationMethod(.linear)
@@ -542,13 +561,13 @@ struct YearlyChartContent: View {
                         
                         PointMark(
                             x: .value("Month", dataPoint.label),
-                            y: .value("Amount", dataPoint.amount)
+                            y: .value("Amount", chartMajorAmount(dataPoint.amount))
                         )
                         .foregroundStyle(themeColor)
                         .symbolSize(30)
                         .annotation(position: dataPoint.month % 2 == 0 ? .top : .bottom, spacing: 4) {
                             if dataPoint.amount > 0 {
-                                Text("\(dataPoint.amount.formatted())")
+                                Text(chartAmountLabel(chartMajorAmount(dataPoint.amount)))
                                     .font(.system(size: 7))
                                     .foregroundColor(.secondary)
                             }
@@ -559,7 +578,7 @@ struct YearlyChartContent: View {
                     ForEach(chartData.filter { !hasDataBeforeMonth($0.month) }) { dataPoint in
                         PointMark(
                             x: .value("Month", dataPoint.label),
-                            y: .value("Amount", 0)
+                            y: .value("Amount", 0.0)
                         )
                         .foregroundStyle(Color.clear)
                         .symbolSize(1)
@@ -571,8 +590,8 @@ struct YearlyChartContent: View {
                     AxisMarks(position: .trailing) { value in
                         AxisGridLine()
                         AxisValueLabel {
-                            if let intValue = value.as(Int.self) {
-                                Text(intValue.formatted())
+                            if let doubleValue = value.as(Double.self) {
+                                Text(chartAmountLabel(doubleValue))
                                     .font(.system(size: 10))
                                     .frame(width: 50, alignment: .trailing)
                             }
