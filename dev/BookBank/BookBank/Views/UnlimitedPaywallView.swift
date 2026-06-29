@@ -292,11 +292,11 @@ struct UnlimitedPaywallView: View {
             
             Text("|").padding(.horizontal, 10)
             
-            Link("service.terms", destination: URL(string: "https://bookbank-share.vercel.app/terms")!)
+            Link("service.terms", destination: LegalLink.terms)
             
             Text("|").padding(.horizontal, 10)
             
-            Link("service.privacy", destination: URL(string: "https://bookbank-share.vercel.app/privacy")!)
+            Link("service.privacy", destination: LegalLink.privacy)
         }
         .font(.system(size: 12))
         .foregroundColor(.white.opacity(0.4))

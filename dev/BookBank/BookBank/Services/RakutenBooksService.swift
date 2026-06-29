@@ -13,23 +13,16 @@ class RakutenBooksService {
     
     // MARK: - Properties
     
-    /// 楽天アプリケーションID
-    private let applicationId: String
-    
-    /// APIのベースURL（総合検索API - 書籍・コミック・雑誌すべて対応）
-    private let baseURL = "https://app.rakuten.co.jp/services/api/BooksTotal/Search/20170404"
-
-    /// 書籍検索API（発行形態 size を取得するため）
-    private let bookSearchURL = "https://app.rakuten.co.jp/services/api/BooksBook/Search/20170404"
+    /// 楽天APIプロキシのベースURL（Vercelにデプロイ済み）
+    /// applicationId / accessKey の認証はプロキシ側で付与されるため、Swift側では渡さない
+    private let proxyURL = "https://bookbank-share.vercel.app/api/rakuten"
 
     /// ISBN → 発行形態のセッションキャッシュ
     private var formatCache: [String: String] = [:]
     
     // MARK: - Initialization
     
-    init(applicationId: String = "1011909627413951348") {
-        self.applicationId = applicationId
-    }
+    init() {}
     
     // MARK: - Public Methods
     
@@ -43,9 +36,9 @@ class RakutenBooksService {
             return []
         }
         
-        var components = URLComponents(string: baseURL)
+        var components = URLComponents(string: proxyURL)
         components?.queryItems = [
-            URLQueryItem(name: "applicationId", value: applicationId),
+            URLQueryItem(name: "endpoint", value: "total"),    // 総合検索APIを指定
             URLQueryItem(name: "keyword", value: keyword),
             URLQueryItem(name: "booksGenreId", value: "001"),  // 本カテゴリ（コミック含む）
             URLQueryItem(name: "format", value: "json"),
@@ -76,9 +69,9 @@ class RakutenBooksService {
             return []
         }
         
-        var components = URLComponents(string: baseURL)
+        var components = URLComponents(string: proxyURL)
         components?.queryItems = [
-            URLQueryItem(name: "applicationId", value: applicationId),
+            URLQueryItem(name: "endpoint", value: "total"),    // 総合検索APIを指定
             URLQueryItem(name: "isbnjan", value: cleanISBN),   // 総合検索APIではisbnjanを使用
             URLQueryItem(name: "format", value: "json"),
             URLQueryItem(name: "formatVersion", value: "2"),   // シンプルなJSON形式
@@ -241,9 +234,9 @@ class RakutenBooksService {
             return cached
         }
 
-        var components = URLComponents(string: bookSearchURL)
+        var components = URLComponents(string: proxyURL)
         components?.queryItems = [
-            URLQueryItem(name: "applicationId", value: applicationId),
+            URLQueryItem(name: "endpoint", value: "book"),     // 書籍検索APIを指定
             URLQueryItem(name: "isbn", value: isbn),
             URLQueryItem(name: "format", value: "json"),
             URLQueryItem(name: "hits", value: "1")

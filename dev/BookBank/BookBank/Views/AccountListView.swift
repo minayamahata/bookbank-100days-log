@@ -406,38 +406,9 @@ struct AccountChartData: Identifiable {
 
 // MARK: - チャートセクションのガラス背景
 
-private struct AccountChartSectionGlassModifier: ViewModifier {
-    @Environment(\.colorScheme) private var colorScheme
-
-    private static let cornerRadius: CGFloat = 24
-
-    private var isRunningForPreviews: Bool {
-        ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
-    }
-
-    func body(content: Content) -> some View {
-        Group {
-            if isRunningForPreviews {
-                content
-                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: Self.cornerRadius))
-            } else if colorScheme == .dark {
-                content
-                    .glassEffect(.clear, in: .rect(cornerRadius: Self.cornerRadius))
-            } else {
-                content
-                    .glassEffect(.regular, in: .rect(cornerRadius: Self.cornerRadius))
-            }
-        }
-        .overlay(
-            RoundedRectangle(cornerRadius: Self.cornerRadius)
-                .stroke(Color.primary.opacity(0.1), lineWidth: 0.5)
-        )
-    }
-}
-
 private extension View {
     func accountChartSectionGlass() -> some View {
-        modifier(AccountChartSectionGlassModifier())
+        glassSectionCard(cornerRadius: 24)
     }
 }
 

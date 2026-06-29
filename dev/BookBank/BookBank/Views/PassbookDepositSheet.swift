@@ -102,7 +102,7 @@ struct PassbookDepositSheet<ListContent: View>: View {
             } action: { _, offset in
                 listScrollOffset = offset
             }
-            .simultaneousGesture(detent == .expanded && isListAtTop ? collapseDragGesture : nil)
+            .simultaneousGesture(detent == .expanded ? listCollapseDragGesture : nil)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background {
@@ -192,7 +192,7 @@ struct PassbookDepositSheet<ListContent: View>: View {
             }
     }
 
-    /// 展開時：下方向ドラッグで折りたたみ（リスト先頭のときのみ ScrollView 側で有効）
+    /// 展開時：下方向ドラッグで折りたたみ（ヘッダー／ハンドル用。スクロール位置に依存しない）
     private var collapseDragGesture: some Gesture {
         DragGesture(minimumDistance: 8, coordinateSpace: .global)
             .onChanged { value in
@@ -208,6 +208,30 @@ struct PassbookDepositSheet<ListContent: View>: View {
             }
             .onEnded { value in
                 guard value.translation.height > 0 else { return }
+                snapSheet(velocity: value.predictedEndTranslation.height - value.translation.height)
+                releaseRowNavigationAfterSheetDrag()
+            }
+    }
+
+    /// 展開時：リスト ScrollView 用の折りたたみジェスチャー。
+    /// ジェスチャーは常時アタッチしたまま「リスト先頭で下方向のとき」だけ作用させることで、
+    /// スクロール中のジェスチャー再生成によるカクつき・取りこぼしを防ぐ。
+    private var listCollapseDragGesture: some Gesture {
+        DragGesture(minimumDistance: 8, coordinateSpace: .global)
+            .onChanged { value in
+                guard isListAtTop, value.translation.height > 0 else { return }
+                if value.translation.height > 4 {
+                    locksRowNavigation = true
+                }
+                var transaction = Transaction()
+                transaction.animation = nil
+                withTransaction(transaction) {
+                    dragOffset = value.translation.height
+                }
+            }
+            .onEnded { value in
+                // 実際にシートを引き下げていたときのみスナップ（通常のスクロール終了では作用させない）
+                guard dragOffset > 0 else { return }
                 snapSheet(velocity: value.predictedEndTranslation.height - value.translation.height)
                 releaseRowNavigationAfterSheetDrag()
             }

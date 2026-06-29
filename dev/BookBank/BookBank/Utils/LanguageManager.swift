@@ -40,17 +40,76 @@ enum AppLanguage: Int, CaseIterable {
         }
     }
 
-    /// 端末 locale から最も近い言語を推定
-    static func inferred(from locale: Locale = .current) -> AppLanguage {
-        let identifier = locale.identifier.lowercased()
-        if identifier.hasPrefix("ja") { return .japanese }
-        if identifier.hasPrefix("ko") { return .korean }
-        if identifier.contains("hant") || identifier.hasPrefix("zh-tw") || identifier.hasPrefix("zh-hk") || identifier.hasPrefix("zh-mo") {
-            return .traditionalChinese
+    /// Web ページ（利用規約・プライバシーポリシー）の言語別パス接尾辞
+    /// 日本語は既定ページ（接尾辞なし）、それ以外は言語コードを付与する。
+    /// system の場合は端末設定から推定した言語に従う。
+    var webPagePathSuffix: String {
+        switch self {
+        case .system: return AppLanguage.inferred().webPagePathSuffix
+        case .japanese: return ""
+        case .english: return "/en"
+        case .korean: return "/ko"
+        case .simplifiedChinese: return "/zh-hans"
+        case .traditionalChinese: return "/zh-hant"
         }
-        if identifier.hasPrefix("zh") { return .simplifiedChinese }
-        if identifier.hasPrefix("en") { return .english }
-        return .japanese
+    }
+
+    /// 現在 UserDefaults に保存されている言語設定（未設定時は system）
+    static var current: AppLanguage {
+        if UserDefaults.standard.object(forKey: "appLanguage") != nil {
+            let savedValue = UserDefaults.standard.integer(forKey: "appLanguage")
+            return AppLanguage(rawValue: savedValue) ?? .system
+        }
+        return .system
+    }
+
+    /// 端末が実際に設定している優先言語の locale（アプリの対応言語に丸められる前の値）
+    static var preferredLocale: Locale {
+        if let first = Locale.preferredLanguages.first {
+            return Locale(identifier: first)
+        }
+        return .current
+    }
+
+    /// 端末 locale から最も近い言語を推定
+    /// - Note: 文字列前方一致ではなく言語コード／スクリプト／地域で判定する。
+    ///         未対応言語は英語にフォールバックする（国際的な既定として妥当なため）。
+    static func inferred(from locale: Locale = preferredLocale) -> AppLanguage {
+        switch locale.language.languageCode?.identifier.lowercased() {
+        case "ja": return .japanese
+        case "ko": return .korean
+        case "en": return .english
+        case "zh":
+            switch locale.language.script?.identifier.lowercased() {
+            case "hant": return .traditionalChinese
+            case "hans": return .simplifiedChinese
+            default:
+                // スクリプト未指定のときは地域で判定（台湾・香港・マカオは繁体字）
+                let region = locale.region?.identifier.uppercased()
+                if let region, ["TW", "HK", "MO"].contains(region) {
+                    return .traditionalChinese
+                }
+                return .simplifiedChinese
+            }
+        default:
+            return .english
+        }
+    }
+}
+
+/// 利用規約・プライバシーポリシーなど、言語別の Web ページ URL を提供する
+enum LegalLink {
+    private static let baseURL = "https://bookbank-share.vercel.app"
+
+    /// 現在の言語に対応した利用規約 URL
+    static var terms: URL { url(path: "terms") }
+
+    /// 現在の言語に対応したプライバシーポリシー URL
+    static var privacy: URL { url(path: "privacy") }
+
+    private static func url(path: String) -> URL {
+        let suffix = AppLanguage.current.webPagePathSuffix
+        return URL(string: "\(baseURL)/\(path)\(suffix)")!
     }
 }
 
@@ -100,7 +159,7 @@ enum AppCurrency: String, CaseIterable, Identifiable {
     }
 
     /// 端末 locale から初回デフォルト通貨を推定
-    static func inferred(from locale: Locale = .current) -> AppCurrency {
+    static func inferred(from locale: Locale = AppLanguage.preferredLocale) -> AppCurrency {
         switch AppLanguage.inferred(from: locale) {
         case .japanese, .system:
             return .jpy

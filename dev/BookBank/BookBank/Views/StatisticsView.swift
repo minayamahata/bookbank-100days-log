@@ -212,9 +212,7 @@ struct StatisticsView: View {
                             }
                         }
                         .padding()
-                        .background(Color.appCardBackground)
-                        .cornerRadius(12)
-                        .shadow(color: Color.black.opacity(0.05), radius: 8, x: 0, y: 2)
+                        .glassSectionCard(cornerRadius: 12)
                         .padding(.horizontal)
                         .padding(.top, 16)
                         .padding(.bottom, 80)
@@ -491,8 +489,7 @@ struct YearlyChartContent: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(14)
-        .background(Color.appCardBackground)
-        .cornerRadius(8)
+        .glassSectionCard(cornerRadius: 8)
     }
 
     /// 冊数統計カード
@@ -516,8 +513,7 @@ struct YearlyChartContent: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(14)
-        .background(Color.appCardBackground)
-        .cornerRadius(8)
+        .glassSectionCard(cornerRadius: 8)
     }
     
     /// 金額と冊数を上下2段で表示
@@ -674,9 +670,7 @@ struct YearlyChartContent: View {
             }
         }
         .padding()
-        .background(Color.appCardBackground)
-        .cornerRadius(12)
-        .shadow(color: Color.black.opacity(0.05), radius: 8, x: 0, y: 2)
+        .glassSectionCard(cornerRadius: 12)
     }
 }
 

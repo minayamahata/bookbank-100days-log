@@ -43,6 +43,22 @@ struct PassbookDetailView: View {
     @State private var locksRowNavigation = false
     @State private var selectedBook: UserBook?
 
+    /// 総合口座サマリーカードの背景画像インデックス（タップで順送り・端末に保存）
+    @AppStorage("overallSummaryBackgroundIndex") private var overallBackgroundIndex = 0
+
+    /// 総合口座サマリーカードで切り替えられる背景画像名
+    private let overallBackgroundNames = [
+        "bg_passbook", "bg_passbook2", "bg_passbook3", "bg_passbook4", "bg_passbook5",
+        "bg_passbook6", "bg_passbook7", "bg_passbook8", "bg_passbook9"
+    ]
+
+    /// 現在選択中の背景画像名
+    private var currentOverallBackgroundName: String {
+        let count = overallBackgroundNames.count
+        let index = ((overallBackgroundIndex % count) + count) % count
+        return overallBackgroundNames[index]
+    }
+
     private let sheetGap: CGFloat = 20
     private let navBarHeight: CGFloat = 44
 
@@ -425,6 +441,19 @@ struct PassbookDetailView: View {
                         .font(.custom("Fearlessly Authentic", size: 16))
                         .foregroundColor(.black)
                 }
+
+                Button {
+                    overallBackgroundIndex = (overallBackgroundIndex + 1) % overallBackgroundNames.count
+                } label: {
+                    Image("icn-change")
+                        .renderingMode(.template)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 16, height: 16)
+                        .foregroundColor(.black)
+                }
+                .buttonStyle(.plain)
+                .padding(.leading, 12)
             }
             .padding(.horizontal, 20)
             .padding(.vertical, 14)
@@ -443,7 +472,7 @@ struct PassbookDetailView: View {
 
                     Text(todayString)
                         .font(.footnote)
-                        .foregroundColor(Color(white: 0.75))
+                        .foregroundColor(.white)
                 }
 
                 HStack(alignment: .lastTextBaseline) {
@@ -466,7 +495,7 @@ struct PassbookDetailView: View {
             .padding(.bottom, 20)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background {
-                Image("bg_passbook")
+                Image(currentOverallBackgroundName)
                     .resizable()
                     .aspectRatio(contentMode: .fill)
             }
@@ -480,8 +509,6 @@ struct PassbookDetailView: View {
                 topTrailingRadius: 3
             )
         )
-        .shadow(color: Color.white.opacity(0.14), radius: 24, x: 0, y: 0)
-        .shadow(color: Color.white.opacity(0.07), radius: 48, x: 0, y: 6)
         .padding(.horizontal, 16)
     }
 

@@ -66,6 +66,12 @@ struct AddBookView: View {
     
     /// 価格（任意）
     @State private var priceText: String = ""
+
+    /// 登録日（デフォルトは今日）
+    @State private var registeredAt: Date = Date()
+
+    /// 登録日ピッカーの表示フラグ
+    @State private var showDatePicker = false
     
     /// 選択された表紙画像
     @State private var selectedImage: UIImage?
@@ -223,6 +229,37 @@ struct AddBookView: View {
                     }
                 }
 
+                // 登録日（デフォルトは今日）
+                Section {
+                    Button {
+                        withAnimation {
+                            showDatePicker.toggle()
+                        }
+                    } label: {
+                        HStack {
+                            Text("book.registration_date")
+                                .foregroundColor(.primary)
+                            Spacer()
+                            Text(formatDate(registeredAt))
+                                .foregroundColor(themeColor)
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+
+                    if showDatePicker {
+                        DatePicker(
+                            "",
+                            selection: $registeredAt,
+                            in: ...Date(),
+                            displayedComponents: .date
+                        )
+                        .datePickerStyle(.graphical)
+                        .tint(themeColor)
+                        .labelsHidden()
+                    }
+                }
+
                 // 口座選択（allowPassbookChangeがtrueの場合のみ表示）
                 if allowPassbookChange {
                     Section {
@@ -338,6 +375,11 @@ struct AddBookView: View {
         return resized.jpegData(compressionQuality: 0.8)
     }
     
+    /// 日付を言語に応じた表記でフォーマット
+    private func formatDate(_ date: Date) -> String {
+        AppDateFormat.display(date)
+    }
+
     /// 本を保存する
     private func saveBook() {
         guard let price = currencyManager.displayCurrency.minorUnits(fromInput: priceText),
@@ -362,6 +404,7 @@ struct AddBookView: View {
             passbook: targetPassbook,
             currencyCode: currencyManager.displayCurrency.code
         )
+        newBook.registeredAt = registeredAt
         
         context.insert(newBook)
         

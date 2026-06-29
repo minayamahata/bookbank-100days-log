@@ -117,6 +117,20 @@ struct BookshelfView: View {
         passbook ?? customPassbooks.first
     }
 
+    /// フィルター/プロンプトの基準色
+    /// 総合口座のライトモードは白背景なので primary、それ以外（テーマ色背景・ダーク）は白
+    private var bookshelfControlColor: Color {
+        if isOverallAccount && colorScheme == .light { return .primary }
+        return .white
+    }
+
+    /// 丸アクションボタン（カレンダー切替）のグラス tint
+    /// 通帳ビューの丸アクションボタンと同じ判定（総合=シルバー／個別=テーマ色）
+    private var actionButtonGlassTint: Color {
+        if isOverallAccount { return PassbookColor.silverThemeColor.opacity(0.35) }
+        return colorScheme == .dark && isBlackTheme ? .white : themeColor
+    }
+
     /// カレンダー右上の＋ボタンの塗り色（通帳シート展開時の＋ボタンと同じ判定）
     private var calendarAddTint: Color {
         if colorScheme == .dark && isBlackTheme { return .white }
@@ -301,6 +315,7 @@ struct BookshelfView: View {
             }
 
             // カレンダービューへ切り替え（グリッド表示時のみ表示）
+            // 総合口座の通帳ビューの丸アクションボタンと同じグラススタイルにする
             Button(action: {
                 showCalendarView = true
             }) {
@@ -309,12 +324,9 @@ struct BookshelfView: View {
                     .resizable()
                     .scaledToFit()
                     .frame(width: 20, height: 20)
-                    .foregroundColor(.white.opacity(0.7))
-                    .frame(width: 36, height: 36)
-                    .background(
-                        Circle()
-                            .fill(Color.white.opacity(0.12))
-                    )
+                    .foregroundColor(.primary)
+                    .frame(width: 40, height: 40)
+                    .passbookCircleGlass(tint: actionButtonGlassTint)
                     .contentShape(Circle())
             }
             .buttonStyle(.plain)
@@ -345,17 +357,17 @@ struct BookshelfView: View {
                         .padding(.vertical, 2)
                         .background(
                             Capsule()
-                                .fill(Color.white.opacity(0.2))
+                                .fill(bookshelfControlColor.opacity(0.2))
                         )
                 }
             }
             .fixedSize(horizontal: true, vertical: false)
-            .foregroundColor(isSelected ? .white : .white.opacity(0.5))
+            .foregroundColor(isSelected ? bookshelfControlColor : bookshelfControlColor.opacity(0.5))
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
             .background(
                 Capsule()
-                    .strokeBorder(isSelected ? Color.white : Color.white.opacity(0.3), lineWidth: 1)
+                    .strokeBorder(isSelected ? bookshelfControlColor : bookshelfControlColor.opacity(0.3), lineWidth: 1)
             )
         }
         .buttonStyle(.plain)
@@ -369,7 +381,7 @@ struct BookshelfView: View {
                 VStack(spacing: 8) {
                     Text("bookshelf.register_prompt")
                         .font(.body)
-                        .foregroundColor(.white)
+                        .foregroundColor(bookshelfControlColor)
                 }
                 .frame(maxWidth: .infinity)
                 .padding()

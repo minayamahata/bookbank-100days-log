@@ -90,12 +90,12 @@ struct AppMenuView: View {
                         
                         VStack(spacing: 0) {
                             menuLinkRow(titleKey: "service.terms") {
-                                openInSafari("https://bookbank-share.vercel.app/terms")
+                                openInSafari(LegalLink.terms.absoluteString)
                             }
                             Divider().padding(.leading, 20)
                             
                             menuLinkRow(titleKey: "service.privacy") {
-                                openInSafari("https://bookbank-share.vercel.app/privacy")
+                                openInSafari(LegalLink.privacy.absoluteString)
                             }
                             Divider().padding(.leading, 20)
                             

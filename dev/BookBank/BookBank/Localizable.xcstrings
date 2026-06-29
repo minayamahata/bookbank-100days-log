@@ -3205,7 +3205,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "カレンダー"
+            "value" : "月別ログ"
           }
         },
         "ko" : {
@@ -6371,7 +6371,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "カレンダー"
+            "value" : "マンスリーログ"
           }
         },
         "ko" : {
