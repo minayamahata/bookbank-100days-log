@@ -404,13 +404,11 @@ private struct ExchangeRateResponse: Decodable {
 
 enum CurrencyMigration {
     private static let didMigrateV1Key = "didMigrateCurrencyCodeV1"
-    private static let didMigrateV2Key = "didMigrateCurrencyCodeV2"
 
-    /// 通貨コード未設定の既存書籍に JPY を付与し、誤保存された通貨コードを修正
+    /// 通貨コード未設定の既存書籍に JPY を付与する
     @MainActor
     static func migrateIfNeeded(context: ModelContext) {
         migrateV1IfNeeded(context: context)
-        migrateV2IfNeeded(context: context)
     }
 
     /// 通貨コード未設定の既存書籍に JPY を付与
@@ -434,28 +432,5 @@ enum CurrencyMigration {
         }
 
         UserDefaults.standard.set(true, forKey: didMigrateV1Key)
-    }
-
-    /// 手動・API 登録の価格は日本円建て。表示通貨が誤って保存された書籍を JPY に戻す
-    @MainActor
-    private static func migrateV2IfNeeded(context: ModelContext) {
-        guard !UserDefaults.standard.bool(forKey: didMigrateV2Key) else { return }
-
-        let descriptor = FetchDescriptor<UserBook>()
-        guard let books = try? context.fetch(descriptor) else { return }
-
-        var changed = false
-        for book in books {
-            guard book.currencyCode != AppCurrency.jpy.code else { continue }
-            guard book.source == .api || book.source == .manual else { continue }
-            book.currencyCode = AppCurrency.jpy.code
-            changed = true
-        }
-
-        if changed {
-            try? context.save()
-        }
-
-        UserDefaults.standard.set(true, forKey: didMigrateV2Key)
     }
 }
