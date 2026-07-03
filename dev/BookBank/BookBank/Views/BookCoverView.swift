@@ -84,18 +84,12 @@ struct BookCoverView: View {
             .fill(Color.gray.opacity(0.2))
             .frame(width: width, height: width * 1.5)
             .overlay {
-                VStack(spacing: 4) {
-                    Image(systemName: "book.closed")
-                        .font(.title2)
-                        .foregroundColor(.gray)
-                    
-                    Text(book.title)
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                        .lineLimit(2)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 4)
-                }
+                Text(book.title)
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 4)
             }
     }
 }

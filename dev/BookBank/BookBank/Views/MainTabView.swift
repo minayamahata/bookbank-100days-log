@@ -414,22 +414,59 @@ struct MainTabView: View {
     
     // MARK: - Subviews
     
-    /// 口座切り替えボタン
+    /// 口座切り替えボタン（Menu で総合口座＋登録口座を一覧表示）
     private var passbookSwitcherButton: some View {
-        Button(action: {
-            selectedTab = 0
-        }) {
-            Group {
+        Menu {
+            Button {
+                switchToOverall()
+            } label: {
                 if isOverallMode {
-                    Text("account.overall")
+                    Label("account.overall", systemImage: "checkmark")
                 } else {
-                    Text(passbookSwitcherTitle)
+                    Text("account.overall")
                 }
             }
+
+            ForEach(customPassbooks) { passbook in
+                Button {
+                    switchToPassbook(passbook)
+                } label: {
+                    if !isOverallMode,
+                       currentPassbook?.persistentModelID == passbook.persistentModelID {
+                        Label(passbook.name, systemImage: "checkmark")
+                    } else {
+                        Text(passbook.name)
+                    }
+                }
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Group {
+                    if isOverallMode {
+                        Text("account.overall")
+                    } else {
+                        Text(passbookSwitcherTitle)
+                    }
+                }
                 .font(.caption)
-                .foregroundColor(.primary)
                 .lineLimit(1)
+
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 9, weight: .semibold))
+            }
+            .foregroundColor(.primary)
         }
+    }
+
+    /// 総合口座へ切り替え
+    private func switchToOverall() {
+        isOverallMode = true
+    }
+
+    /// 指定のカスタム口座へ切り替え
+    private func switchToPassbook(_ passbook: Passbook) {
+        isOverallMode = false
+        selectedPassbook = passbook
     }
 
     /// 英語は口座名のみ、他言語は「◯◯口座」形式
