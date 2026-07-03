@@ -109,6 +109,8 @@ struct RakutenBook: Codable, Identifiable {
     let size: String?
     let seriesName: String?
     let booksGenreId: String?
+    /// 価格の通貨（楽天は JPY、NAVER は KRW）。既定は JPY。
+    var sourceCurrencyCode: String = AppCurrency.jpy.code
     
     /// 商品説明（長い）
     var itemDescription: String? {
@@ -172,7 +174,8 @@ struct RakutenBook: Codable, Identifiable {
             largeImageUrl: largeImageUrl,
             size: newSize ?? size,
             seriesName: seriesName,
-            booksGenreId: booksGenreId
+            booksGenreId: booksGenreId,
+            sourceCurrencyCode: sourceCurrencyCode
         )
     }
 }
@@ -227,7 +230,7 @@ extension RakutenBook {
             pageCount: extractPageCount(),
             source: .api,
             passbook: passbook,
-            currencyCode: AppCurrency.jpy.code
+            currencyCode: AppCurrency(code: sourceCurrencyCode)?.code ?? AppCurrency.jpy.code
         )
     }
     

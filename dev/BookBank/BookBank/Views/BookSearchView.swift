@@ -112,6 +112,9 @@ struct BookSearchView: View {
     
     /// トーストに表示する金額
     @State private var toastAmount: Int = 0
+
+    /// トーストに表示する金額の通貨（登録元の書籍の通貨）
+    @State private var toastCurrency: AppCurrency = .jpy
     
     /// 未登録のみ表示フラグ
     @State private var showUnregisteredOnly: Bool = false
@@ -140,8 +143,16 @@ struct BookSearchView: View {
     /// 登録済みISBNのキャッシュ（高速化用）
     @State private var registeredISBNs: Set<String> = []
     
-    /// 楽天Books APIサービス
-    private let rakutenService = RakutenBooksService()
+    /// 書籍検索サービス（設定に応じて楽天／NAVERを切替）
+    private let searchService = BookSearchService()
+
+    /// 現在の検索データベース設定
+    @AppStorage(SearchDatabase.storageKey) private var searchDatabaseRaw = SearchDatabase.auto.rawValue
+
+    /// 実際に検索に使われるプロバイダ
+    private var activeSearchProvider: SearchProvider {
+        (SearchDatabase(rawValue: searchDatabaseRaw) ?? .auto).resolvedProvider
+    }
 
     /// 1ページあたりの取得件数
     private let pageSize = 30
@@ -289,7 +300,7 @@ struct BookSearchView: View {
     private var toastMessage: String {
         let formattedAmount = MoneyDisplay.formattedPrice(
             amount: toastAmount,
-            sourceCurrency: .jpy,
+            sourceCurrency: toastCurrency,
             displayCurrency: currencyManager.displayCurrency,
             exchangeRates: exchangeRates,
             locale: languageManager.resolvedLocale
@@ -346,13 +357,17 @@ struct BookSearchView: View {
         return nil
     }
 
-    /// 楽天Books API クレジット表記
+    /// 書籍検索API クレジット表記（検索データベースに応じて出典を切替）
     private var apiCreditView: some View {
-        Link(destination: URL(string: "https://webservice.rakuten.co.jp/")!) {
+        let isNaver = activeSearchProvider == .naver
+        let creditURL = isNaver
+            ? URL(string: "https://developers.naver.com/products/service-api/search/search.md")!
+            : URL(string: "https://webservice.rakuten.co.jp/")!
+        return Link(destination: creditURL) {
             HStack(spacing: 4) {
                 Image(systemName: "info.circle")
                     .font(.caption2)
-                Text("book.search.api_credit")
+                Text(isNaver ? "book.search.api_credit_naver" : "book.search.api_credit")
                     .font(.caption2)
             }
             .foregroundColor(.primary)
@@ -458,9 +473,12 @@ struct BookSearchView: View {
                                     applyFilterChange()
                                 }
 
-                                formatFilterCapsule(.bunko)
-                                formatFilterCapsule(.tankobon)
-                                formatFilterCapsule(.comic)
+                                // NAVERは発行形態（文庫・単行本・コミック）を返さないため非表示
+                                if activeSearchProvider != .naver {
+                                    formatFilterCapsule(.bunko)
+                                    formatFilterCapsule(.tankobon)
+                                    formatFilterCapsule(.comic)
+                                }
                             }
                             .padding(.vertical, 1)
                         }
@@ -730,8 +748,8 @@ struct BookSearchView: View {
         
         Task {
             do {
-                // 楽天Books APIで検索（タイトル・著者名両方）
-                let results = try await rakutenService.search(searchText, page: 1)
+                // 設定に応じた検索データベースで検索（タイトル・著者名両方）
+                let results = try await searchService.search(searchText, page: 1)
                 searchResults = results
                 canLoadMore = results.count >= pageSize
                 updateFilteredResults()
@@ -764,7 +782,7 @@ struct BookSearchView: View {
         
         Task {
             do {
-                let results = try await rakutenService.search(searchText, page: currentPage)
+                let results = try await searchService.search(searchText, page: currentPage)
                 
                 // 重複を除外して追加
                 let existingISBNs = Set(searchResults.map { $0.isbn })
@@ -819,6 +837,7 @@ struct BookSearchView: View {
             
             // トースト通知を表示（画面は閉じない）
             toastAmount = result.itemPrice
+            toastCurrency = AppCurrency(code: result.sourceCurrencyCode) ?? .jpy
             withAnimation {
                 showToast = true
             }
@@ -865,8 +884,8 @@ struct BookSearchView: View {
         
         Task {
             do {
-                // 楽天Books APIでISBN検索
-                let results = try await rakutenService.searchByISBN(isbn)
+                // 設定に応じた検索データベースでISBN検索
+                let results = try await searchService.searchByISBN(isbn)
                 
                 if results.isEmpty {
                     // 本が見つからない場合
@@ -1012,8 +1031,12 @@ struct BookSearchResultRow: View {
             
             Spacer()
             
-            // 価格（楽天 API は JPY）
-            FormattedPriceText(amount: result.itemPrice, sourceCurrency: .jpy, font: .subheadline)
+            // 価格（楽天は JPY、NAVER は KRW）
+            FormattedPriceText(
+                amount: result.itemPrice,
+                sourceCurrency: AppCurrency(code: result.sourceCurrencyCode) ?? .jpy,
+                font: .subheadline
+            )
                 .foregroundColor(isRegistered ? .secondary : themeColor)
         }
         .opacity(isRegistered ? 0.6 : 1.0)

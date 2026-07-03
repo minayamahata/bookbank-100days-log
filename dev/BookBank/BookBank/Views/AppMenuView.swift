@@ -14,7 +14,13 @@ struct AppMenuView: View {
     @Environment(CurrencyManager.self) private var currencyManager
     
     private var unlimitedManager: UnlimitedManager { UnlimitedManager.shared }
-    
+
+    @AppStorage(SearchDatabase.storageKey) private var searchDatabaseRaw = SearchDatabase.auto.rawValue
+
+    private var selectedSearchDatabase: SearchDatabase {
+        SearchDatabase(rawValue: searchDatabaseRaw) ?? .auto
+    }
+
     var onDismiss: (() -> Void)?
     
     @State private var showUnlimitedPaywall = false
@@ -66,6 +72,18 @@ struct AppMenuView: View {
                                 settingsNavigationRow(
                                     title: "settings.currency",
                                     value: Text(currencyManager.displayCurrency.code)
+                                )
+                            }
+                            .buttonStyle(.plain)
+
+                            Divider().padding(.leading, 20)
+
+                            NavigationLink {
+                                SearchDatabaseSettingsView()
+                            } label: {
+                                settingsNavigationRow(
+                                    title: "settings.search_database",
+                                    value: Text(LocalizedStringKey(selectedSearchDatabase.nameKey))
                                 )
                             }
                             .buttonStyle(.plain)

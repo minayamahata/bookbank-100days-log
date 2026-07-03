@@ -63,6 +63,12 @@ enum AppLanguage: Int, CaseIterable {
         return .system
     }
 
+    /// 実効言語（system の場合は端末設定から推定した言語に丸める）
+    static var effective: AppLanguage {
+        let language = current
+        return language == .system ? inferred() : language
+    }
+
     /// 端末が実際に設定している優先言語の locale（アプリの対応言語に丸められる前の値）
     static var preferredLocale: Locale {
         if let first = Locale.preferredLanguages.first {
