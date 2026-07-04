@@ -142,6 +142,13 @@ struct BookshelfView: View {
         if colorScheme == .dark && calendarAddTint.luminance > 0.5 { return .black }
         return .white
     }
+
+    /// カレンダー切替ボタン（右上）の記号色
+    /// グラス tint が白（ダークモード×白＝黒テーマの口座）のときは、白背景に埋もれないよう黒にする
+    private var calendarToggleIconColor: Color {
+        if !isOverallAccount && colorScheme == .dark && isBlackTheme { return .black }
+        return .white
+    }
     
     /// この口座の全書籍数
     private var allBooksCount: Int {
@@ -324,7 +331,7 @@ struct BookshelfView: View {
                     .resizable()
                     .scaledToFit()
                     .frame(width: 20, height: 20)
-                    .foregroundColor(.primary)
+                    .foregroundColor(calendarToggleIconColor)
                     .frame(width: 40, height: 40)
                     .passbookCircleGlass(tint: actionButtonGlassTint)
                     .contentShape(Circle())
