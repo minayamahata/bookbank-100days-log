@@ -31,9 +31,9 @@ class RakutenBooksService {
     ///   - keyword: 検索キーワード（タイトルまたは著者名）
     ///   - page: ページ番号（1から開始）
     /// - Returns: 検索結果の書籍リスト
-    func search(_ keyword: String, page: Int = 1) async throws -> [RakutenBook] {
+    func search(_ keyword: String, page: Int = 1) async throws -> BookSearchPage {
         guard !keyword.trimmingCharacters(in: .whitespaces).isEmpty else {
-            return []
+            return BookSearchPage(books: [], totalCount: 0, hasMorePages: false)
         }
         
         var components = URLComponents(string: proxyURL)
@@ -85,7 +85,7 @@ class RakutenBooksService {
         #if DEBUG
         print("🔍 ISBN検索: \(cleanISBN)")
         #endif
-        return try await performRequest(url: url, filterKeyword: nil)
+        return try await performRequest(url: url, filterKeyword: nil).books
     }
     
     // MARK: - Private Methods
@@ -94,21 +94,14 @@ class RakutenBooksService {
     /// - Parameters:
     ///   - url: リクエストURL
     ///   - filterKeyword: タイトルまたは著者名に含まれるべきキーワード（nilの場合はフィルタリングしない）
-    private func performRequest(url: URL, filterKeyword: String?) async throws -> [RakutenBook] {
+    private func performRequest(url: URL, filterKeyword: String?) async throws -> BookSearchPage {
         #if DEBUG
         print("📡 API Request: \(url.absoluteString)")
         #endif
         
-        let (data, response) = try await URLSession.shared.data(from: url)
-        
-        // HTTPステータスコードの確認
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw RakutenBooksError.invalidResponse
-        }
-        
-        guard (200...299).contains(httpResponse.statusCode) else {
-            throw RakutenBooksError.httpError(statusCode: httpResponse.statusCode)
-        }
+        // 楽天APIは約1リクエスト/秒のレート制限があり、発行形態補完などと重なると
+        // 429 が返ることがある。一時的失敗はバックオフで再試行してページングを止めない。
+        let data = try await fetchDataWithRetry(from: url)
         
         #if DEBUG
         if let jsonString = String(data: data, encoding: .utf8) {
@@ -184,12 +177,48 @@ class RakutenBooksService {
             filteredBooks = books
         }
 
-        // 総合検索APIは size を返さないため、書籍検索APIでISBNごとに補完
-        return await enrichWithFormat(filteredBooks)
+        // 総合検索APIは size を返さない。発行形態はここで待たず、
+        // 呼び出し側が enrichWithFormat で後追い取得する（初期表示を速くするため）。
+        // 次ページの有無は、絞り込み後の件数ではなくAPIのページ情報（page < pageCount）で判定する。
+        return BookSearchPage(
+            books: filteredBooks,
+            totalCount: searchResponse.count,
+            hasMorePages: searchResponse.page < searchResponse.pageCount
+        )
+    }
+
+    /// レート制限（429）やサーバー側の一時的エラー（5xx）を指数バックオフで再試行しつつ取得する。
+    /// - Note: 成功時は本文データを返し、恒久的な失敗はそのまま throw する。
+    private func fetchDataWithRetry(from url: URL, maxAttempts: Int = 4) async throws -> Data {
+        var lastStatusCode = 0
+        for attempt in 0..<maxAttempts {
+            let (data, response) = try await URLSession.shared.data(from: url)
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw RakutenBooksError.invalidResponse
+            }
+
+            if (200...299).contains(httpResponse.statusCode) {
+                return data
+            }
+
+            lastStatusCode = httpResponse.statusCode
+            let isTransient = httpResponse.statusCode == 429 || (500...599).contains(httpResponse.statusCode)
+            guard isTransient, attempt < maxAttempts - 1 else {
+                throw RakutenBooksError.httpError(statusCode: httpResponse.statusCode)
+            }
+
+            // 楽天は約1req/秒のため、0.8秒から段階的に待って再試行する
+            let delayNanos = UInt64(800_000_000) * UInt64(attempt + 1)
+            #if DEBUG
+            print("⏳ レート制限のため再試行 (attempt \(attempt + 1), status \(httpResponse.statusCode))")
+            #endif
+            try? await Task.sleep(nanoseconds: delayNanos)
+        }
+        throw RakutenBooksError.httpError(statusCode: lastStatusCode)
     }
 
     /// 書籍検索APIで発行形態（文庫・単行本・コミック等）を補完
-    private func enrichWithFormat(_ books: [RakutenBook]) async -> [RakutenBook] {
+    func enrichWithFormat(_ books: [RakutenBook]) async -> [RakutenBook] {
         let indicesNeedingFormat = books.enumerated().compactMap { index, book -> Int? in
             if let size = book.size, !size.isEmpty { return nil }
             guard !book.isbn.isEmpty else { return nil }
@@ -199,9 +228,15 @@ class RakutenBooksService {
         guard !indicesNeedingFormat.isEmpty else { return books }
 
         var enriched = books
-        let maxConcurrent = 8
+        // 楽天は約1req/秒のレート制限があるため、同時実行数を抑えて
+        // 検索（ページング）リクエストを 429 で妨げないようにする。
+        let maxConcurrent = 4
 
         for chunkStart in stride(from: 0, to: indicesNeedingFormat.count, by: maxConcurrent) {
+            // 先頭チャンク以外は少し間隔をあけてバーストを避ける
+            if chunkStart > 0 {
+                try? await Task.sleep(nanoseconds: 300_000_000)
+            }
             let chunk = Array(indicesNeedingFormat[chunkStart..<min(chunkStart + maxConcurrent, indicesNeedingFormat.count)])
             await withTaskGroup(of: (Int, String?).self) { group in
                 for index in chunk {

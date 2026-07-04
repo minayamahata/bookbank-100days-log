@@ -9,10 +9,10 @@ import SwiftUI
 
 /// 検索データベース設定画面
 struct SearchDatabaseSettingsView: View {
-    @AppStorage(SearchDatabase.storageKey) private var searchDatabaseRaw = SearchDatabase.auto.rawValue
+    @AppStorage(SearchDatabase.storageKey) private var searchDatabaseRaw = SearchDatabase.deviceDefault.rawValue
 
     private var selected: SearchDatabase {
-        SearchDatabase(rawValue: searchDatabaseRaw) ?? .auto
+        SearchDatabase(rawValue: searchDatabaseRaw) ?? .deviceDefault
     }
 
     var body: some View {

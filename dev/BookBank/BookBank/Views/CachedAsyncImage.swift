@@ -11,15 +11,18 @@ struct CachedAsyncImage: View {
     let url: URL?
     let width: CGFloat
     let height: CGFloat
+    /// 画像の表示モード（既定は .fill。検索結果など全体を収めたい場合は .fit を渡す）
+    var contentMode: ContentMode = .fill
 
     @State private var loadedImage: Image?
     @State private var isLoading: Bool
     @State private var loadFailed: Bool
 
-    init(url: URL?, width: CGFloat, height: CGFloat) {
+    init(url: URL?, width: CGFloat, height: CGFloat, contentMode: ContentMode = .fill) {
         self.url = url
         self.width = width
         self.height = height
+        self.contentMode = contentMode
 
         if let url, let cached = BookCoverImageCache.shared.image(for: url) {
             _loadedImage = State(initialValue: Image(uiImage: cached))
@@ -41,7 +44,7 @@ struct CachedAsyncImage: View {
             if let loadedImage {
                 loadedImage
                     .resizable()
-                    .aspectRatio(contentMode: .fill)
+                    .aspectRatio(contentMode: contentMode)
                     .frame(width: width, height: height)
                     .clipped()
             } else if loadFailed {

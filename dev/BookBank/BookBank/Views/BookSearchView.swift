@@ -10,11 +10,14 @@ import SwiftData
 
 /// 検索結果の並べ替えオプション
 enum SortOption: CaseIterable {
+    /// 関連度順（API の取得順を維持。「もっと読み込む」で次のページが末尾に追加される）
+    case relevance
     case newestFirst
     case oldestFirst
 
     var titleKey: LocalizedStringKey {
         switch self {
+        case .relevance: return "book.sort.relevance"
         case .newestFirst: return "book.sort.newest"
         case .oldestFirst: return "book.sort.oldest"
         }
@@ -82,6 +85,9 @@ struct BookSearchView: View {
     
     /// 検索結果
     @State private var searchResults: [RakutenBook] = []
+
+    /// 検索にヒットした総件数（APIが返す推定値。取得できない場合は nil）
+    @State private var totalResultCount: Int?
     
     /// 検索中フラグ
     @State private var isSearching: Bool = false
@@ -115,6 +121,12 @@ struct BookSearchView: View {
 
     /// トーストに表示する金額の通貨（登録元の書籍の通貨）
     @State private var toastCurrency: AppCurrency = .jpy
+
+    /// 金額手入力の対象書籍（価格情報がない検索結果を登録するとき）
+    @State private var priceInputBook: RakutenBook?
+
+    /// 金額手入力欄の入力値（表示通貨のメジャー単位）
+    @State private var priceInputText: String = ""
     
     /// 未登録のみ表示フラグ
     @State private var showUnregisteredOnly: Bool = false
@@ -147,15 +159,24 @@ struct BookSearchView: View {
     private let searchService = BookSearchService()
 
     /// 現在の検索データベース設定
-    @AppStorage(SearchDatabase.storageKey) private var searchDatabaseRaw = SearchDatabase.auto.rawValue
+    @AppStorage(SearchDatabase.storageKey) private var searchDatabaseRaw = SearchDatabase.deviceDefault.rawValue
 
     /// 実際に検索に使われるプロバイダ
     private var activeSearchProvider: SearchProvider {
-        (SearchDatabase(rawValue: searchDatabaseRaw) ?? .auto).resolvedProvider
+        (SearchDatabase(rawValue: searchDatabaseRaw) ?? .deviceDefault).resolvedProvider
     }
 
-    /// 1ページあたりの取得件数
-    private let pageSize = 30
+    /// 1ページあたりの取得件数（検索プロバイダごとの1リクエスト取得件数に合わせる）
+    /// - 楽天: hits=30/ページ
+    /// - Google Books: 1リクエスト最大20件（`GoogleBooksService.pageSize`）
+    /// - NAVER: display=20固定・ページング不可（20<30 で「もっと読み込む」を出さない）
+    private var pageSize: Int {
+        switch activeSearchProvider {
+        case .rakuten: return 30
+        case .google: return GoogleBooksService.pageSize
+        case .naver: return 30
+        }
+    }
 
     /// フィルター自動読み込みの最大ページ数
     private let maxAutoLoadPages = 10
@@ -187,36 +208,47 @@ struct BookSearchView: View {
         return filtered
     }
 
-    /// フィルタリング・ソート済みの検索結果を更新
-    private func updateFilteredResults() {
-        var results = applyActiveFilters(to: searchResults)
-
+    /// 選択中の並べ替えオプションで並べ替える
+    /// - Note: 発売日は比較のたびに解析すると重いため、各要素で一度だけ解析してから並べ替える。
+    private func sortedByCurrentOption(_ results: [RakutenBook]) -> [RakutenBook] {
         switch selectedSortOption {
+        case .relevance:
+            // API の取得順（関連度順）をそのまま維持
+            return results
         case .newestFirst:
-            results.sort { a, b in
-                let dateA = parseSalesDate(a.salesDate)
-                let dateB = parseSalesDate(b.salesDate)
-                switch (dateA, dateB) {
-                case let (da?, db?): return da > db
-                case (_?, nil): return true
-                case (nil, _?): return false
-                case (nil, nil): return false
-                }
-            }
+            return sortedByDate(results, ascending: false)
         case .oldestFirst:
-            results.sort { a, b in
-                let dateA = parseSalesDate(a.salesDate)
-                let dateB = parseSalesDate(b.salesDate)
-                switch (dateA, dateB) {
-                case let (da?, db?): return da < db
+            return sortedByDate(results, ascending: true)
+        }
+    }
+
+    /// 発売日で並べ替える（日付なしは末尾）。日付解析は要素ごとに1回だけ行う。
+    private func sortedByDate(_ results: [RakutenBook], ascending: Bool) -> [RakutenBook] {
+        return results
+            .map { (book: $0, date: SalesDateParser.date(from: $0.salesDate)) }
+            .sorted { lhs, rhs in
+                switch (lhs.date, rhs.date) {
+                case let (a?, b?): return ascending ? a < b : a > b
                 case (_?, nil): return true
                 case (nil, _?): return false
                 case (nil, nil): return false
                 }
             }
-        }
+            .map(\.book)
+    }
 
-        filteredResults = results
+    /// フィルタリング・ソート済みの検索結果を全件再構築する
+    /// （初回検索・並べ替え変更・フィルター変更など、明示的な操作時に使用）
+    private func updateFilteredResults() {
+        filteredResults = sortedByCurrentOption(applyActiveFilters(to: searchResults))
+    }
+
+    /// 追加取得したページを（ページ内で並べ替えたうえで）現在の表示の末尾に追加する
+    /// 全体を再ソートしないため、「もっと読み込む」で次のページが常に下に並ぶ。
+    private func appendPageToFilteredResults(_ newResults: [RakutenBook]) {
+        let page = sortedByCurrentOption(applyActiveFilters(to: newResults))
+        let existingIDs = Set(filteredResults.map(\.id))
+        filteredResults.append(contentsOf: page.filter { !existingIDs.contains($0.id) })
     }
 
     /// クライアント側フィルターが有効か
@@ -308,70 +340,46 @@ struct BookSearchView: View {
         return L10n.format("book.search.deposit_toast", locale: languageManager.resolvedLocale, formattedAmount)
     }
 
-    /// salesDateの文字列をDateに変換
-    private func parseSalesDate(_ dateString: String) -> Date? {
-        // 不要な文字を除去（「頃」「上旬」「中旬」「下旬」「以降」「予定」など）
-        let cleanedString = dateString
-            .replacingOccurrences(of: "頃", with: "")
-            .replacingOccurrences(of: "上旬", with: "")
-            .replacingOccurrences(of: "中旬", with: "")
-            .replacingOccurrences(of: "下旬", with: "")
-            .replacingOccurrences(of: "以降", with: "")
-            .replacingOccurrences(of: "予定", with: "")
-            .replacingOccurrences(of: "初旬", with: "")
-            .replacingOccurrences(of: "末", with: "")
-            .trimmingCharacters(in: .whitespaces)
-        
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "ja_JP")
-        formatter.timeZone = TimeZone(identifier: "Asia/Tokyo")
-
-        // "2012年09月07日" 形式
-        formatter.dateFormat = "yyyy年MM月dd日"
-        if let date = formatter.date(from: cleanedString) { return date }
-
-        // "2012年09月" 形式
-        formatter.dateFormat = "yyyy年MM月"
-        if let date = formatter.date(from: cleanedString) { return date }
-
-        // "2012年" 形式
-        formatter.dateFormat = "yyyy年"
-        if let date = formatter.date(from: cleanedString) { return date }
-        
-        // 数字だけ抽出してみる（例：「2012年09月07日発売」→「20120907」）
-        let numbers = cleanedString.filter { $0.isNumber }
-        if numbers.count >= 8 {
-            // YYYYMMDD形式
-            formatter.dateFormat = "yyyyMMdd"
-            if let date = formatter.date(from: String(numbers.prefix(8))) { return date }
-        } else if numbers.count >= 6 {
-            // YYYYMM形式
-            formatter.dateFormat = "yyyyMM"
-            if let date = formatter.date(from: String(numbers.prefix(6))) { return date }
-        } else if numbers.count >= 4 {
-            // YYYY形式
-            formatter.dateFormat = "yyyy"
-            if let date = formatter.date(from: String(numbers.prefix(4))) { return date }
-        }
-
-        return nil
-    }
-
     /// 書籍検索API クレジット表記（検索データベースに応じて出典を切替）
     private var apiCreditView: some View {
-        let isNaver = activeSearchProvider == .naver
-        let creditURL = isNaver
-            ? URL(string: "https://developers.naver.com/products/service-api/search/search.md")!
-            : URL(string: "https://webservice.rakuten.co.jp/")!
-        return Link(destination: creditURL) {
-            HStack(spacing: 4) {
-                Image(systemName: "info.circle")
-                    .font(.caption2)
-                Text(isNaver ? "book.search.api_credit_naver" : "book.search.api_credit")
-                    .font(.caption2)
+        let creditURL: URL
+        let creditTextKey: LocalizedStringKey
+        switch activeSearchProvider {
+        case .naver:
+            creditURL = URL(string: "https://developers.naver.com/products/service-api/search/search.md")!
+            creditTextKey = "book.search.api_credit_naver"
+        case .google:
+            creditURL = URL(string: "https://developers.google.com/books")!
+            creditTextKey = "book.search.api_credit_google"
+        case .rakuten:
+            creditURL = URL(string: "https://webservice.rakuten.co.jp/")!
+            creditTextKey = "book.search.api_credit"
+        }
+        return HStack(spacing: 8) {
+            Link(destination: creditURL) {
+                HStack(spacing: 4) {
+                    Image(systemName: "info.circle")
+                        .font(.caption2)
+                    Text(creditTextKey)
+                        .font(.caption2)
+                }
+                .foregroundColor(.primary)
             }
-            .foregroundColor(.primary)
-            .frame(maxWidth: .infinity, alignment: .leading)
+
+            Spacer(minLength: 8)
+
+            // 検索にヒットした総件数（クレジット行の右側）
+            if hasSearched, let total = totalResultCount, total > 0 {
+                Text(
+                    L10n.format(
+                        "book.search.result_count",
+                        locale: languageManager.resolvedLocale,
+                        total
+                    )
+                )
+                .font(.caption2)
+                .foregroundColor(.secondary)
+            }
         }
     }
     
@@ -473,8 +481,8 @@ struct BookSearchView: View {
                                     applyFilterChange()
                                 }
 
-                                // NAVERは発行形態（文庫・単行本・コミック）を返さないため非表示
-                                if activeSearchProvider != .naver {
+                                // NAVER / Google Books は発行形態（文庫・単行本・コミック）を返さないため非表示
+                                if activeSearchProvider == .rakuten {
                                     formatFilterCapsule(.bunko)
                                     formatFilterCapsule(.tankobon)
                                     formatFilterCapsule(.comic)
@@ -724,6 +732,26 @@ struct BookSearchView: View {
         } message: {
             Text("book.search.isbn_not_found")
         }
+        .alert(
+            "book.search.price_input.title",
+            isPresented: Binding(
+                get: { priceInputBook != nil },
+                set: { if !$0 { priceInputBook = nil; priceInputText = "" } }
+            ),
+            presenting: priceInputBook
+        ) { book in
+            TextField("book.search.price_input.placeholder", text: $priceInputText)
+                .keyboardType(.decimalPad)
+            Button("book.search.price_input.register") {
+                registerWithManualPrice(book)
+            }
+            Button("common.cancel", role: .cancel) {
+                priceInputBook = nil
+                priceInputText = ""
+            }
+        } message: { _ in
+            Text("book.search.price_input.message")
+        }
     }
     
     // MARK: - Actions
@@ -741,6 +769,7 @@ struct BookSearchView: View {
         canLoadMore = true
         searchResults = []
         filteredResults = []
+        totalResultCount = nil
         selectedFormatFilter = nil
         
         // 検索前にキャッシュを更新
@@ -749,15 +778,19 @@ struct BookSearchView: View {
         Task {
             do {
                 // 設定に応じた検索データベースで検索（タイトル・著者名両方）
-                let results = try await searchService.search(searchText, page: 1)
-                searchResults = results
-                canLoadMore = results.count >= pageSize
+                let page = try await searchService.search(searchText, page: 1)
+                searchResults = page.books
+                totalResultCount = page.totalCount
+                canLoadMore = page.hasMorePages
                 updateFilteredResults()
                 isSearching = false
+                // 発行形態は表示をブロックせず後追いで補完する
+                enrichFormatsInBackground(for: page.books)
             } catch {
                 errorMessage = error.localizedDescription
                 searchResults = []
                 filteredResults = []
+                totalResultCount = nil
                 isSearching = false
                 #if DEBUG
                 print("検索エラー: \(error)")
@@ -782,16 +815,22 @@ struct BookSearchView: View {
         
         Task {
             do {
-                let results = try await searchService.search(searchText, page: currentPage)
+                let page = try await searchService.search(searchText, page: currentPage)
+                let results = page.books
+                if let total = page.totalCount {
+                    totalResultCount = total
+                }
                 
-                // 重複を除外して追加
-                let existingISBNs = Set(searchResults.map { $0.isbn })
-                let newResults = results.filter { !existingISBNs.contains($0.isbn) }
+                // 重複を除外して追加（ISBN で判定。ISBN がない本＝Google Books に多い＝は
+                // 空文字が衝突して巻き込まれないよう、常に新規として残す）
+                let existingISBNs = Set(searchResults.map { $0.isbn }.filter { !$0.isEmpty })
+                let newResults = results.filter { $0.isbn.isEmpty || !existingISBNs.contains($0.isbn) }
                 let filteredCountBefore = filteredResults.count
                 
                 searchResults.append(contentsOf: newResults)
-                canLoadMore = results.count >= pageSize
-                updateFilteredResults()
+                canLoadMore = page.hasMorePages
+                appendPageToFilteredResults(newResults)
+                enrichFormatsInBackground(for: newResults)
                 
                 isLoadingMore = false
                 if autoContinue {
@@ -807,23 +846,95 @@ struct BookSearchView: View {
                 #if DEBUG
                 print("追加読み込みエラー: \(error)")
                 #endif
+                // 一時的な失敗（レート制限など）でページングを恒久停止させない。
+                // ページ番号を戻し、canLoadMore は維持して「もっと読み込む」で再試行できるようにする。
+                currentPage = max(1, currentPage - 1)
                 isLoadingMore = false
                 isAutoLoadingForFilters = false
-                canLoadMore = false
+            }
+        }
+    }
+
+    /// 発行形態（size）を後追いで取得し、表示中の結果へ反映する。
+    /// 楽天のみ追加APIが必要（Google／NAVER は size を返さないため何もしない）。
+    private func enrichFormatsInBackground(for books: [RakutenBook]) {
+        guard activeSearchProvider == .rakuten else { return }
+        let targets = books.filter { $0.displayFormat == nil && !$0.isbn.isEmpty }
+        guard !targets.isEmpty else { return }
+
+        Task {
+            let enriched = await searchService.enrichFormats(for: targets)
+
+            var sizeByISBN: [String: String] = [:]
+            for book in enriched where !book.isbn.isEmpty {
+                if let size = book.displayFormat {
+                    sizeByISBN[book.isbn] = size
+                }
+            }
+            guard !sizeByISBN.isEmpty else { return }
+
+            // 元データにサイズを反映
+            searchResults = searchResults.map { book in
+                if book.displayFormat == nil, !book.isbn.isEmpty, let size = sizeByISBN[book.isbn] {
+                    return book.withSize(size)
+                }
+                return book
+            }
+
+            // 発行形態フィルター中は該当が増えるため再抽出、それ以外は並びを保ったままサイズだけ更新
+            if selectedFormatFilter != nil {
+                updateFilteredResults()
+            } else {
+                filteredResults = filteredResults.map { book in
+                    if book.displayFormat == nil, !book.isbn.isEmpty, let size = sizeByISBN[book.isbn] {
+                        return book.withSize(size)
+                    }
+                    return book
+                }
             }
         }
     }
     
     /// 検索結果を登録（画像なしでもそのまま登録可能）
+    /// - Note: 価格情報がない書籍は即登録せず、金額手入力アラートを表示する。
     private func registerBook(from result: RakutenBook) {
-        saveBook(from: result)
+        if result.itemPrice == nil {
+            priceInputText = ""
+            priceInputBook = result
+        } else {
+            saveBook(from: result)
+        }
+    }
+
+    /// 手入力した金額（表示通貨建て）で検索結果を登録
+    private func registerWithManualPrice(_ result: RakutenBook) {
+        let currency = currencyManager.displayCurrency
+        let minorUnits = currency.minorUnits(fromInput: priceInputText)
+        saveBook(from: result, overridePrice: minorUnits, overrideCurrency: currency)
+        priceInputBook = nil
+        priceInputText = ""
     }
 
     /// 検索結果から本を保存
-    private func saveBook(from result: RakutenBook) {
+    /// - Parameters:
+    ///   - overridePrice: 手入力金額（最小通貨単位）。nil の場合は API の価格をそのまま使う。
+    ///   - overrideCurrency: 手入力金額の通貨。指定時は保存通貨を上書きする。
+    private func saveBook(
+        from result: RakutenBook,
+        overridePrice: Int? = nil,
+        overrideCurrency: AppCurrency? = nil
+    ) {
         guard let targetPassbook = selectedPassbook else { return }
         let newBook = result.toUserBook(passbook: targetPassbook)
-        
+
+        // 手入力パス（通貨指定あり）では金額・通貨を上書きする。
+        // overridePrice が nil のまま登録された場合は「金額不明」として保存する。
+        if let overrideCurrency {
+            newBook.price = overridePrice
+            newBook.priceAtRegistration = overridePrice
+            newBook.currencyCode = overrideCurrency.code
+        }
+
         context.insert(newBook)
         
         do {
@@ -833,11 +944,15 @@ struct BookSearchView: View {
             if !result.isbn.isEmpty {
                 registeredISBNs.insert(result.isbn)
             }
-            updateFilteredResults()
+            // 現在の並び順を崩さないよう全体は再構築しない。
+            // 「登録済みを除外」中のときだけ、登録した本をその場で取り除く。
+            if showUnregisteredOnly {
+                filteredResults.removeAll { isBookRegistered($0) }
+            }
             
             // トースト通知を表示（画面は閉じない）
-            toastAmount = result.itemPrice
-            toastCurrency = AppCurrency(code: result.sourceCurrencyCode) ?? .jpy
+            toastAmount = overridePrice ?? result.itemPrice ?? 0
+            toastCurrency = overrideCurrency ?? (AppCurrency(code: result.sourceCurrencyCode) ?? .jpy)
             withAnimation {
                 showToast = true
             }
@@ -876,6 +991,7 @@ struct BookSearchView: View {
         isSearchingByISBN = true
         searchResults = []
         filteredResults = []
+        totalResultCount = nil
         selectedFormatFilter = nil
         searchText = isbn  // 検索バーにISBNを表示
         
@@ -894,7 +1010,9 @@ struct BookSearchView: View {
                     filteredResults = []
                 } else {
                     searchResults = results
+                    totalResultCount = results.count
                     updateFilteredResults()
+                    enrichFormatsInBackground(for: results)
                     
                     // 1件だけの場合は自動的に詳細を表示（登録済みでない場合のみ）
                     if results.count == 1, let book = results.first {
@@ -964,19 +1082,9 @@ struct BookSearchResultRow: View {
                 if result.hasCoverImageURL,
                    let imageUrlString = result.largeImageUrl ?? result.mediumImageUrl,
                    let imageUrl = URL(string: imageUrlString) {
-                    AsyncImage(url: imageUrl) { image in
-                        image
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                    } placeholder: {
-                        RoundedRectangle(cornerRadius: 2)
-                            .fill(Color.gray.opacity(0.2))
-                            .overlay {
-                                ProgressView()
-                            }
-                    }
-                    .frame(width: 50, height: 75)
-                    .clipShape(RoundedRectangle(cornerRadius: 2))
+                    // メモリキャッシュ利用。再検索・再描画時もスピナーを出さず即表示する
+                    CachedAsyncImage(url: imageUrl, width: 50, height: 75, contentMode: .fit)
+                        .clipShape(RoundedRectangle(cornerRadius: 2))
                 } else {
                     // 画像がない場合
                     RoundedRectangle(cornerRadius: 2)
@@ -1031,13 +1139,20 @@ struct BookSearchResultRow: View {
             
             Spacer()
             
-            // 価格（楽天は JPY、NAVER は KRW）
-            FormattedPriceText(
-                amount: result.itemPrice,
-                sourceCurrency: AppCurrency(code: result.sourceCurrencyCode) ?? .jpy,
-                font: .subheadline
-            )
-                .foregroundColor(isRegistered ? .secondary : themeColor)
+            // 価格（楽天は JPY、NAVER は KRW、Google は返れば各通貨）
+            // 価格情報がない場合（Google Play 非販売など）は「-」を表示し、登録時に手入力する
+            if let price = result.itemPrice {
+                FormattedPriceText(
+                    amount: price,
+                    sourceCurrency: AppCurrency(code: result.sourceCurrencyCode) ?? .jpy,
+                    font: .subheadline
+                )
+                    .foregroundColor(isRegistered ? .secondary : themeColor)
+            } else {
+                Text(verbatim: "-")
+                    .font(.subheadline)
+                    .foregroundColor(isRegistered ? .secondary : themeColor)
+            }
         }
         .opacity(isRegistered ? 0.6 : 1.0)
     }

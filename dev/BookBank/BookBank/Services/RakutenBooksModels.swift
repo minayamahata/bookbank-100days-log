@@ -8,6 +8,70 @@
 import Foundation
 import SwiftData
 
+// MARK: - 発売日パーサ
+
+/// salesDate 文字列（「2012年09月07日」「2012年09月」「2012年」や装飾付き）を Date/年 に変換する共通パーサ。
+///
+/// DateFormatter の生成は高コストなため、フォーマットごとに一度だけ生成した
+/// イミュータブルなインスタンスを使い回す（設定後は変更しないためスレッドセーフ）。
+enum SalesDateParser {
+    private static func makeFormatter(_ format: String) -> DateFormatter {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ja_JP")
+        formatter.timeZone = TimeZone(identifier: "Asia/Tokyo")
+        formatter.dateFormat = format
+        return formatter
+    }
+
+    /// 「yyyy年MM月dd日」等の書式（優先順）
+    private static let textFormatters: [DateFormatter] = [
+        makeFormatter("yyyy年MM月dd日"),
+        makeFormatter("yyyy年MM月"),
+        makeFormatter("yyyy年")
+    ]
+
+    /// 数字のみ抽出時の書式（必要桁数の大きい順に判定）
+    private static let numericFormatters: [(minDigits: Int, formatter: DateFormatter)] = [
+        (8, makeFormatter("yyyyMMdd")),
+        (6, makeFormatter("yyyyMM")),
+        (4, makeFormatter("yyyy"))
+    ]
+
+    /// salesDate 文字列を Date に変換（解釈できない場合は nil）
+    static func date(from raw: String) -> Date? {
+        let cleaned = raw
+            .replacingOccurrences(of: "頃", with: "")
+            .replacingOccurrences(of: "上旬", with: "")
+            .replacingOccurrences(of: "中旬", with: "")
+            .replacingOccurrences(of: "下旬", with: "")
+            .replacingOccurrences(of: "以降", with: "")
+            .replacingOccurrences(of: "予定", with: "")
+            .replacingOccurrences(of: "初旬", with: "")
+            .replacingOccurrences(of: "末", with: "")
+            .trimmingCharacters(in: .whitespaces)
+
+        guard !cleaned.isEmpty else { return nil }
+
+        for formatter in textFormatters {
+            if let date = formatter.date(from: cleaned) { return date }
+        }
+
+        // 数字だけ抽出して解釈（例：「2012年09月07日発売」→「20120907」）
+        let numbers = String(cleaned.filter { $0.isNumber })
+        for entry in numericFormatters where numbers.count >= entry.minDigits {
+            return entry.formatter.date(from: String(numbers.prefix(entry.minDigits)))
+        }
+
+        return nil
+    }
+
+    /// salesDate 文字列から西暦の年だけを取得
+    static func year(from raw: String) -> Int? {
+        guard let date = date(from: raw) else { return nil }
+        return Calendar.current.component(.year, from: date)
+    }
+}
+
 // MARK: - 総合検索APIのレスポンス構造（formatVersion=2）
 
 /// 楽天Books 総合検索APIのレスポンス
@@ -78,7 +142,7 @@ struct RakutenTotalBookItem: Codable {
             author: authorName,
             publisherName: publisher,
             isbn: identifier,
-            itemPrice: itemPrice ?? 0,
+            itemPrice: itemPrice,
             salesDate: salesDate ?? "",
             itemCaption: itemCaption ?? "",
             mediumImageUrl: mediumImageUrl,
@@ -95,13 +159,18 @@ struct RakutenTotalBookItem: Codable {
 /// 楽天Booksの書籍詳細（アプリ内で使用する共通モデル）
 struct RakutenBook: Codable, Identifiable {
     // Identifiableに準拠するためのID
-    var id: String { isbn.isEmpty ? UUID().uuidString : isbn }
+    // ISBN があればそれを、なければ書誌情報から安定した識別子を生成する。
+    // （ランダム UUID だと再描画のたびに ID が変わり、リストの identity が壊れるため）
+    var id: String {
+        isbn.isEmpty ? "\(title)|\(author)|\(salesDate)" : isbn
+    }
     
     let title: String
     let author: String
     let publisherName: String
     let isbn: String
-    let itemPrice: Int
+    /// 定価（最小通貨単位）。API が価格を返さない場合は nil（＝金額不明）。
+    let itemPrice: Int?
     let salesDate: String
     let itemCaption: String
     let mediumImageUrl: String?
@@ -119,29 +188,7 @@ struct RakutenBook: Codable, Identifiable {
     
     /// 出版年を取得（salesDateから）
     var publishedYear: Int? {
-        // "2012年09月07日" 形式
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy年MM月dd日"
-        if let date = formatter.date(from: salesDate) {
-            let calendar = Calendar.current
-            return calendar.component(.year, from: date)
-        }
-        
-        // "2012年09月" 形式
-        formatter.dateFormat = "yyyy年MM月"
-        if let date = formatter.date(from: salesDate) {
-            let calendar = Calendar.current
-            return calendar.component(.year, from: date)
-        }
-        
-        // "2012年" 形式
-        formatter.dateFormat = "yyyy年"
-        if let date = formatter.date(from: salesDate) {
-            let calendar = Calendar.current
-            return calendar.component(.year, from: date)
-        }
-        
-        return nil
+        SalesDateParser.year(from: salesDate)
     }
 
     /// 表示用の発行形態（APIの size、未取得時は nil）

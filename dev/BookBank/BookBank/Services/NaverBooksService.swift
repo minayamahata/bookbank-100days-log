@@ -19,10 +19,10 @@ final class NaverBooksService {
 
     /// キーワードで書籍を検索
     /// - Note: プロキシがページング未対応のため、2ページ目以降は空配列を返す。
-    func search(_ keyword: String, page: Int = 1) async throws -> [RakutenBook] {
+    func search(_ keyword: String, page: Int = 1) async throws -> BookSearchPage {
         let trimmed = keyword.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty, page == 1 else {
-            return []
+            return BookSearchPage(books: [], totalCount: 0, hasMorePages: false)
         }
 
         var components = URLComponents(string: proxyURL)
@@ -47,12 +47,12 @@ final class NaverBooksService {
         guard !cleanISBN.isEmpty else {
             return []
         }
-        return try await search(cleanISBN)
+        return try await search(cleanISBN).books
     }
 
     // MARK: - Private
 
-    private func performRequest(url: URL) async throws -> [RakutenBook] {
+    private func performRequest(url: URL) async throws -> BookSearchPage {
         #if DEBUG
         print("📡 NAVER API Request: \(url.absoluteString)")
         #endif
@@ -72,7 +72,9 @@ final class NaverBooksService {
         print("✅ NAVER API Response: \(decoded.items.count)件の書籍を取得")
         #endif
 
-        return decoded.items.compactMap { $0.toRakutenBook() }
+        // NAVER プロキシは display=20 固定・ページング未対応のため、次ページは常になし。
+        let books = decoded.items.compactMap { $0.toRakutenBook() }
+        return BookSearchPage(books: books, totalCount: decoded.total, hasMorePages: false)
     }
 }
 
@@ -80,6 +82,8 @@ final class NaverBooksService {
 
 /// NAVER Books Search API のレスポンス
 struct NaverBookSearchResponse: Codable {
+    /// 検索にヒットした総件数
+    let total: Int?
     let items: [NaverBookItem]
 }
 
@@ -108,7 +112,7 @@ struct NaverBookItem: Codable {
             author: cleanAuthor,
             publisherName: Self.sanitize(publisher ?? ""),
             isbn: Self.isbn13(from: isbn),
-            itemPrice: Int(discount ?? "") ?? 0,
+            itemPrice: Int(discount ?? ""),
             salesDate: Self.salesDate(from: pubdate),
             itemCaption: Self.sanitize(description ?? ""),
             mediumImageUrl: imageURL,

@@ -15,12 +15,6 @@ struct AppMenuView: View {
     
     private var unlimitedManager: UnlimitedManager { UnlimitedManager.shared }
 
-    @AppStorage(SearchDatabase.storageKey) private var searchDatabaseRaw = SearchDatabase.auto.rawValue
-
-    private var selectedSearchDatabase: SearchDatabase {
-        SearchDatabase(rawValue: searchDatabaseRaw) ?? .auto
-    }
-
     var onDismiss: (() -> Void)?
     
     @State private var showUnlimitedPaywall = false
@@ -45,10 +39,7 @@ struct AppMenuView: View {
                             NavigationLink {
                                 AppearanceSettingsView()
                             } label: {
-                                settingsNavigationRow(
-                                    title: "settings.appearance",
-                                    value: themeManager.currentTheme.titleKey
-                                )
+                                settingsNavigationRow(title: "settings.appearance")
                             }
                             .buttonStyle(.plain)
                             
@@ -57,10 +48,7 @@ struct AppMenuView: View {
                             NavigationLink {
                                 LanguageSettingsView()
                             } label: {
-                                settingsNavigationRow(
-                                    title: "settings.language",
-                                    value: languageMenuValue
-                                )
+                                settingsNavigationRow(title: "settings.language")
                             }
                             .buttonStyle(.plain)
 
@@ -69,10 +57,7 @@ struct AppMenuView: View {
                             NavigationLink {
                                 CurrencySettingsView()
                             } label: {
-                                settingsNavigationRow(
-                                    title: "settings.currency",
-                                    value: Text(currencyManager.displayCurrency.code)
-                                )
+                                settingsNavigationRow(title: "settings.currency")
                             }
                             .buttonStyle(.plain)
 
@@ -81,10 +66,7 @@ struct AppMenuView: View {
                             NavigationLink {
                                 SearchDatabaseSettingsView()
                             } label: {
-                                settingsNavigationRow(
-                                    title: "settings.search_database",
-                                    value: Text(LocalizedStringKey(selectedSearchDatabase.nameKey))
-                                )
+                                settingsNavigationRow(title: "settings.search_database")
                             }
                             .buttonStyle(.plain)
                         }
@@ -127,6 +109,18 @@ struct AppMenuView: View {
                         )
                         .padding(.horizontal, 16)
                     }
+
+                    // レビューを書く（App Store のレビュー投稿ページを開く）
+                    VStack(spacing: 0) {
+                        menuLinkRow(titleKey: "service.write_review") {
+                            openExternalURL("https://apps.apple.com/app/id6759006906?action=write-review")
+                        }
+                    }
+                    .background(
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(Color.appCardBackground)
+                    )
+                    .padding(.horizontal, 16)
                 }
                 .padding(.top, 20)
                 .padding(.bottom, 24)
@@ -187,25 +181,12 @@ struct AppMenuView: View {
         }
     }
 
-    @ViewBuilder
-    private var languageMenuValue: some View {
-        if languageManager.currentLanguage == .system {
-            Text("language.automatic")
-        } else {
-            Text(languageManager.currentLanguage.nativeDisplayName)
-        }
-    }
-    
-    private func settingsNavigationRow(title: LocalizedStringKey, value: some View) -> some View {
+    private func settingsNavigationRow(title: LocalizedStringKey) -> some View {
         HStack(spacing: 8) {
             Text(title)
                 .font(.body)
                 .foregroundColor(.primary)
             Spacer()
-            value
-                .font(.body)
-                .foregroundColor(.secondary)
-                .lineLimit(1)
             Image(systemName: "chevron.right")
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundColor(.secondary.opacity(0.6))
@@ -213,10 +194,6 @@ struct AppMenuView: View {
         .padding(.horizontal, 20)
         .padding(.vertical, 14)
         .contentShape(Rectangle())
-    }
-    
-    private func settingsNavigationRow(title: LocalizedStringKey, value: LocalizedStringKey) -> some View {
-        settingsNavigationRow(title: title, value: Text(value))
     }
     
     private func menuLinkRow(titleKey: LocalizedStringKey, action: @escaping () -> Void) -> some View {

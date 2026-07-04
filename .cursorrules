@@ -25,6 +25,18 @@ BookBank-100days-log/
         └── Views/                 # SwiftUI Views
 ```
 
+## 関連リポジトリ（Vercel側）
+
+Web関連のコードは別リポジトリで管理しています（このワークスペースには含まれません）。
+
+- **場所**: `/Users/37/AYAME-Cursor/bookbank-share`
+- **内容**: Next.js + Upstash Redis（https://bookbank-share.vercel.app にデプロイ）
+  - 共有API（`POST /api/lists`、共有ページ `/share/[id]`、Redis TTL 30日）
+  - 書籍検索プロキシ（`/api/rakuten`、`/api/naver`。APIキーはVercel側で管理）
+  - 利用規約・プライバシーポリシーページ（多言語）
+- iOSの `ShareService` / `RakutenBooksService` / `NaverBooksService` がこのAPIを利用しています
+- Webまわりの作業時はこのパスを参照してください
+
 ## 技術スタック
 
 - **言語**: Swift 5.0
