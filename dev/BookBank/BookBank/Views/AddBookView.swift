@@ -404,7 +404,8 @@ struct AddBookView: View {
             passbook: targetPassbook,
             currencyCode: currencyManager.displayCurrency.code
         )
-        newBook.registeredAt = registeredAt
+        // 登録日は未来日を許可しない（DatePicker でも制限しているが、保存時にも保証する）
+        newBook.registeredAt = min(registeredAt, Date())
         
         context.insert(newBook)
         

@@ -1,4 +1,5 @@
 import Foundation
+import OSLog
 import SwiftData
 
 /// 月別メモモデル
@@ -49,7 +50,9 @@ enum MonthlyMemoRepository {
     }
 
     /// メモを保存（空文字の場合はレコードを削除してストレージを節約）
-    static func save(year: Int, month: Int, text: String, context: ModelContext) {
+    /// - Returns: 保存に成功したら true。失敗時はログを残して false を返す。
+    @discardableResult
+    static func save(year: Int, month: Int, text: String, context: ModelContext) -> Bool {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
 
         if trimmed.isEmpty {
@@ -62,6 +65,15 @@ enum MonthlyMemoRepository {
             memo.updatedAt = Date()
         }
 
-        try? context.save()
+        do {
+            try context.save()
+            return true
+        } catch {
+            Logger(subsystem: Bundle.main.bundleIdentifier ?? "BookBank", category: "MonthlyMemo")
+                .error("月別メモの保存に失敗: year=\(year) month=\(month) error=\(error.localizedDescription)")
+            // 失敗した変更が後続の保存に混ざらないようロールバックする
+            context.rollback()
+            return false
+        }
     }
 }

@@ -145,6 +145,11 @@ struct MainTabView: View {
                     isOverallMode = true
                     selectedTab = 1
                 }
+                validateSelectedPassbook()
+            }
+            .onChange(of: customPassbooks) {
+                // 口座削除後に選択状態が削除済みモデルを参照し続けないようにする
+                validateSelectedPassbook()
             }
             .sheet(isPresented: $showAddReadingList) {
                 AddReadingListView(themeColor: currentThemeColor) {
@@ -461,12 +466,35 @@ struct MainTabView: View {
     /// 総合口座へ切り替え
     private func switchToOverall() {
         isOverallMode = true
+        resetContentNavigationPaths()
     }
 
     /// 指定のカスタム口座へ切り替え
     private func switchToPassbook(_ passbook: Passbook) {
         isOverallMode = false
         selectedPassbook = passbook
+        resetContentNavigationPaths()
+    }
+
+    /// 口座に依存するタブのナビゲーションをルートへ戻す
+    /// （切替前の口座で開いた検索画面などが残らないようにする）
+    private func resetContentNavigationPaths() {
+        passbookNavPath = NavigationPath()
+        bookshelfNavPath = NavigationPath()
+        statisticsNavPath = NavigationPath()
+    }
+
+    /// 選択中の口座が削除されていたら、選択状態を総合口座モードへ戻す
+    private func validateSelectedPassbook() {
+        guard let selected = selectedPassbook else { return }
+        let stillExists = customPassbooks.contains {
+            $0.persistentModelID == selected.persistentModelID
+        }
+        if !stillExists {
+            selectedPassbook = nil
+            isOverallMode = true
+            resetContentNavigationPaths()
+        }
     }
 
     /// 英語は口座名のみ、他言語は「◯◯口座」形式

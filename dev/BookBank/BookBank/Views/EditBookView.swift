@@ -549,7 +549,8 @@ struct EditBookView: View {
             }
         }
         
-        book.registeredAt = registeredAt
+        // 登録日は未来日を許可しない（DatePicker でも制限しているが、旧データ含め保存時にも保証する）
+        book.registeredAt = min(registeredAt, Date())
         if let id = selectedPassbookID {
             book.passbook = customPassbooks.first { $0.persistentModelID == id }
         }

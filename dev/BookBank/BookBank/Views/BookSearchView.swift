@@ -907,9 +907,19 @@ struct BookSearchView: View {
     }
 
     /// 手入力した金額（表示通貨建て）で検索結果を登録
+    /// - Note: 未入力・数値でない・負数の場合は登録せず、入力アラートを開き直す。
     private func registerWithManualPrice(_ result: RakutenBook) {
         let currency = currencyManager.displayCurrency
-        let minorUnits = currency.minorUnits(fromInput: priceInputText)
+        guard let minorUnits = currency.minorUnits(fromInput: priceInputText),
+              minorUnits >= 0 else {
+            // アラートはボタンタップで自動的に閉じるため、少し待ってから開き直す
+            priceInputText = ""
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(150))
+                priceInputBook = result
+            }
+            return
+        }
         saveBook(from: result, overridePrice: minorUnits, overrideCurrency: currency)
         priceInputBook = nil
         priceInputText = ""
@@ -925,6 +935,8 @@ struct BookSearchView: View {
         overrideCurrency: AppCurrency? = nil
     ) {
         guard let targetPassbook = selectedPassbook else { return }
+        // 二重タップ等での同一書籍の重複登録を防ぐ（ボタンの disabled だけに頼らず保存直前に再チェック）
+        guard !isBookRegistered(result) else { return }
         let newBook = result.toUserBook(passbook: targetPassbook)
 
         // 手入力パス（通貨指定あり）では金額・通貨を上書きする。

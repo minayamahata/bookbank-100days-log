@@ -323,15 +323,21 @@ final class ExchangeRateService {
         ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
     }
 
+    /// レート未取得時に使う概算フォールバックレート（JPY 基準）
+    /// - Note: 初回起動直後・オフライン時など実レートが無い場合に、
+    ///   未換算の金額をそのまま表示する事故（例: 15,000 KRW → ¥15,000）を防ぐための保険。
+    ///   `refresh()` が成功すると実レートが優先される。
+    private static let fallbackRatesFromJPY: [String: Double] = [
+        "JPY": 1.0,
+        "USD": 0.0067,
+        "TWD": 0.21,
+        "CNY": 0.048,
+        "KRW": 9.2
+    ]
+
     private func seedPreviewRatesIfNeeded() {
         guard !hasValidRates else { return }
-        ratesFromJPY = [
-            "JPY": 1.0,
-            "USD": 0.0067,
-            "TWD": 0.21,
-            "CNY": 0.048,
-            "KRW": 9.2
-        ]
+        ratesFromJPY = Self.fallbackRatesFromJPY
         lastUpdated = Date()
     }
 
@@ -373,6 +379,16 @@ final class ExchangeRateService {
         }
     }
 
+    /// 指定通貨の JPY 基準レートを返す（実レート優先、無ければ概算フォールバック）
+    /// - Note: 未換算の金額をそのまま返すと桁違いの表示事故になるため、
+    ///   レート未取得時も必ず何らかのレートで換算する。
+    private func rate(for currency: AppCurrency) -> Double? {
+        if let rate = ratesFromJPY[currency.code], rate > 0 {
+            return rate
+        }
+        return Self.fallbackRatesFromJPY[currency.code]
+    }
+
     /// 元通貨の金額（最小通貨単位の整数）を表示通貨の最小単位へ換算
     func convert(_ amount: Int, from source: AppCurrency, to target: AppCurrency) -> Int {
         if source == target { return amount }
@@ -385,7 +401,7 @@ final class ExchangeRateService {
         if source == .jpy {
             majorInJPY = sourceMajor
         } else {
-            guard let sourceRate = ratesFromJPY[source.code], sourceRate > 0 else {
+            guard let sourceRate = rate(for: source) else {
                 return amount
             }
             majorInJPY = sourceMajor / sourceRate
@@ -396,7 +412,7 @@ final class ExchangeRateService {
         if target == .jpy {
             targetMajor = majorInJPY
         } else {
-            guard let targetRate = ratesFromJPY[target.code] else {
+            guard let targetRate = rate(for: target) else {
                 return amount
             }
             targetMajor = majorInJPY * targetRate
