@@ -41,6 +41,12 @@ final class UnlimitedManager {
     /// 購入処理中かどうか
     private(set) var isPurchasing: Bool = false
     
+    /// 商品読み込み中かどうか
+    private(set) var isLoadingProducts: Bool = false
+    
+    /// 商品読み込みに失敗したか（Paywall の再読み込み導線の表示判定用）
+    private(set) var productsLoadFailed: Bool = false
+    
     /// エラーメッセージ
     var errorMessage: String?
     
@@ -97,13 +103,17 @@ final class UnlimitedManager {
                 
             case .pending:
                 // 保留中（ペアレンタルコントロールなど）
-                errorMessage = "購入が保留中です。承認後に反映されます。"
+                errorMessage = L10n.string("paywall.error.pending")
                 
             @unknown default:
                 break
             }
         } catch {
-            errorMessage = "購入に失敗しました: \(error.localizedDescription)"
+            // ユーザーによるキャンセルはエラー扱いしない
+            if case StoreKitError.userCancelled = error {
+                return
+            }
+            errorMessage = L10n.format("paywall.error.purchase_failed", error.localizedDescription)
             throw error
         }
     }
@@ -117,14 +127,28 @@ final class UnlimitedManager {
             // 購入状態を更新
             await updatePurchaseStatus()
         } catch {
-            errorMessage = "復元に失敗しました: \(error.localizedDescription)"
+            // ユーザーによるキャンセル（サインイン中断など）はエラー扱いしない
+            if case StoreKitError.userCancelled = error {
+                return
+            }
+            errorMessage = L10n.format("paywall.error.restore_failed", error.localizedDescription)
         }
+    }
+    
+    /// 商品情報を再読み込み（読み込み失敗時のリトライ用）
+    func reloadProducts() async {
+        await loadProducts()
     }
     
     // MARK: - Private Methods
     
     /// 商品情報を取得
+    /// - Note: 失敗時はアラートではなく `productsLoadFailed` を立て、
+    ///   Paywall 側でインライン表示＋再読み込み導線を出す。
     private func loadProducts() async {
+        isLoadingProducts = true
+        defer { isLoadingProducts = false }
+        
         do {
             products = try await Product.products(for: productIds)
             // 年額を先に表示
@@ -133,8 +157,8 @@ final class UnlimitedManager {
             #if DEBUG
             print("❌ Failed to load products: \(error)")
             #endif
-            errorMessage = "商品情報の取得に失敗しました"
         }
+        productsLoadFailed = products.isEmpty
     }
     
     /// 購入状態を更新

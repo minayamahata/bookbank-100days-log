@@ -65,7 +65,22 @@ struct UnlimitedPaywallView: View {
                 dismiss()
             }
         }
+        .alert("paywall.error.title", isPresented: errorAlertPresented) {
+            Button("common.close", role: .cancel) {
+                unlimitedManager.errorMessage = nil
+            }
+        } message: {
+            Text(unlimitedManager.errorMessage ?? "")
+        }
         .preferredColorScheme(.dark)
+    }
+    
+    /// 購入・復元エラーのアラート表示バインディング
+    private var errorAlertPresented: Binding<Bool> {
+        Binding(
+            get: { unlimitedManager.errorMessage != nil },
+            set: { if !$0 { unlimitedManager.errorMessage = nil } }
+        )
     }
     
     // MARK: - Hero Section
@@ -149,29 +164,63 @@ struct UnlimitedPaywallView: View {
                 .foregroundColor(.white.opacity(0.7))
                 .frame(maxWidth: .infinity, alignment: .leading)
             
-            HStack(alignment: .top, spacing: 12) {
-                if let yearly = unlimitedManager.yearlyProduct {
-                    planCard(
-                        product: yearly,
-                        subtextIcon: "icon-tab-bookshelf",
-                        subtextKey: "paywall.yearly_subtext",
-                        isYearly: true,
-                        isSelected: selectedProduct?.id == yearly.id
-                    )
+            if unlimitedManager.products.isEmpty {
+                productsUnavailableView
+            } else {
+                HStack(alignment: .top, spacing: 12) {
+                    if let yearly = unlimitedManager.yearlyProduct {
+                        planCard(
+                            product: yearly,
+                            subtextIcon: "icon-tab-bookshelf",
+                            subtextKey: "paywall.yearly_subtext",
+                            isYearly: true,
+                            isSelected: selectedProduct?.id == yearly.id
+                        )
+                    }
+                    
+                    if let lifetime = unlimitedManager.lifetimeProduct {
+                        planCard(
+                            product: lifetime,
+                            badgeKey: "paywall.lifetime_badge",
+                            subtextIcon: "icon-tab-bookshelf",
+                            subtextKey: "paywall.lifetime_subtext",
+                            isSelected: selectedProduct?.id == lifetime.id
+                        )
+                    }
                 }
+                .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+    
+    /// 商品読み込み中／失敗時の表示（失敗時は再読み込み導線を出す）
+    private var productsUnavailableView: some View {
+        VStack(spacing: 12) {
+            if unlimitedManager.isLoadingProducts {
+                ProgressView()
+                    .tint(.white.opacity(0.7))
+            } else {
+                Text("paywall.products_load_failed")
+                    .font(.system(size: 14))
+                    .foregroundColor(.white.opacity(0.7))
+                    .multilineTextAlignment(.center)
                 
-                if let lifetime = unlimitedManager.lifetimeProduct {
-                    planCard(
-                        product: lifetime,
-                        badgeKey: "paywall.lifetime_badge",
-                        subtextIcon: "icon-tab-bookshelf",
-                        subtextKey: "paywall.lifetime_subtext",
-                        isSelected: selectedProduct?.id == lifetime.id
-                    )
+                Button {
+                    Task { await unlimitedManager.reloadProducts() }
+                } label: {
+                    Text("paywall.reload_products")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(themeColor)
+                        .padding(.horizontal, 24)
+                        .padding(.vertical, 8)
+                        .overlay(
+                            Capsule().stroke(themeColor, lineWidth: 1)
+                        )
                 }
             }
-            .fixedSize(horizontal: false, vertical: true)
         }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 24)
     }
     
     private func planCard(product: Product, badgeKey: LocalizedStringKey? = nil, subtextIcon: String? = nil, subtextKey: LocalizedStringKey? = nil, isYearly: Bool = false, isSelected: Bool) -> some View {
