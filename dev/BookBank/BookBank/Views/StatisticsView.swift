@@ -230,6 +230,17 @@ struct StatisticsView: View {
                 ThemedBackgroundView(themeColor: themeColor, isBlackTheme: isBlackTheme)
             }
         }
+        .onAppear { correctSelectedYearIfNeeded() }
+        .onChange(of: availableYears) { correctSelectedYearIfNeeded() }
+    }
+
+    /// 選択中の年が availableYears から外れた場合（その年の本が全削除された等）に、
+    /// 直近の有効な年へ自動補正する。空ページ・表示不整合を防ぐ。
+    private func correctSelectedYearIfNeeded() {
+        guard !availableYears.isEmpty else { return }
+        if !availableYears.contains(selectedYear) {
+            selectedYear = availableYears.last ?? Calendar.current.component(.year, from: Date())
+        }
     }
     
     // MARK: - Subviews
