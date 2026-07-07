@@ -16,6 +16,7 @@
    - 発見機能 → `docs/discovery-feature-design.md`
    - マネタイズ → `docs/monetization-model-design.md`
    - 本棚内検索 → `docs/bookshelf-search-spec.md`
+   - 読了リスト公開・埋め込み → `docs/embed-share-feature-design.md`
 3. **UI実装の正**: `DESIGN_SYSTEM.md`（トークン・パターンから逸脱しない）
 4. 無料/Unlimited境界の記述が文書間で食い違う場合は `docs/monetization-model-design.md` 第7章が正
 
@@ -83,6 +84,8 @@ xcodebuild test -scheme BookBank -destination 'platform=iOS Simulator,name=iPhon
 | リリース | 人間にしかできない作業 |
 |---------|----------------------|
 | R6（Phase 2） | Firebaseプロジェクト作成・Auth プロバイダー有効化（Apple/Google の証明書・OAuth設定）・`GoogleService-Info.plist` の取得と配置・Firestore/Storage の有効化・App Privacy（プライバシーラベル）の更新・法務文書の最終確認 |
+| EM1（公開基盤） | Firebase Admin SDK 用サービスアカウントJSONの発行・`bookbank-share` 環境変数設定・法務文書（公開機能条項・プライバシーポリシー）の最終確認・UI翻訳（日英韓）のネイティブチェック・App Store Connect の公開URL設定 |
+| EM2（埋め込み） | note・WordPress・はてな・NAVERブログでの埋め込み実地確認 |
 | R7（D1） | Cloud Functions のデプロイ権限・Blazeプラン切替の判断 |
 | R9（Phase 4） | App Store Connect での月額商品 `com.bookbank.platinum.monthly` 作成・買い切りの販売停止操作・RevenueCat アカウント作成とAPIキー・サンドボックステスト・審査提出 |
 | R10（M3/D2） | チケットキャンペーンの企画・コード発行の運用判断 |
