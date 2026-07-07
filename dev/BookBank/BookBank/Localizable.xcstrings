@@ -5712,31 +5712,31 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "# %1$@ (%2$lld books / %3$@ JPY)"
+            "value" : "# %1$@ (%2$lld books / %3$@)"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "# %1$@（%2$lld冊 / %3$@円）"
+            "value" : "# %1$@（%2$lld冊 / %3$@）"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "# %1$@ (%2$lld권 / %3$@엔)"
+            "value" : "# %1$@ (%2$lld권 / %3$@)"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "# %1$@（%2$lld 册 / %3$@ 日元）"
+            "value" : "# %1$@（%2$lld 册 / %3$@）"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "# %1$@（%2$lld 冊 / %3$@ 日圓）"
+            "value" : "# %1$@（%2$lld 冊 / %3$@）"
           }
         }
       }
@@ -5986,31 +5986,31 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "## %1$@ (%2$lld books / %3$@ JPY)"
+            "value" : "## %1$@ (%2$lld books / %3$@)"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "## %1$@（%2$lld冊 / %3$@円）"
+            "value" : "## %1$@（%2$lld冊 / %3$@）"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "## %1$@ (%2$lld권 / %3$@엔)"
+            "value" : "## %1$@ (%2$lld권 / %3$@)"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "## %1$@（%2$lld 册 / %3$@ 日元）"
+            "value" : "## %1$@（%2$lld 册 / %3$@）"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "## %1$@（%2$lld 冊 / %3$@ 日圓）"
+            "value" : "## %1$@（%2$lld 冊 / %3$@）"
           }
         }
       }
