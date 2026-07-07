@@ -112,7 +112,7 @@ struct NaverBookItem: Codable {
             author: cleanAuthor,
             publisherName: Self.sanitize(publisher ?? ""),
             isbn: Self.isbn13(from: isbn),
-            itemPrice: Int(discount ?? ""),
+            itemPrice: Self.price(from: discount),
             salesDate: Self.salesDate(from: pubdate),
             itemCaption: Self.sanitize(description ?? ""),
             mediumImageUrl: imageURL,
@@ -122,6 +122,13 @@ struct NaverBookItem: Codable {
             booksGenreId: nil,
             sourceCurrencyCode: AppCurrency.krw.code
         )
+    }
+
+    /// 販売価格（KRW・文字列）を Int へ。空文字や 0 以下（NAVER は未販売・輸入書で "0" を返す）は
+    /// 「価格不明」として nil を返し、他プロバイダと挙動を揃える（"-" 表示＋登録時に手入力）。
+    private static func price(from discount: String?) -> Int? {
+        guard let value = Int(discount ?? ""), value > 0 else { return nil }
+        return value
     }
 
     /// "8983920777 9788983920775" → 13桁を優先して返す
