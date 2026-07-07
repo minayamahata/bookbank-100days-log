@@ -181,7 +181,11 @@ struct PassbookDetailView: View {
     init(passbook: Passbook?) {
         self.passbook = passbook
         // registeredAt の降順でソート（新しい本が上に表示される）
-        _allUserBooks = Query(sort: \UserBook.registeredAt, order: .reverse)
+        // 第2キー createdAt で、registeredAt が同秒のときの並びを安定化
+        _allUserBooks = Query(sort: [
+            SortDescriptor(\UserBook.registeredAt, order: .reverse),
+            SortDescriptor(\UserBook.createdAt, order: .reverse)
+        ])
     }
     
     // MARK: - Body
