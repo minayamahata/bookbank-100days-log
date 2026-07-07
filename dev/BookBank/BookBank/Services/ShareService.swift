@@ -25,6 +25,10 @@ struct ShareListRequest: Encodable {
     let ownerName: String?
     let bgColor: String?
     let books: [ShareBookItem]
+    /// 表示通貨に換算した合計（最小通貨単位）
+    let totalValue: Int
+    /// 合計値の通貨コード（ISO 4217）
+    let totalCurrencyCode: String
 }
 
 /// シェアする本の情報
@@ -32,7 +36,10 @@ struct ShareBookItem: Encodable {
     let title: String
     let author: String
     let imageURL: String?
+    /// 登録時点の価格（その本の通貨の最小単位）
     let priceAtRegistration: Int?
+    /// 価格の通貨コード（ISO 4217）。未設定は JPY 相当
+    let currencyCode: String?
 }
 
 /// シェアAPIからのレスポンス
@@ -77,9 +84,16 @@ class ShareService {
     private init() {}
     
     /// 読了リストをシェアしてURLを取得
-    /// - Parameter readingList: シェアする読了リスト
+    /// - Parameters:
+    ///   - readingList: シェアする読了リスト
+    ///   - displayCurrency: 合計値の換算先（アプリの表示通貨）
+    ///   - totalValue: 表示通貨に換算済みの合計（最小通貨単位）。呼び出し元で `totalDisplayAmount` により算出する
     /// - Returns: シェアページのURL
-    func shareReadingList(_ readingList: ReadingList) async throws -> URL {
+    func shareReadingList(
+        _ readingList: ReadingList,
+        displayCurrency: AppCurrency,
+        totalValue: Int
+    ) async throws -> URL {
         // APIエンドポイントのURL作成
         guard let url = URL(string: ShareAPIConfig.baseURL + ShareAPIConfig.listsEndpoint) else {
             throw ShareError.invalidURL
@@ -91,7 +105,8 @@ class ShareService {
                 title: book.title,
                 author: book.author ?? "",
                 imageURL: book.coverImageURL,
-                priceAtRegistration: book.priceAtRegistration
+                priceAtRegistration: book.priceAtRegistration,
+                currencyCode: book.storedCurrency.code
             )
         }
         
@@ -107,7 +122,9 @@ class ShareService {
             description: readingList.listDescription,
             ownerName: nil,  // 将来的にユーザー名を設定可能に
             bgColor: bgColorHex,
-            books: bookItems
+            books: bookItems,
+            totalValue: totalValue,
+            totalCurrencyCode: displayCurrency.code
         )
         
         // リクエスト作成

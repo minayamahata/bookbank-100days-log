@@ -642,10 +642,21 @@ struct ReadingListDetailView: View {
     
     private func shareReadingList() {
         isSharing = true
-        
+
+        // 表示通貨に換算した合計を算出して渡す（各本は個別通貨のため単純合算しない）
+        let displayCurrency = currencyManager.displayCurrency
+        let totalValue = readingList.books.totalDisplayAmount(
+            in: displayCurrency,
+            exchangeRates: exchangeRates
+        )
+
         Task {
             do {
-                let url = try await ShareService.shared.shareReadingList(readingList)
+                let url = try await ShareService.shared.shareReadingList(
+                    readingList,
+                    displayCurrency: displayCurrency,
+                    totalValue: totalValue
+                )
                 await MainActor.run {
                     isSharing = false
                     shareURL = url
