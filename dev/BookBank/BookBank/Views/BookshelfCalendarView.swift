@@ -28,6 +28,9 @@ struct BookshelfCalendarView<Header: View>: View {
     @Environment(ExchangeRateService.self) private var exchangeRates
     @Environment(\.colorScheme) private var colorScheme
 
+    /// 同一日に複数冊ある日をタップしたときに提示する一覧シートの対象
+    @State private var selectedDay: DaySelection?
+
     /// カレンダー用の7カラムグリッド（曜日）
     private let weekColumns = Array(repeating: GridItem(.flexible(), spacing: 4), count: 7)
 
@@ -48,6 +51,16 @@ struct BookshelfCalendarView<Header: View>: View {
         let year: Int
         let months: [MonthGroup]
         var id: Int { year }
+    }
+
+    /// 同一日に複数冊ある日の一覧シート用データ
+    private struct DaySelection: Identifiable {
+        let year: Int
+        let month: Int
+        let day: Int
+        /// その日の書籍（新しい順）
+        let books: [UserBook]
+        var id: String { "\(year)-\(month)-\(day)" }
     }
 
     /// 年別にグループ化した書籍データ
@@ -122,6 +135,9 @@ struct BookshelfCalendarView<Header: View>: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.bottom, 100)
+        }
+        .sheet(item: $selectedDay) { selection in
+            dayBooksSheet(selection)
         }
     }
 
@@ -230,21 +246,118 @@ struct BookshelfCalendarView<Header: View>: View {
 
             // 1〜月末の各日
             ForEach(1...max(dayCount, 1), id: \.self) { day in
-                dayCell(day: day, books: booksByDay[day] ?? [])
+                dayCell(year: year, month: month, day: day, books: booksByDay[day] ?? [])
             }
         }
     }
 
     @ViewBuilder
-    private func dayCell(day: Int, books: [UserBook]) -> some View {
+    private func dayCell(year: Int, month: Int, day: Int, books: [UserBook]) -> some View {
         if let latest = books.first {
-            NavigationLink(destination: UserBookDetailView(book: latest)) {
-                filledDayCell(day: day, latest: latest, extraCount: books.count - 1)
+            if books.count > 1 {
+                // 複数冊：タップで一覧シートを提示し、各本の詳細へ遷移できるようにする
+                Button {
+                    selectedDay = DaySelection(year: year, month: month, day: day, books: books)
+                } label: {
+                    filledDayCell(day: day, latest: latest, extraCount: books.count - 1)
+                }
+                .buttonStyle(.plain)
+            } else {
+                // 1冊のみ：現状どおり詳細へ直接遷移
+                NavigationLink(destination: UserBookDetailView(book: latest)) {
+                    filledDayCell(day: day, latest: latest, extraCount: 0)
+                }
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
         } else {
             emptyDayCell(day: day)
         }
+    }
+
+    // MARK: - 同一日の複数冊リストシート
+
+    @ViewBuilder
+    private func dayBooksSheet(_ selection: DaySelection) -> some View {
+        NavigationStack {
+            List {
+                ForEach(selection.books) { book in
+                    NavigationLink(destination: UserBookDetailView(book: book)) {
+                        dayBookRow(book)
+                    }
+                    .listRowBackground(Color.appCardBackground)
+                    .listRowSeparator(.hidden)
+                    .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
+                }
+            }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .background(Color.appCardBackground)
+            .navigationTitle(dayTitle(selection))
+            .navigationBarTitleDisplayMode(.inline)
+        }
+        .presentationDetents([.medium, .large])
+    }
+
+    /// リスト1行（表紙サムネイル + タイトル / 著者 / 登録日 + 金額）
+    private func dayBookRow(_ book: UserBook) -> some View {
+        HStack(spacing: 12) {
+            rowCover(for: book)
+                .frame(width: 50, height: 75)
+                .clipShape(RoundedRectangle(cornerRadius: 4))
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(book.title)
+                    .font(.subheadline)
+                    .foregroundColor(.primary)
+                    .lineLimit(2)
+
+                if let author = book.author, !author.isEmpty {
+                    Text(author)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                }
+
+                BookPriceText(book: book, font: .caption, symbolFont: .caption2)
+                    .foregroundColor(.secondary)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(.vertical, 8)
+        .contentShape(Rectangle())
+    }
+
+    /// リスト行用の固定サイズ表紙（2:3）
+    private func rowCover(for book: UserBook) -> some View {
+        Group {
+            if let coverImage = book.coverUIImage {
+                Image(uiImage: coverImage)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+            } else if let imageURL = book.coverImageURL,
+                      let url = URL(string: imageURL) {
+                CachedAsyncImage(url: url, width: 50, height: 75)
+            } else {
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(colorScheme == .dark ? Color.white.opacity(0.12) : Color.black.opacity(0.05))
+            }
+        }
+    }
+
+    /// シートのタイトル（登録日・yyyy.MM.dd）
+    private func dayTitle(_ selection: DaySelection) -> String {
+        var components = DateComponents()
+        components.year = selection.year
+        components.month = selection.month
+        components.day = selection.day
+        guard let date = calendar.date(from: components) else {
+            return "\(selection.year).\(selection.month).\(selection.day)"
+        }
+        let formatter = DateFormatter()
+        formatter.locale = languageManager.resolvedLocale
+        formatter.dateFormat = "yyyy.MM.dd"
+        return formatter.string(from: date)
     }
 
     /// 本が登録された日のセル（表紙＋日付＋緑チェック＋複数時バッジ）
