@@ -3,6 +3,8 @@
 作成日: 2026-07-04
 ステータス: 事前設計（実装時に不備・矛盾を発見した場合は指摘・修正すること）
 
+> **AI実装エージェントへ**: `docs/agent-implementation-guide.md` を先に読むこと。本書の (仮) 前提は確定仕様として実装する。実行順序は `docs/implementation-roadmap.md`（Phase 2はR6として着手前のタスク分解・承認が必須）。無料/Unlimited境界は付録Bではなく `docs/monetization-model-design.md` 第7章が正。Firebase/App Store Connect等のコンソール作業は人間タスク（ガイド第5章）。
+
 ---
 
 ## 0. この設計書の前提（補完した仮定の一覧）

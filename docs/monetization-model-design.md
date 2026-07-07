@@ -8,6 +8,8 @@
 - `docs/node-graph-feature-design.md`（ノード設計書。第9章・前提N5を本書で置き換える）
 - `docs/discovery-feature-design.md`（発見設計書。第9章を本書で置き換える）
 
+> **AI実装エージェントへ**: `docs/agent-implementation-guide.md` を先に読むこと。本書の (仮) 推奨は確定仕様として実装する（Q-B / V-B / T三位一体 / S-B）。投資額ボーナスは廃止済み（第3章）——実装しないこと。無料/Unlimited境界の正は本書第7章。
+
 ---
 
 ## 0. 確定した新方針と設計思想

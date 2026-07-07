@@ -4,6 +4,8 @@
 ステータス: 事前設計（実装時に不備・矛盾を発見した場合は指摘・修正すること）
 関連文書: `docs/cloud-migration-architecture.md`（クラウド移行設計書）/ `DESIGN_SYSTEM.md`
 
+> **AI実装エージェントへ**: `docs/agent-implementation-guide.md` を先に読むこと。本書の (仮) 推奨は確定仕様として実装する（S-A+S-B / W-C / L-A / E-B / C-A→C-C）。無料/Unlimited境界は本書第9章ではなく `docs/monetization-model-design.md` 第7章が正。
+
 ---
 
 ## 0. この設計書の前提

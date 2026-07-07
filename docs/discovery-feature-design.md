@@ -8,6 +8,8 @@
 - `docs/node-graph-feature-design.md`（ノード機能設計書＝実線の層。以下「ノード設計書」）
 - `DESIGN_SYSTEM.md`
 
+> **AI実装エージェントへ**: `docs/agent-implementation-guide.md` を先に読むこと。本書の (仮) 推奨は確定仕様として実装する（G-B / R-B / P-C / V-B / CS-B / T-B）。無料/Unlimited境界は本書第9章ではなく `docs/monetization-model-design.md` 第7章が正（発見機能はUnlimited専用・「1冊無料」は廃止済み）。
+
 ---
 
 ## 0. ビジョンと前提
