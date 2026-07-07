@@ -665,11 +665,25 @@ struct ReadingListDetailView: View {
             } catch {
                 await MainActor.run {
                     isSharing = false
-                    shareErrorMessage = error.localizedDescription
+                    shareErrorMessage = shareErrorDisplayMessage(for: error)
                     showShareError = true
                 }
             }
         }
+    }
+
+    /// 共有失敗時にアラートへ表示する文言。
+    /// サーバー／ネットワークエラーは技術的な生文言を避け、ローカライズした汎用メッセージを出す。
+    private func shareErrorDisplayMessage(for error: Error) -> String {
+        if let shareError = error as? ShareError {
+            switch shareError {
+            case .serverError, .networkError:
+                return L10n.string("readinglist.share.error.generic")
+            case .invalidURL, .invalidResponse, .decodingError:
+                return error.localizedDescription
+            }
+        }
+        return error.localizedDescription
     }
 }
 
