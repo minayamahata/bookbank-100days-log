@@ -236,10 +236,14 @@ struct UnlimitedPaywallView: View {
                     .fixedSize(horizontal: false, vertical: true)
                 
                 HStack(alignment: .lastTextBaseline, spacing: 2) {
-                    Text("\(Int(truncating: product.price as NSDecimalNumber).formatted())")
+                    // StoreKit がロケール・通貨に応じて整形した価格文字列をそのまま表示する
+                    // （地域ごとの通貨記号・小数桁に対応するため、手動整形はしない）
+                    Text(product.displayPrice)
                         .font(.system(size: 26, weight: .bold))
-                    Text(isYearly ? "paywall.yen_per_year" : "common.yen")
-                        .font(.system(size: 14, weight: .medium))
+                    if isYearly {
+                        Text("paywall.per_year")
+                            .font(.system(size: 14, weight: .medium))
+                    }
                 }
                 .foregroundColor(isSelected ? themeColor : .white)
                 

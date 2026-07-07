@@ -51,7 +51,7 @@ flowchart LR
 
 | 項目 | 実装内容 | 対象 |
 |------|---------|------|
-| B-2 | Paywall価格を `product.displayPrice` ベースに変更（整数切り捨て＋「円」固定をやめる）。「¥3,600/年」の年額表記はロケール対応の書式で再構成 | `Views/UnlimitedPaywallView.swift` planCard |
+| B-2 ✅ | Paywall価格を `product.displayPrice` ベースに変更（整数切り捨て＋「円」固定をやめる）。「¥3,600/年」の年額表記はロケール対応の書式で再構成。→ 完了 (2026-07-07)・年額サフィックスは通貨中立の `paywall.per_year` を新設 | `Views/UnlimitedPaywallView.swift` planCard |
 | B-4 | Markdownエクスポートの合計行の通貨記号二重（「$12.99円」）を修正。`AppCurrency` のフォーマッタに一本化 | `Utils/MarkdownExporter.swift` 59–65, 132–138行付近 |
 | D-3 | 統計タブ: 年の本が全削除されたら `selectedYear` を `availableYears` 内へ自動補正 | `Views/StatisticsView.swift` |
 | D-4 | カレンダー同日複数冊: 日セルタップで複数冊リスト（シートまたはポップアップ）を出す | `Views/BookshelfCalendarView.swift` |
