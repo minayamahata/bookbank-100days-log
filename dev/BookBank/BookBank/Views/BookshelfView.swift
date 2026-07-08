@@ -43,7 +43,18 @@ struct BookshelfView: View {
     /// カレンダー表示モード
     @State private var showCalendarView: Bool
 
-    /// 月別メモ編集用（総合口座のみ）
+    /// 本棚内検索モード（フィルター行が検索フィールドに変形）
+    /// - Note: オンライン検索（`BookSearchView` の `SearchPhase`・世代管理・ページング）とは
+    ///   完全に別系統。ここでは所有本のローカル絞り込みのみを行い、既存の検索状態は参照しない。
+    @State private var isSearching: Bool = false
+
+    /// 本棚内検索のクエリ（1文字ごとに即時絞り込み）
+    @State private var shelfSearchText: String = ""
+
+    /// 検索フィールドのフォーカス
+    @FocusState private var isSearchFieldFocused: Bool
+
+    /// 月別メモ編集用（口座横断・年月ごとに1つ。全口座のカレンダーから編集可能）
     /// 年・月・本文を1つの値で持ち、`.sheet(item:)` で開くことで
     /// 常に正しい月のデータで開き直され、別の月のメモを保存してしまう不具合を防ぐ
     @State private var monthlyMemoTarget: MonthlyMemoTarget?
@@ -79,8 +90,24 @@ struct BookshelfView: View {
         if showWithMemoOnly {
             books = books.filter { $0.memo != nil && !($0.memo?.isEmpty ?? true) }
         }
-        
+
+        // 本棚内検索（タイトル・著者のローカル絞り込み）。既存フィルターとAND合成する。
+        // 数百〜千冊でもタイトル+著者の正規化は軽量なため、毎キーストロークのインライン計算で十分。
+        if isSearching {
+            let query = shelfSearchText.trimmingCharacters(in: .whitespaces)
+            if !query.isEmpty {
+                books = books.filter {
+                    ShelfSearchMatcher.matches(fields: [$0.title, $0.author], query: query)
+                }
+            }
+        }
+
         return books
+    }
+
+    /// 本棚内検索が有効な絞り込みを行っているか（モードON かつ 入力あり）
+    private var isShelfSearchActive: Bool {
+        isSearching && !shelfSearchText.trimmingCharacters(in: .whitespaces).isEmpty
     }
     
     /// カスタム口座のリスト
@@ -124,10 +151,11 @@ struct BookshelfView: View {
         return .white
     }
 
-    /// 丸アクションボタン（カレンダー切替）のグラス tint
-    /// 通帳ビューの丸アクションボタンと同じ判定（総合=シルバー／個別=テーマ色）
+    /// 丸アクションボタン（カレンダー切替・本棚検索）のグラス tint
+    /// 総合口座はボタン自体をシステム前景色に合わせてダーク=白／ライト=黒にする。
+    /// 個別口座は従来どおりテーマ色（ダークモード×黒テーマのみ白）。
     private var actionButtonGlassTint: Color {
-        if isOverallAccount { return PassbookColor.silverThemeColor.opacity(0.35) }
+        if isOverallAccount { return colorScheme == .dark ? .white : .black }
         return colorScheme == .dark && isBlackTheme ? .white : themeColor
     }
 
@@ -143,10 +171,12 @@ struct BookshelfView: View {
         return .white
     }
 
-    /// カレンダー切替ボタン（右上）の記号色
-    /// グラス tint が白（ダークモード×白＝黒テーマの口座）のときは、白背景に埋もれないよう黒にする
+    /// カレンダー切替ボタン・本棚検索の虫眼鏡ボタンの記号色
+    /// 総合口座は tint（ダーク=白／ライト=黒）に対してコントラストを取り、ダーク=黒／ライト=白にする。
+    /// 個別口座はグラス tint が白（ダークモード×黒テーマ）のときだけ、白背景に埋もれないよう黒にする。
     private var calendarToggleIconColor: Color {
-        if !isOverallAccount && colorScheme == .dark && isBlackTheme { return .black }
+        if isOverallAccount { return colorScheme == .dark ? .black : .white }
+        if colorScheme == .dark && isBlackTheme { return .black }
         return .white
     }
     
@@ -198,7 +228,6 @@ struct BookshelfView: View {
                 // カレンダー：フィルター行・切替ボタンは不要（左上の戻るボタンで本棚へ戻る）
                 BookshelfCalendarView(
                     books: passbookBooks,
-                    isOverallAccount: isOverallAccount,
                     onMonthlyMemo: { year, month in
                         openMonthlyMemo(year: year, month: month)
                     },
@@ -209,13 +238,20 @@ struct BookshelfView: View {
             } else {
                 ScrollView {
                     VStack(spacing: 0) {
-                        // フィルターセクション
+                        // フィルターセクション（通常のピル行 ⇔ 検索フィールド行）
                         filterSection
+
+                        // 検索中は件数を検索フィールド直下に表示
+                        if isShelfSearchActive {
+                            searchResultCount
+                        }
 
                         // 本棚グリッド
                         gridContent
                     }
                 }
+                // スクロールでキーボードを閉じる（検索モード自体は維持・仕様3.5）
+                .scrollDismissesKeyboard(.immediately)
             }
         }
         .id(passbook?.persistentModelID.hashValue.description ?? "overall")
@@ -247,17 +283,17 @@ struct BookshelfView: View {
         }
         .onAppear {
             if managesCalendarChrome {
-                bookshelfChromeState.isCalendar = showCalendarView
-            }
-        }
-        .onDisappear {
-            if managesCalendarChrome {
-                bookshelfChromeState.isCalendar = false
+                // 共有 chrome を状態源として採用し、外部からのカレンダー起動（通帳からの導線）を反映する
+                showCalendarView = bookshelfChromeState.isCalendar
             }
         }
         .onChange(of: showCalendarView) { _, newValue in
             if managesCalendarChrome {
                 bookshelfChromeState.isCalendar = newValue
+            }
+            // カレンダーへ切り替えたら本棚内検索モードを解除する（仕様3.5）
+            if newValue {
+                exitShelfSearch()
             }
         }
         .onChange(of: bookshelfChromeState.isCalendar) { _, newValue in
@@ -282,44 +318,73 @@ struct BookshelfView: View {
     
     // MARK: - Filter Section
     
+    @ViewBuilder
     private var filterSection: some View {
-        HStack(spacing: 8) {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 4) {
-                    filterPill(
-                        label: "common.all",
-                        count: allBooksCount,
-                        alwaysShowCount: true,
-                        isSelected: !showFavoritesOnly && !showWithMemoOnly
-                    ) {
-                        showFavoritesOnly = false
+        if isSearching {
+            searchFieldRow
+        } else {
+            normalFilterRow
+        }
+    }
+
+    private var normalFilterRow: some View {
+        VStack(spacing: 0) {
+        HStack(alignment: .bottom, spacing: 10) {
+            // タブ切替風のフィルター。行全体に薄い境界線を通し、アクティブ要素の下だけ太く見せる。
+            // タブエリアを幅いっぱいに広げ、3タブを均等に散らしてゆったり配置する。
+            HStack(alignment: .bottom, spacing: 0) {
+                filterTab(
+                    label: "common.all",
+                    count: allBooksCount,
+                    alwaysShowCount: true,
+                    isSelected: !showFavoritesOnly && !showWithMemoOnly
+                ) {
+                    showFavoritesOnly = false
+                    showWithMemoOnly = false
+                }
+
+                Spacer(minLength: 8)
+
+                filterTab(
+                    label: "bookshelf.favorite",
+                    count: favoriteCount,
+                    isSelected: showFavoritesOnly
+                ) {
+                    showFavoritesOnly.toggle()
+                    if showFavoritesOnly {
                         showWithMemoOnly = false
                     }
+                }
 
-                    filterPill(
-                        label: "bookshelf.favorite",
-                        count: favoriteCount,
-                        isSelected: showFavoritesOnly
-                    ) {
-                        showFavoritesOnly.toggle()
-                        if showFavoritesOnly {
-                            showWithMemoOnly = false
-                        }
-                    }
+                Spacer(minLength: 8)
 
-                    filterPill(
-                        label: "bookshelf.memo",
-                        count: memoCount,
-                        isSelected: showWithMemoOnly
-                    ) {
-                        showWithMemoOnly.toggle()
-                        if showWithMemoOnly {
-                            showFavoritesOnly = false
-                        }
+                filterTab(
+                    label: "bookshelf.memo",
+                    count: memoCount,
+                    isSelected: showWithMemoOnly
+                ) {
+                    showWithMemoOnly.toggle()
+                    if showWithMemoOnly {
+                        showFavoritesOnly = false
                     }
                 }
-                .padding(.vertical, 1)
             }
+            .frame(maxWidth: .infinity)
+
+            // 虫眼鏡・カレンダーボタンはまとめて間隔を狭くする
+            HStack(alignment: .bottom, spacing: 4) {
+            // 本棚内検索を開く（カレンダーボタンの左隣・同一グラス様式）
+            Button(action: { enterShelfSearch() }) {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(calendarToggleIconColor)
+                    .frame(width: 34, height: 34)
+                    .passbookCircleGlass(tint: actionButtonGlassTint)
+                    .contentShape(Circle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(Text("bookshelf.search.placeholder"))
+            .padding(.bottom, 6)
 
             // カレンダービューへ切り替え（グリッド表示時のみ表示）
             // 総合口座の通帳ビューの丸アクションボタンと同じグラススタイルにする
@@ -330,20 +395,106 @@ struct BookshelfView: View {
                     .renderingMode(.template)
                     .resizable()
                     .scaledToFit()
-                    .frame(width: 20, height: 20)
+                    .frame(width: 16, height: 16)
                     .foregroundColor(calendarToggleIconColor)
-                    .frame(width: 40, height: 40)
+                    .frame(width: 34, height: 34)
                     .passbookCircleGlass(tint: actionButtonGlassTint)
                     .contentShape(Circle())
             }
             .buttonStyle(.plain)
+            .padding(.bottom, 6)
+            }
+        }
+
+        // 行全体（タブ＋虫眼鏡・カレンダーボタンの下）に通す薄い境界線。
+        // アクティブタブの下だけ、この線の上に太い色線が重なって太く見える。
+        Rectangle()
+            .fill(bookshelfControlColor.opacity(0.2))
+            .frame(height: 1)
         }
         .padding(.horizontal, 20)
         .padding(.top, 16)
         .padding(.bottom, 16)
     }
 
-    private func filterPill(
+    /// 検索モード時のフィルター行（虫眼鏡＋テキストフィールド＋クリア＋キャンセル）
+    private var searchFieldRow: some View {
+        HStack(spacing: 8) {
+            HStack(spacing: 8) {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 16))
+                    .foregroundColor(bookshelfControlColor.opacity(0.7))
+
+                TextField(
+                    "",
+                    text: $shelfSearchText,
+                    prompt: Text("bookshelf.search.placeholder")
+                        .foregroundColor(bookshelfControlColor.opacity(0.5))
+                )
+                .font(.system(size: 13))
+                .focused($isSearchFieldFocused)
+                .foregroundColor(bookshelfControlColor)
+                .tint(bookshelfControlColor)
+                .submitLabel(.done)
+                .autocorrectionDisabled()
+                .textInputAutocapitalization(.never)
+                .accessibilityLabel(Text("bookshelf.search.placeholder"))
+
+                if !shelfSearchText.isEmpty {
+                    Button(action: { shelfSearchText = "" }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 16))
+                            .foregroundColor(bookshelfControlColor.opacity(0.5))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 14)
+            .frame(height: 40)
+            .background(Capsule().fill(bookshelfControlColor.opacity(0.08)))
+            .overlay(Capsule().strokeBorder(bookshelfControlColor.opacity(0.3), lineWidth: 1))
+
+            Button("common.cancel") { exitShelfSearch() }
+                .font(.system(size: 14))
+                .foregroundColor(bookshelfControlColor)
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 16)
+        .padding(.bottom, 16)
+    }
+
+    /// 検索結果の件数表示（検索フィールド直下）
+    private var searchResultCount: some View {
+        HStack {
+            Text(L10n.format("bookshelf.search.result_count", Int64(userBooks.count)))
+                .font(.caption)
+                .foregroundColor(bookshelfControlColor.opacity(0.7))
+            Spacer()
+        }
+        .padding(.horizontal, 20)
+        .padding(.bottom, 8)
+    }
+
+    /// 検索モードに入る（フィールドを展開してフォーカス）
+    private func enterShelfSearch() {
+        withAnimation(.easeInOut(duration: 0.2)) {
+            isSearching = true
+        }
+        isSearchFieldFocused = true
+    }
+
+    /// 検索モードを終了（テキストをクリアして通常のフィルター行へ戻す）
+    private func exitShelfSearch() {
+        isSearchFieldFocused = false
+        shelfSearchText = ""
+        withAnimation(.easeInOut(duration: 0.2)) {
+            isSearching = false
+        }
+    }
+
+    /// タブ切替風のフィルター項目（等幅）。カプセルで個々を囲まず、
+    /// 全タブに共通の薄い境界線を通し、アクティブ要素の下だけ太い色線を重ねる。
+    private func filterTab(
         label: LocalizedStringKey,
         count: Int,
         alwaysShowCount: Bool = false,
@@ -351,33 +502,37 @@ struct BookshelfView: View {
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
-            HStack(spacing: 6) {
-                Text(label)
-                    .font(.system(size: 11, weight: .medium))
-                    .lineLimit(1)
+            VStack(spacing: 7) {
+                HStack(spacing: 5) {
+                    Text(label)
+                        .font(.system(size: 13, weight: isSelected ? .semibold : .regular))
 
-                if alwaysShowCount || count > 0 {
-                    Text(count.formatted())
-                        .font(.system(size: 10, weight: .medium))
-                        .lineLimit(1)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(
-                            Capsule()
-                                .fill(bookshelfControlColor.opacity(0.2))
-                        )
+                    if alwaysShowCount || count > 0 {
+                        Text(count.formatted())
+                            .font(.system(size: 10, weight: .medium))
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(
+                                Capsule()
+                                    .fill(bookshelfControlColor.opacity(0.2))
+                            )
+                    }
                 }
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .foregroundColor(isSelected ? bookshelfControlColor : bookshelfControlColor.opacity(0.5))
+
+                // アクティブのみ太い色線（薄い基準線は行全体に敷いた線が担うため、ここはクリア）。
+                // 固定高でラベルが動かないようにする。
+                Rectangle()
+                    .fill(isSelected ? bookshelfControlColor : Color.clear)
+                    .frame(height: 2.5)
+                    .frame(maxWidth: .infinity)
             }
-            .fixedSize(horizontal: true, vertical: false)
-            .foregroundColor(isSelected ? bookshelfControlColor : bookshelfControlColor.opacity(0.5))
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
-            .background(
-                Capsule()
-                    .strokeBorder(isSelected ? bookshelfControlColor : bookshelfControlColor.opacity(0.3), lineWidth: 1)
-            )
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .animation(.easeInOut(duration: 0.15), value: isSelected)
     }
     
     // MARK: - Grid Content
@@ -385,13 +540,17 @@ struct BookshelfView: View {
     private var gridContent: some View {
         Group {
             if userBooks.isEmpty {
-                VStack(spacing: 8) {
-                    Text("bookshelf.register_prompt")
-                        .font(.body)
-                        .foregroundColor(bookshelfControlColor)
+                if isShelfSearchActive {
+                    searchEmptyState
+                } else {
+                    VStack(spacing: 8) {
+                        Text("bookshelf.register_prompt")
+                            .font(.body)
+                            .foregroundColor(bookshelfControlColor)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding()
                 }
-                .frame(maxWidth: .infinity)
-                .padding()
             } else {
                 LazyVGrid(columns: columns, spacing: 10) {
                     ForEach(userBooks) { book in
@@ -408,6 +567,46 @@ struct BookshelfView: View {
         .padding(.bottom, 100)
     }
     
+    /// 本棚内検索で0件のときの空状態。オンライン検索（登録）への導線を出す（仕様3.4）。
+    private var searchEmptyState: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 60))
+                .foregroundColor(bookshelfControlColor.opacity(0.5))
+
+            Text("bookshelf.search.empty_title")
+                .font(.headline)
+                .foregroundColor(bookshelfControlColor)
+
+            Text("bookshelf.search.empty_message")
+                .font(.subheadline)
+                .foregroundColor(bookshelfControlColor.opacity(0.7))
+                .multilineTextAlignment(.center)
+
+            // 総合口座でカスタム口座が無い場合は登録先が無いため導線を出さない
+            if let registrationPassbook {
+                NavigationLink(value: BookSearchDestination(passbook: registrationPassbook)) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "magnifyingglass")
+                        Text("bookshelf.search.online_cta")
+                    }
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundColor(bookshelfControlColor)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(
+                        Capsule().strokeBorder(bookshelfControlColor.opacity(0.4), lineWidth: 1)
+                    )
+                }
+                .buttonStyle(.plain)
+                .padding(.top, 4)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, 60)
+        .padding(.horizontal, 40)
+    }
+
     // MARK: - Monthly Memo
 
     private func openMonthlyMemo(year: Int, month: Int) {

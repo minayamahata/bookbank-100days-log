@@ -14,10 +14,9 @@ struct BookshelfCalendarView<Header: View>: View {
     /// 表示対象の書籍（フィルタ適用後）
     let books: [UserBook]
 
-    /// 総合口座かどうか（月メモボタンの表示判定）
-    let isOverallAccount: Bool
-
     /// 月メモを開くコールバック（year, month）
+    /// - Note: 月別メモは口座横断（年月ごとに1つ）のため、どの口座のカレンダーからでも
+    ///   同じメモを編集できる。表示判定に口座種別は用いない。
     let onMonthlyMemo: (Int, Int) -> Void
 
     /// スクロールに追従して流れる先頭要素（フィルター行など）
@@ -181,22 +180,21 @@ struct BookshelfCalendarView<Header: View>: View {
 
                 Spacer()
 
-                if isOverallAccount {
-                    Button {
-                        onMonthlyMemo(year, month)
-                    } label: {
-                        Image(systemName: "ellipsis")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundColor(colorScheme == .dark ? .white : .black)
-                            .frame(width: 32, height: 32)
-                            .background(
-                                Circle()
-                                    .fill(colorScheme == .dark ? Color.white.opacity(0.12) : Color.black.opacity(0.06))
-                            )
-                            .contentShape(Circle())
-                    }
-                    .buttonStyle(.plain)
+                // 月別メモは口座横断（年月ごとに1つ）のため、全口座のカレンダーで表示する
+                Button {
+                    onMonthlyMemo(year, month)
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(colorScheme == .dark ? .white : .black)
+                        .frame(width: 32, height: 32)
+                        .background(
+                            Circle()
+                                .fill(colorScheme == .dark ? Color.white.opacity(0.12) : Color.black.opacity(0.06))
+                        )
+                        .contentShape(Circle())
                 }
+                .buttonStyle(.plain)
             }
 
             weekdayHeader
@@ -507,7 +505,6 @@ struct BookshelfCalendarView<Header: View>: View {
     return NavigationStack {
         BookshelfCalendarView(
             books: books,
-            isOverallAccount: true,
             onMonthlyMemo: { _, _ in }
         ) {
             EmptyView()

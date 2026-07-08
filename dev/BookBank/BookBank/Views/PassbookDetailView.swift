@@ -408,7 +408,9 @@ struct PassbookDetailView: View {
                         }
                     }
                     
-                    NavigationLink(value: PassbookActionDestination.bookshelf) {
+                    Button {
+                        appShellState.showBookshelf()
+                    } label: {
                         Text("passbook.view_bookshelf")
                             .font(.subheadline)
                             .fontWeight(.medium)
@@ -417,6 +419,7 @@ struct PassbookDetailView: View {
                             .padding(.vertical, 12)
                             .passbookCapsuleGlass(tint: accountActionButtonGlassTint)
                     }
+                    .buttonStyle(.plain)
                 }
                 .padding(.top, 32)
             }
@@ -531,12 +534,16 @@ struct PassbookDetailView: View {
             }
             .buttonStyle(.plain)
 
-            NavigationLink(value: PassbookActionDestination.bookshelf) {
+            Button {
+                appShellState.showBookshelf()
+            } label: {
                 overallAccountActionButtonLabel(title: "passbook.view_bookshelf", icon: "icon-tab-bookshelf")
             }
             .buttonStyle(.plain)
 
-            NavigationLink(value: PassbookActionDestination.calendar) {
+            Button {
+                appShellState.showCalendar()
+            } label: {
                 overallAccountActionButtonLabel(title: "passbook.view_calendar", icon: "icon-calendar")
             }
             .buttonStyle(.plain)

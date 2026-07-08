@@ -13,6 +13,8 @@ class AppShellState {
     var showAppMenu = false
     var onPassbookSelected: ((Passbook) -> Void)?
     var onOverallSelected: (() -> Void)?
+    var onShowBookshelf: (() -> Void)?
+    var onShowCalendar: (() -> Void)?
 
     func selectPassbook(_ passbook: Passbook) {
         onPassbookSelected?(passbook)
@@ -20,6 +22,14 @@ class AppShellState {
 
     func selectOverall() {
         onOverallSelected?()
+    }
+
+    func showBookshelf() {
+        onShowBookshelf?()
+    }
+
+    func showCalendar() {
+        onShowCalendar?()
     }
 }
 
@@ -145,6 +155,18 @@ struct MainTabView: View {
                     isOverallMode = true
                     selectedTab = 1
                 }
+                // 本棚・カレンダーへの導線は「本棚タブに切り替える」ことで
+                // ルート表示に統一する（戻るボタンを出さず、タブバーも本棚をアクティブにする）
+                appShellState.onShowBookshelf = {
+                    bookshelfNavPath = NavigationPath()
+                    bookshelfChromeState.isCalendar = false
+                    selectedTab = 2
+                }
+                appShellState.onShowCalendar = {
+                    bookshelfNavPath = NavigationPath()
+                    bookshelfChromeState.isCalendar = true
+                    selectedTab = 2
+                }
                 validateSelectedPassbook()
             }
             .onChange(of: customPassbooks) {
@@ -238,10 +260,6 @@ struct MainTabView: View {
                         switch destination {
                         case .accounts:
                             AccountListView()
-                        case .bookshelf:
-                            BookshelfView(passbook: displayPassbook)
-                        case .calendar:
-                            BookshelfView(passbook: displayPassbook, startsWithCalendarView: true)
                         }
                     }
                     .toolbar {
@@ -550,8 +568,6 @@ struct BookSearchDestination: Hashable {
 /// 通帳ページのアクションボタンからの遷移先（値ベースナビゲーション）
 enum PassbookActionDestination: Hashable {
     case accounts
-    case bookshelf
-    case calendar
 }
 
 // MARK: - Preview

@@ -269,6 +269,60 @@ struct BookBankTests {
         #expect(bundle.bundlePath.hasSuffix("ja.lproj"))
     }
 
+    // MARK: - ShelfSearchMatcher（S: 本棚内検索の正規化・AND部分一致）
+
+    @Test func shelfMatchIsCaseInsensitive() {
+        #expect(ShelfSearchMatcher.matches(fields: ["Haruki Murakami"], query: "murakami"))
+        #expect(ShelfSearchMatcher.matches(fields: ["Haruki Murakami"], query: "MURAKAMI"))
+    }
+
+    @Test func shelfMatchTreatsHiraganaAndKatakanaEqual() {
+        // 「むらかみ」「ムラカミ」が同一書籍にヒットする
+        #expect(ShelfSearchMatcher.matches(fields: ["ムラカミ"], query: "むらかみ"))
+        #expect(ShelfSearchMatcher.matches(fields: ["むらかみ"], query: "ムラカミ"))
+    }
+
+    @Test func shelfMatchIsWidthInsensitive() {
+        // 半角カナ・全角英数のゆれを吸収
+        #expect(ShelfSearchMatcher.matches(fields: ["ハルキ"], query: "ﾊﾙｷ"))
+        #expect(ShelfSearchMatcher.matches(fields: ["1Q84"], query: "１Ｑ８４"))
+    }
+
+    @Test func shelfMatchIsDiacriticInsensitive() {
+        // 濁点・アクセントのゆれを吸収（可能な範囲）
+        #expect(ShelfSearchMatcher.matches(fields: ["Café Society"], query: "cafe"))
+    }
+
+    @Test func shelfMatchAllTermsMustMatchAcrossFields() {
+        // 複数語はAND・各語はフィールド横断のOR（タイトル＋著者）
+        #expect(ShelfSearchMatcher.matches(fields: ["1Q84", "村上春樹"], query: "1q84 村上"))
+        // いずれかの語がどのフィールドにも無ければ不一致
+        #expect(!ShelfSearchMatcher.matches(fields: ["1Q84", "村上春樹"], query: "1q84 漱石"))
+    }
+
+    @Test func shelfMatchIsSpaceInsensitive() {
+        // 著者名のスペース有無でヒットが変わらない（「東野圭吾」＝「東野 圭吾」）
+        #expect(ShelfSearchMatcher.matches(fields: ["東野 圭吾"], query: "東野圭吾"))
+        #expect(ShelfSearchMatcher.matches(fields: ["東野圭吾"], query: "東野 圭吾"))
+        #expect(ShelfSearchMatcher.matches(fields: ["東野圭吾"], query: "東野圭吾"))
+        #expect(ShelfSearchMatcher.matches(fields: ["東野 圭吾"], query: "東野 圭吾"))
+    }
+
+    @Test func shelfMatchEmptyQueryMatchesAll() {
+        #expect(ShelfSearchMatcher.matches(fields: ["何か"], query: ""))
+        #expect(ShelfSearchMatcher.matches(fields: ["何か"], query: "   "))
+        #expect(ShelfSearchMatcher.matches(fields: ["何か"], query: "\u{3000}"))
+    }
+
+    @Test func shelfMatchIgnoresNilAndEmptyFields() {
+        #expect(!ShelfSearchMatcher.matches(fields: [nil, ""], query: "abc"))
+        #expect(ShelfSearchMatcher.matches(fields: [nil, "abc"], query: "abc"))
+    }
+
+    @Test func shelfMatchReturnsFalseWhenNoFieldContainsTerm() {
+        #expect(!ShelfSearchMatcher.matches(fields: ["ABC"], query: "xyz"))
+    }
+
     @Test func rakutenNoImagePlaceholderIsExcluded() {
         let placeholder = "https://thumbnail.image.rakuten.co.jp/@0_mall/book/cabinet/noimage_01.gif?_ex=200x200"
         let real = "https://thumbnail.image.rakuten.co.jp/@0_mall/book/cabinet/0247/9784839960247.jpg?_ex=200x200"

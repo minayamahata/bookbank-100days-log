@@ -1,10 +1,12 @@
 # BookBank 本棚内検索 仕様書
 
 作成日: 2026-07-07
-ステータス: 仕様（実装時に不備・矛盾を発見した場合は指摘・修正すること）
+更新日: 2026-07-08（実装確定に伴い 3.1/3.2/3.4/5/7/8 を更新）
+ステータス: 実装済み（R2 同乗・S）
 関連文書: `DESIGN_SYSTEM.md` / `docs/implementation-roadmap.md`（リリース位置づけは第10章）
 
-> **AI実装エージェントへ**: `docs/agent-implementation-guide.md` を先に読むこと。本書の (仮) 推奨は確定仕様として実装する。
+> **AI実装エージェントへ**: `docs/agent-implementation-guide.md` を先に読むこと。
+> **確定判断（初版からの上書き）**: (1) 検索対象はタイトル・著者のみ（メモ・シリーズ名・出版社は初期スコープ外）。(2) 0件時はオンライン検索（登録）への導線を出す（初版の「誘導しない」を上書き）。E-B（フィルター行インライン展開）・1文字ごとの即時絞り込みは初版どおり採用。
 
 ---
 
@@ -57,7 +59,7 @@
 
 - フィルターピル群とカレンダーボタンは非表示になり、行全体が検索フィールドになる
 - 検索フィールド: 高さ40・角丸カプセル・`strokeBorder(bookshelfControlColor.opacity(0.3))`・背景 `bookshelfControlColor.opacity(0.08)`。文字色/プレースホルダは `bookshelfControlColor`（テーマ色背景でも視認できる本棚専用の配色。**登録検索の角丸10pxグレー検索バーとは意図的に異なる形**にする）
-- プレースホルダ: 「本棚から探す」（`bookshelf.search.placeholder`）
+- プレースホルダ: 「本棚から探す（タイトル・著者名）」（`bookshelf.search.placeholder`）
 - `✕`（クリア）: 入力があるときのみ表示。タップでテキストのみクリア（検索モードは維持）
 - 「キャンセル」テキストボタン: 検索モードを終了し通常のフィルター行へ戻る（テキストもクリア）
 - 展開と同時にキーボードフォーカス（`@FocusState`）
@@ -73,18 +75,17 @@
 |------|-----------|------|
 | タイトル | `UserBook.title` | 主対象 |
 | 著者 | `UserBook.author` | 主対象 |
-| シリーズ名 | `UserBook.seriesName` | |
-| 出版社 | `UserBook.publisher` | |
-| メモ | `UserBook.memo` | 「あの感想を書いた本」を探せるのが本棚内検索の独自価値 |
 
+- **確定スコープ: タイトル・著者のみ**。シリーズ名・出版社・メモは**初期スコープ外**。特にメモ検索は将来のメモ帳機能とセットで実装するため、今回は含めない（メモのみマッチのバッジ表示も本スコープ外）
 - **部分一致**（contains）。複数語（空白区切り）は **AND条件**（全語がいずれかのフィールドにマッチ）
-- **正規化**: NFKC正規化＋小文字化＋**ひらがな⇔カタカナ同一視**（「はるき」で「ハルキ」「春樹」のうちカナ表記にヒット）。全角/半角・大文字/小文字のゆれを吸収する。実装は `String.applyingTransform(.hiraganaToKatakana)` ＋ `folding(options: [.caseInsensitive, .widthInsensitive, .diacriticInsensitive])`
-- 漢字の読み検索（「はるき」→「春樹」）は**初期スコープ外**（読み仮名データを持っていないため。将来検討）
+- **正規化**: 小文字化＋**ひらがな⇔カタカナ同一視**＋全角/半角・大文字/小文字・濁点等のゆれを吸収し、**空白を除去**（「東野圭吾」＝「東野 圭吾」を同一視）。実装は `String.applyingTransform(.hiraganaToKatakana)` ＋ `folding(options: [.caseInsensitive, .widthInsensitive, .diacriticInsensitive])` ＋ 空白除去（純関数 `ShelfSearchMatcher` に集約）。「murakami / MURAKAMI / ムラカミ / むらかみ / ﾑﾗｶﾐ」等が同一の正規形になる。空白でのクエリ語分割（AND）は正規化前に行うため影響しない
+- 漢字の読み検索（「はるき」→「春樹」）・長音符のゆれ吸収は**初期スコープ外**（読み仮名データを持っていないため。将来検討）
 
 ### 3.2 実行タイミングと性能
 
-- **1文字ごとの即時絞り込み**。データはローカル（`passbookBooks` 配列）なので、1,000冊規模でも同期フィルタで十分（正規化済み検索キーは本ごとに1回だけ生成してキャッシュする。`onChange(of: allUserBooks)` で無効化）
-- デバウンスは**入れない**（ネットワークも重い計算もないため。実測でフレーム落ちする場合のみ 100ms を検討）
+- **1文字ごとの即時絞り込み**。データはローカル（`passbookBooks` 配列）なので、1,000冊規模でも同期フィルタで十分
+- 対象がタイトル＋著者のみのため、毎キーストロークの全冊正規化でも軽量な文字列操作 O(n) で1フレーム内に収まる（確定: まずはインライン計算。実測でフレーム落ちする場合のみ正規化キーのキャッシュ／デバウンスを追加）
+- 世代管理・非同期は**不要**（オンライン検索と違いネットワークが無く、同期で完結するため）
 
 ### 3.3 既存フィルターとの合成
 
@@ -96,8 +97,8 @@
 
 - **本棚グリッド（4カラム・`BookCoverView`）をそのまま絞り込む**。行レイアウトへの切替はしない（1.1節）
 - 検索フィールド直下に件数を表示: 「12冊」（`bookshelf.search.result_count`・`%lld`）。`.caption`・`bookshelfControlColor.opacity(0.7)`
-- **メモだけにマッチした本**（タイトル・著者等にはマッチしない）には表紙の右上にメモバッジ（`note.text` 12px・グラス小円）を付ける。「なぜこの本が出たのか」の最低限の説明（タイトルマッチは自明なのでバッジ不要）
-- 0件時: 既存の空状態パターン（DESIGN_SYSTEM 12章）に従い、`magnifyingglass` 60px＋「見つかりませんでした」＋「タイトル・著者・メモから検索できます」。**登録検索への誘導はしない**（「持っていないなら登録」への横断導線は誤登録の混乱の元。将来必要ならA/Bで検討）
+- メモマッチバッジは**本スコープ外**（メモを検索対象にしないため。メモ検索実装時に併せて導入）
+- 0件時（確定）: `magnifyingglass` 60px＋「見つかりませんでした」（`bookshelf.search.empty_title`）＋「タイトル・著者から検索できます」（`bookshelf.search.empty_message`）に加え、**オンライン検索（登録）への導線**を出す（`bookshelf.search.online_cta`「オンラインで検索して登録」→ `BookSearchDestination(passbook: registrationPassbook)` へ遷移）。登録先口座が無い場合（`registrationPassbook == nil`）は導線を出さない。※本項は仕様初版の「登録検索への誘導はしない」を上書きする確定判断
 - 結果タップ → `UserBookDetailView`（既存の `NavigationLink` のまま）。詳細から戻ると**検索状態は維持**されている
 
 ### 3.5 スコープと画面状態
@@ -131,13 +132,14 @@ stateDiagram-v2
 
 | キー | ja | en |
 |------|----|----|
-| `bookshelf.search.placeholder` | 本棚から探す | Search your shelf |
+| `bookshelf.search.placeholder` | 本棚から探す（タイトル・著者名） | Search your shelf (title, author) |
 | `bookshelf.search.result_count` | %lld冊 | %lld books |
 | `bookshelf.search.empty_title` | 見つかりませんでした | No results |
-| `bookshelf.search.empty_message` | タイトル・著者・メモから検索できます | Search by title, author, or memo |
+| `bookshelf.search.empty_message` | タイトル・著者から検索できます | Search by title or author |
+| `bookshelf.search.online_cta` | オンラインで検索して登録 | Search online to register |
 | `common.cancel`（既存） | キャンセル | Cancel |
 
-ko / zh-Hans / zh-Hant は実装時に翻訳（既存キーのトーンに合わせる）。
+ko / zh-Hans / zh-Hant も同時追加済み（既存キーのトーンに合わせて翻訳）。
 
 ---
 
@@ -154,31 +156,29 @@ ko / zh-Hans / zh-Hant は実装時に翻訳（既存キーのトーンに合わ
 
 | 変更対象 | 内容 |
 |---------|------|
-| `Views/BookshelfView.swift` | `@State isSearching` / `searchText` / `@FocusState` の追加。`filterSection` の条件分岐（通常行⇔検索行）。`userBooks` に検索語フィルターを合成。口座・カレンダー切替時のリセット |
-| 新規 `Utils/ShelfSearchMatcher.swift`（または `BookshelfView` 内） | 正規化（NFKC・カナ同一視・幅/ケース無視）・AND部分一致・検索キーキャッシュ。**純関数にしてユニットテスト対象にする** |
-| `Views/BookCoverView.swift` | メモマッチバッジのオプション引数（デフォルト非表示・既存呼び出しに影響なし） |
-| `Localizable.xcstrings` | 5章のキー追加 |
+| `Views/BookshelfView.swift` | `@State isSearching` / `shelfSearchText` / `@FocusState` の追加。`filterSection` の条件分岐（通常行⇔検索行）。`userBooks` に検索語フィルターを合成。0件時のオンライン導線。カレンダー切替時のリセット（口座切替は既存の `.id` リセットで担保） |
+| 新規 `Utils/ShelfSearchMatcher.swift` | 正規化（カナ同一視・幅/ケース/濁点無視）・AND部分一致。**純関数・ユニットテスト対象**（実装済み） |
+| `Localizable.xcstrings` | 5章のキー追加（実装済み） |
 
 - SwiftData の `@Query` 述語では検索しない（カナ正規化・複数フィールドOR・メモ判定を述語で書くと複雑化する。取得済み配列のメモリ内フィルタで十分）
 - クラウド移行（リポジトリ抽象化）後も、検索はViewに渡されたDTO配列に対するメモリ内フィルタのまま成立する（Firestoreクエリ化は不要）
 
 ### テスト項目
 
-1. 正規化: 「ハリー」＝「はりー」＝「ﾊﾘｰ」、大文字/小文字英字、全角英数
-2. AND複数語: 「村上 1Q84」でタイトル＋著者の横断マッチ
-3. メモのみマッチでバッジ表示・タイトルマッチでバッジなし
-4. フィルター（お気に入り）＋検索の合成
-5. 口座切替・カレンダー切替でのリセット、詳細から戻った時の維持
-6. 0件表示・件数表示・空文字（全件表示に戻る）
+1. 正規化: 「murakami / MURAKAMI / ムラカミ / むらかみ / ﾊﾙｷ」等の同一視、大文字/小文字英字、全角英数、濁点/アクセント（`ShelfSearchMatcher` の純関数ユニットテストで実施済み）
+2. AND複数語: 「村上 1Q84」でタイトル＋著者の横断マッチ（実施済み）
+3. フィルター（お気に入り）＋検索の合成
+4. カレンダー切替でのリセット、詳細から戻った時の維持
+5. 0件表示（オンライン導線）・件数表示・空文字（全件表示に戻る）
 
 ---
 
 ## 8. 対象外（本仕様でやらないこと）
 
 - 漢字の読み仮名検索（3.1節）・あいまい一致（typo許容）・関連度ソート
+- **メモ検索・シリーズ名/出版社検索**（3.1節。メモは将来のメモ帳機能とセットで実装）
 - 検索履歴・保存済み検索
 - 読了リスト内検索・通帳画面の検索（同じ `ShelfSearchMatcher` を使えば横展開可能。要望が出てから）
-- 登録検索への横断導線（3.4節）
 
 ---
 
