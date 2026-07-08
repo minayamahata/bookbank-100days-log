@@ -75,7 +75,7 @@ flowchart LR
 |------|---------|
 | A-1 / A-7 ✅ | 検索タスクの**世代管理**を導入（`searchGeneration` カウンター）。`performSearch` / `loadMoreResults` / `searchByISBN` / `enrichFormatsInBackground` は開始時の世代を持ち、完了時に世代が違えば結果を捨てる。新検索開始時に旧Taskをキャンセルし `isLoadingMore` / `isAutoLoadingForFilters` をリセット。**（A-7のリセット漏れはステップ1の `beginNewSearch()`、A-1の世代管理＋タスクキャンセル＋`currentPage`先行インクリメント廃止はステップ2で完了 (2026-07-08)。手動リグレッション確認は別途）** |
 | A-2 ✅ | `searchByISBN` で `currentPage` / `canLoadMore` / `isLoadingMore` / `totalResultCount` をリセット。→ `beginNewSearch(canLoadMore: false)` に集約 (2026-07-08・R2ステップ1) |
-| A-3 | 形態補完完了時の `updateFilteredResults()` を「並び保持のin-place更新」に変更（全件再ソートしない） |
+| A-3 ✅ | 形態補完完了時の `updateFilteredResults()` を「並び保持のin-place更新」に変更（全件再ソートしない）。完了 (2026-07-08・R2ステップ5)。フィルター中の新規該当本の取りこぼしは A-9 として別途 |
 | A-4 ✅ | `performSearch` のcatchでエラー状態を保持し、空状態UIを「0件」と「エラー＋再試行ボタン」に分岐。→ `SearchPhase` enum 導入で完了 (2026-07-08・R2ステップ3) |
 | A-5 | 楽天のローカル絞り込み後0件時の `hasMorePages` 判定を補正 |
 | A-6 ✅ | `loadMoreResults` の重複排除をISBNなし書籍の安定ID（タイトル+著者+発売日ハッシュ）でも効かせる。→ 既存 `RakutenBook.id` を再利用する `SearchResultDeduplicator` に統一（新規ハッシュ実装は不要・設計メモ4.6）。完了 (2026-07-08・R2ステップ4) |

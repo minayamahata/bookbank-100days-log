@@ -925,25 +925,18 @@ struct BookSearchView: View {
             }
             guard !sizeByISBN.isEmpty else { return }
 
-            // 元データにサイズを反映
-            searchResults = searchResults.map { book in
+            // 表示順（スクロール位置・選択状態）を保つため、searchResults / filteredResults の
+            // 両方を全件再ソートせず in-place でサイズだけ更新する（A-3）。
+            // 世代照合は上の guard で担保済み（ここに到達するのは最新世代のときだけ）。
+            // 注: 形態フィルター中に補完で新たに条件へ合致した本の取りこぼしは別件（A-9）として扱う。
+            let applyEnrichedSize: (RakutenBook) -> RakutenBook = { book in
                 if book.displayFormat == nil, !book.isbn.isEmpty, let size = sizeByISBN[book.isbn] {
                     return book.withSize(size)
                 }
                 return book
             }
-
-            // 発行形態フィルター中は該当が増えるため再抽出、それ以外は並びを保ったままサイズだけ更新
-            if selectedFormatFilter != nil {
-                updateFilteredResults()
-            } else {
-                filteredResults = filteredResults.map { book in
-                    if book.displayFormat == nil, !book.isbn.isEmpty, let size = sizeByISBN[book.isbn] {
-                        return book.withSize(size)
-                    }
-                    return book
-                }
-            }
+            searchResults = searchResults.map(applyEnrichedSize)
+            filteredResults = filteredResults.map(applyEnrichedSize)
         }
     }
     
