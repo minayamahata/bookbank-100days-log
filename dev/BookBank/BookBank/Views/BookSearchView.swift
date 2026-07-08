@@ -868,10 +868,9 @@ struct BookSearchView: View {
                     totalResultCount = total
                 }
                 
-                // 重複を除外して追加（ISBN で判定。ISBN がない本＝Google Books に多い＝は
-                // 空文字が衝突して巻き込まれないよう、常に新規として残す）
-                let existingISBNs = Set(searchResults.map { $0.isbn }.filter { !$0.isEmpty })
-                let newResults = results.filter { $0.isbn.isEmpty || !existingISBNs.contains($0.isbn) }
+                // 重複を除外して追加（安定ID = ISBN、なければ title|author|salesDate で判定。
+                // 失敗→再試行で同一ページを再取得しても二重追加されない・A-6）
+                let newResults = SearchResultDeduplicator.newItems(from: results, notIn: searchResults)
                 let filteredCountBefore = filteredResults.count
                 
                 searchResults.append(contentsOf: newResults)

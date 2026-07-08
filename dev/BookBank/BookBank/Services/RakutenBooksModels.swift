@@ -227,6 +227,17 @@ struct RakutenBook: Codable, Identifiable {
     }
 }
 
+/// 検索結果ページの重複排除。`RakutenBook.id`（ISBN、なければ `title|author|salesDate` の安定ID）で判定する。
+/// 追加読み込み失敗→再試行で同一ページを再取得しても二重追加しないため（A-6）。
+/// 判定規則は `appendPageToFilteredResults` と揃えており、新しい重複判定は導入しない。
+enum SearchResultDeduplicator {
+    /// `existing` に含まれない（id が重複しない）要素だけを、`incoming` の順序を保って返す。
+    static func newItems(from incoming: [RakutenBook], notIn existing: [RakutenBook]) -> [RakutenBook] {
+        let existingIDs = Set(existing.map(\.id))
+        return incoming.filter { !existingIDs.contains($0.id) }
+    }
+}
+
 /// 検索結果の発行形態カテゴリ
 enum BookFormatKind: String, CaseIterable, Hashable {
     case bunko
