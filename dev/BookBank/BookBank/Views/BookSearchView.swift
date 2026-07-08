@@ -152,6 +152,20 @@ struct BookSearchView: View {
     /// フィルタリング・ソート済みの検索結果（キャッシュ）
     @State private var filteredResults: [RakutenBook] = []
     
+    /// 検索の世代カウンター。新しい検索（キーワード / ISBN）の開始でインクリメントし、
+    /// 各非同期フローは開始時の世代を捕捉して、await後に一致する場合のみ結果を反映する（A-1）。
+    /// キャンセルは即時性のための補助であり、正しさの保証はこの世代照合が担う。
+    @State private var searchGeneration: Int = 0
+    
+    /// キーワード / ISBN 検索本体のタスクハンドル（新検索開始時にキャンセル）
+    @State private var searchTask: Task<Void, Never>?
+    
+    /// 追加読み込みのタスクハンドル（新検索開始時にキャンセル）
+    @State private var loadMoreTask: Task<Void, Never>?
+    
+    /// 発行形態の後追い補完のタスクハンドル（新検索開始時にキャンセル）
+    @State private var enrichTask: Task<Void, Never>?
+    
     /// 登録済みISBNのキャッシュ（高速化用）
     @State private var registeredISBNs: Set<String> = []
     
@@ -760,6 +774,13 @@ struct BookSearchView: View {
     /// キーワード検索・ISBN検索の両方がここを通ることで、リセット漏れ（A-2 / A-7）を防ぐ。
     /// `showUnregisteredOnly` / `selectedSortOption` / `searchText` は意図的に維持する（現状挙動）。
     private func beginNewSearch(canLoadMore: Bool = true) {
+        // 世代を進め、進行中の検索・追加読み込み・補完タスクをキャンセルする。
+        // キャンセルは補助であり、正しさは各フローの世代照合が担保する（設計メモ 4.1）。
+        searchGeneration += 1
+        searchTask?.cancel()
+        loadMoreTask?.cancel()
+        enrichTask?.cancel()
+        
         isSearching = true
         hasSearched = true
         errorMessage = nil
@@ -784,11 +805,16 @@ struct BookSearchView: View {
         }
         
         beginNewSearch()
+        // 開始時の世代とリクエスト値をローカルに捕捉（実行時に @State を読み直さない）
+        let generation = searchGeneration
+        let keyword = searchText
         
-        Task {
+        searchTask = Task {
             do {
                 // 設定に応じた検索データベースで検索（タイトル・著者名両方）
-                let page = try await searchService.search(searchText, page: 1)
+                let page = try await searchService.search(keyword, page: 1)
+                // await をまたいで新しい検索が始まっていたら、結果を捨てて状態に触れない
+                guard generation == searchGeneration else { return }
                 searchResults = page.books
                 totalResultCount = page.totalCount
                 canLoadMore = page.hasMorePages
@@ -797,6 +823,8 @@ struct BookSearchView: View {
                 // 発行形態は表示をブロックせず後追いで補完する
                 enrichFormatsInBackground(for: page.books)
             } catch {
+                // 旧世代（キャンセル含む）のエラーは UI に反映しない
+                guard generation == searchGeneration else { return }
                 errorMessage = error.localizedDescription
                 searchResults = []
                 filteredResults = []
@@ -821,11 +849,17 @@ struct BookSearchView: View {
         if autoContinue {
             isAutoLoadingForFilters = true
         }
-        currentPage += 1
+        // 開始時の世代・要求ページ・キーワードをローカル捕捉。
+        // currentPage は先行インクリメントせず、成功時にのみ requestedPage で確定する（設計メモ 4.2）。
+        let generation = searchGeneration
+        let requestedPage = currentPage + 1
+        let keyword = searchText
         
-        Task {
+        loadMoreTask = Task {
             do {
-                let page = try await searchService.search(searchText, page: currentPage)
+                let page = try await searchService.search(keyword, page: requestedPage)
+                // 世代不一致なら結果もフラグも触らない（新検索の beginNewSearch が既にリセット済み）
+                guard generation == searchGeneration else { return }
                 let results = page.books
                 if let total = page.totalCount {
                     totalResultCount = total
@@ -838,6 +872,7 @@ struct BookSearchView: View {
                 let filteredCountBefore = filteredResults.count
                 
                 searchResults.append(contentsOf: newResults)
+                currentPage = requestedPage
                 canLoadMore = page.hasMorePages
                 appendPageToFilteredResults(newResults)
                 enrichFormatsInBackground(for: newResults)
@@ -856,9 +891,11 @@ struct BookSearchView: View {
                 #if DEBUG
                 print("追加読み込みエラー: \(error)")
                 #endif
+                // 世代不一致（キャンセル含む）ならフラグに触らない（新検索が既にリセット済み）
+                guard generation == searchGeneration else { return }
                 // 一時的な失敗（レート制限など）でページングを恒久停止させない。
-                // ページ番号を戻し、canLoadMore は維持して「もっと読み込む」で再試行できるようにする。
-                currentPage = max(1, currentPage - 1)
+                // currentPage は成功時にしか進めていないためロールバック不要。
+                // canLoadMore は維持して「もっと読み込む」で再試行できるようにする。
                 isLoadingMore = false
                 isAutoLoadingForFilters = false
             }
@@ -871,9 +908,12 @@ struct BookSearchView: View {
         guard activeSearchProvider == .rakuten else { return }
         let targets = books.filter { $0.displayFormat == nil && !$0.isbn.isEmpty }
         guard !targets.isEmpty else { return }
+        // 呼び出し元と同じ世代を捕捉。await後に新検索が始まっていたら反映しない。
+        let generation = searchGeneration
 
-        Task {
+        enrichTask = Task {
             let enriched = await searchService.enrichFormats(for: targets)
+            guard generation == searchGeneration else { return }
 
             var sizeByISBN: [String: String] = [:]
             for book in enriched where !book.isbn.isEmpty {
@@ -1011,11 +1051,15 @@ struct BookSearchView: View {
         beginNewSearch(canLoadMore: false)
         searchText = isbn  // 検索バーにISBNを表示
         isSearchingByISBN = true
+        // 開始時の世代を捕捉（実行時に @State を読み直さない）
+        let generation = searchGeneration
         
-        Task {
+        searchTask = Task {
             do {
                 // 設定に応じた検索データベースでISBN検索
                 let results = try await searchService.searchByISBN(isbn)
+                // await をまたいで新しい検索が始まっていたら、結果を捨てて状態に触れない
+                guard generation == searchGeneration else { return }
                 
                 if results.isEmpty {
                     // 本が見つからない場合
@@ -1039,6 +1083,8 @@ struct BookSearchView: View {
                 isSearching = false
                 isSearchingByISBN = false
             } catch {
+                // 旧世代（キャンセル含む）のエラーは UI に反映しない
+                guard generation == searchGeneration else { return }
                 errorMessage = "検索中にエラーが発生しました: \(error.localizedDescription)"
                 searchResults = []
                 filteredResults = []

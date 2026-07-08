@@ -73,7 +73,7 @@ flowchart LR
 
 | 項目 | 実装内容 |
 |------|---------|
-| A-1 / A-7 | 検索タスクの**世代管理**を導入（`searchGeneration` カウンター）。`performSearch` / `loadMoreResults` / `searchByISBN` / `enrichFormatsInBackground` は開始時の世代を持ち、完了時に世代が違えば結果を捨てる。新検索開始時に旧Taskをキャンセルし `isLoadingMore` / `isAutoLoadingForFilters` をリセット。**（A-7のリセット漏れはステップ1の `beginNewSearch()` で解消済み (2026-07-08)。A-1の世代管理はステップ2で対応）** |
+| A-1 / A-7 ✅ | 検索タスクの**世代管理**を導入（`searchGeneration` カウンター）。`performSearch` / `loadMoreResults` / `searchByISBN` / `enrichFormatsInBackground` は開始時の世代を持ち、完了時に世代が違えば結果を捨てる。新検索開始時に旧Taskをキャンセルし `isLoadingMore` / `isAutoLoadingForFilters` をリセット。**（A-7のリセット漏れはステップ1の `beginNewSearch()`、A-1の世代管理＋タスクキャンセル＋`currentPage`先行インクリメント廃止はステップ2で完了 (2026-07-08)。手動リグレッション確認は別途）** |
 | A-2 ✅ | `searchByISBN` で `currentPage` / `canLoadMore` / `isLoadingMore` / `totalResultCount` をリセット。→ `beginNewSearch(canLoadMore: false)` に集約 (2026-07-08・R2ステップ1) |
 | A-3 | 形態補完完了時の `updateFilteredResults()` を「並び保持のin-place更新」に変更（全件再ソートしない） |
 | A-4 | `performSearch` のcatchでエラー状態を保持し、空状態UIを「0件」と「エラー＋再試行ボタン」に分岐 |
