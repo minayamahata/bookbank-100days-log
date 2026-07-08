@@ -30,24 +30,57 @@ enum L10n {
         return bundle.localizedString(forKey: key, value: nil, table: nil)
     }
 
-    private static func bundle(for locale: Locale) -> Bundle {
-        var candidates: [String] = [locale.identifier]
+    /// 真に解決できないときのフォールバック言語（開発基準）。
+    /// 端末言語依存の `.main` に落とすとアプリ内言語設定が効かないため、`ja` の lproj を使う（G-4）。
+    static let fallbackLanguageCode = "ja"
+
+    /// locale から `.lproj` 探索に使う候補識別子を優先順に生成する純関数。
+    /// - Note: `Locale.identifier` はアンダースコア区切り（例: `zh_Hant`）になり得るが、
+    ///   `.lproj` フォルダ名はハイフン区切り（例: `zh-Hant.lproj`）のため正規化する（G-4）。
+    static func lprojCandidates(for locale: Locale) -> [String] {
+        var raw: [String] = [locale.identifier]
         if #available(iOS 16, *) {
-            candidates.append(locale.language.minimalIdentifier)
+            raw.append(locale.language.minimalIdentifier)
             if let code = locale.language.languageCode?.identifier {
-                candidates.append(code)
+                if let script = locale.language.script?.identifier {
+                    raw.append("\(code)-\(script)")
+                }
+                raw.append(code)
             }
         } else {
-            candidates.append(locale.identifier.prefix(2).description)
+            raw.append(String(locale.identifier.prefix(2)))
         }
 
-        for identifier in candidates {
-            if let path = Bundle.main.path(forResource: identifier, ofType: "lproj"),
-               let bundle = Bundle(path: path) {
+        // アンダースコアをハイフンへ正規化し、空・重複を除いて順序を保つ
+        var seen = Set<String>()
+        var candidates: [String] = []
+        for identifier in raw {
+            let normalized = identifier.replacingOccurrences(of: "_", with: "-")
+            guard !normalized.isEmpty, seen.insert(normalized).inserted else { continue }
+            candidates.append(normalized)
+        }
+        return candidates
+    }
+
+    static func bundle(for locale: Locale) -> Bundle {
+        for identifier in lprojCandidates(for: locale) {
+            if let bundle = lprojBundle(named: identifier) {
                 return bundle
             }
         }
+        // 端末言語依存の .main には落とさず、開発基準言語の lproj へフォールバックする（G-4）
+        if let fallback = lprojBundle(named: fallbackLanguageCode) {
+            return fallback
+        }
         return .main
+    }
+
+    private static func lprojBundle(named identifier: String) -> Bundle? {
+        guard let path = Bundle.main.path(forResource: identifier, ofType: "lproj"),
+              let bundle = Bundle(path: path) else {
+            return nil
+        }
+        return bundle
     }
 }
 

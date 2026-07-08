@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import SwiftUI
 import Testing
 @testable import BookBank
 
@@ -202,6 +203,70 @@ struct BookBankTests {
         #expect(SalesDateParser.year(from: "2019年12月31日") == 2019)
         #expect(SalesDateParser.year(from: "2012年09月07日発売") == 2012)
         #expect(SalesDateParser.year(from: "不明") == nil)
+    }
+
+    // MARK: - Color.luminance（G-6: 色空間に依存しない輝度計算）
+
+    @Test func relativeLuminanceMatchesBT601() {
+        #expect(abs(Color.relativeLuminance(red: 1, green: 1, blue: 1) - 1.0) < 0.0001)
+        #expect(Color.relativeLuminance(red: 0, green: 0, blue: 0) == 0.0)
+        // BT.601 の重み: 赤0.299 / 緑0.587 / 青0.114
+        #expect(abs(Color.relativeLuminance(red: 1, green: 0, blue: 0) - 0.299) < 0.0001)
+        #expect(abs(Color.relativeLuminance(red: 0, green: 1, blue: 0) - 0.587) < 0.0001)
+        #expect(abs(Color.relativeLuminance(red: 0, green: 0, blue: 1) - 0.114) < 0.0001)
+    }
+
+    @Test @MainActor func luminanceResolvesBasicColors() {
+        #expect(abs(Color.white.luminance - 1.0) < 0.01)
+        #expect(Color.black.luminance < 0.01)
+    }
+
+    @Test @MainActor func luminanceResolvesDisplayP3Color() {
+        // Display P3 の赤でも成分を取り出せ、既定フォールバック(0.6)に落ちないこと
+        let p3Red = Color(UIColor(displayP3Red: 1, green: 0, blue: 0, alpha: 1))
+        let value = p3Red.luminance
+        #expect(value < 0.5)
+        #expect(abs(value - Color.fallbackLuminance) > 0.0001)
+    }
+
+    @Test @MainActor func contrastingTextColorFollowsLuminance() {
+        #expect(Color.white.contrastingTextColor == Color.black)
+        #expect(Color.black.contrastingTextColor == Color.white)
+    }
+
+    // MARK: - L10n バンドル解決（G-4: アプリ内言語設定への追従）
+
+    @Test func lprojCandidatesNormalizeUnderscoreToHyphen() {
+        // Locale.identifier がアンダースコアでも .lproj 名（ハイフン）に正規化される
+        #expect(L10n.lprojCandidates(for: Locale(identifier: "zh_Hant")).contains("zh-Hant"))
+        #expect(L10n.lprojCandidates(for: Locale(identifier: "zh_Hans")).contains("zh-Hans"))
+    }
+
+    @Test func lprojCandidatesIncludeLanguageCodeFallback() {
+        // 地域付き識別子でも言語コード単体が候補に含まれる
+        #expect(L10n.lprojCandidates(for: Locale(identifier: "en_US")).contains("en"))
+        #expect(L10n.lprojCandidates(for: Locale(identifier: "ko_KR")).contains("ko"))
+        // 重複は除かれ順序が保たれる（先頭は元の識別子由来）
+        let ja = L10n.lprojCandidates(for: Locale(identifier: "ja"))
+        #expect(ja.first == "ja")
+        #expect(Set(ja).count == ja.count)
+    }
+
+    @Test func bundleResolvesEachAppLanguageLproj() throws {
+        // ホストにローカライズリソースがある環境でのみ検証（無い場合は素通り）
+        guard Bundle.main.path(forResource: "en", ofType: "lproj") != nil else { return }
+        let cases = ["ja", "en", "ko", "zh-Hans", "zh-Hant"]
+        for expected in cases {
+            let bundle = L10n.bundle(for: Locale(identifier: expected))
+            #expect(bundle.bundlePath.hasSuffix("\(expected).lproj"))
+        }
+    }
+
+    @Test func bundleFallsBackToJapaneseForUnknownLocale() throws {
+        guard Bundle.main.path(forResource: "ja", ofType: "lproj") != nil else { return }
+        // 未対応ロケールは端末言語依存の .main ではなく開発基準の ja へフォールバック
+        let bundle = L10n.bundle(for: Locale(identifier: "xx-YY"))
+        #expect(bundle.bundlePath.hasSuffix("ja.lproj"))
     }
 
     @Test func rakutenNoImagePlaceholderIsExcluded() {
