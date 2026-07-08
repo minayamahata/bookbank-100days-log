@@ -37,6 +37,15 @@ enum SalesDateParser {
         (4, makeFormatter("yyyy"))
     ]
 
+    /// 年の取り出しに使う JST 固定カレンダー。
+    /// - Note: パーサは日付を JST で解釈するため、年の抽出も JST 基準でなければ
+    ///   JST より西の端末（`Calendar.current`）で 1/1 が前年に判定され1年ずれる（G-2）。
+    private static let jstCalendar: Calendar = {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "Asia/Tokyo") ?? .current
+        return calendar
+    }()
+
     /// salesDate 文字列を Date に変換（解釈できない場合は nil）
     static func date(from raw: String) -> Date? {
         let cleaned = raw
@@ -68,7 +77,7 @@ enum SalesDateParser {
     /// salesDate 文字列から西暦の年だけを取得
     static func year(from raw: String) -> Int? {
         guard let date = date(from: raw) else { return nil }
-        return Calendar.current.component(.year, from: date)
+        return jstCalendar.component(.year, from: date)
     }
 }
 

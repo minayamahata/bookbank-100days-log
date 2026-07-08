@@ -112,6 +112,10 @@ struct BookSearchView: View {
     /// 現在のページ番号
     @State private var currentPage: Int = 1
     
+    /// これまでに取得できた累積生件数（重複除去前）。
+    /// 総件数との到達判定（A-5）に使う。新検索でリセットする。
+    @State private var fetchedRawCount: Int = 0
+    
     /// さらに読み込み可能かどうか
     @State private var canLoadMore: Bool = true
     
@@ -789,6 +793,7 @@ struct BookSearchView: View {
         searchPhase = .searching
         showISBNNotFoundAlert = false
         currentPage = 1
+        fetchedRawCount = 0
         self.canLoadMore = canLoadMore
         isLoadingMore = false
         isAutoLoadingForFilters = false
@@ -821,7 +826,13 @@ struct BookSearchView: View {
                 guard generation == searchGeneration else { return }
                 searchResults = page.books
                 totalResultCount = page.totalCount
-                canLoadMore = page.hasMorePages
+                // 累積生件数を初期化し、総件数への到達判定で継続可否を決める（A-5）。
+                fetchedRawCount = page.rawItemCount
+                canLoadMore = SearchPagination.canLoadMore(
+                    fetchedRawCount: fetchedRawCount,
+                    totalCount: page.totalCount,
+                    providerHasMorePages: page.hasMorePages
+                )
                 updateFilteredResults()
                 searchPhase = .loaded
                 // 発行形態は表示をブロックせず後追いで補完する
@@ -867,6 +878,8 @@ struct BookSearchView: View {
                 if let total = page.totalCount {
                     totalResultCount = total
                 }
+                // 生件数は重複除去前に加算する（同一ページの再取得は成功時のみ・二重加算しない）。
+                fetchedRawCount += page.rawItemCount
                 
                 // 重複を除外して追加（安定ID = ISBN、なければ title|author|salesDate で判定。
                 // 失敗→再試行で同一ページを再取得しても二重追加されない・A-6）
@@ -875,7 +888,12 @@ struct BookSearchView: View {
                 
                 searchResults.append(contentsOf: newResults)
                 currentPage = requestedPage
-                canLoadMore = page.hasMorePages
+                // 累積生件数が総件数に達したら停止（薄いページでも未達なら継続・A-5）。
+                canLoadMore = SearchPagination.canLoadMore(
+                    fetchedRawCount: fetchedRawCount,
+                    totalCount: totalResultCount,
+                    providerHasMorePages: page.hasMorePages
+                )
                 appendPageToFilteredResults(newResults)
                 enrichFormatsInBackground(for: newResults)
                 

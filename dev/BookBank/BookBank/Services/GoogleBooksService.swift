@@ -45,7 +45,7 @@ final class GoogleBooksService {
     func search(_ keyword: String, page: Int = 1) async throws -> BookSearchPage {
         let trimmed = keyword.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty, page >= 1 else {
-            return BookSearchPage(books: [], totalCount: 0, hasMorePages: false)
+            return BookSearchPage(books: [], rawItemCount: 0, totalCount: 0, hasMorePages: false)
         }
 
         let startIndex = (page - 1) * Self.pageSize
@@ -103,10 +103,12 @@ final class GoogleBooksService {
 
         // 次ページの有無は、変換後（nil除外後）ではなくAPIが返した生の件数で判定する。
         // 1 リクエスト最大 pageSize 件が満杯なら、まだ後続ページがあるとみなす。
+        // 総件数ちょうどでの空ページ余分取得（A-8）は、View 側の累積生件数 vs 総件数判定で停止する。
         let rawItemCount = decoded.items?.count ?? 0
         let books = (decoded.items ?? []).compactMap { $0.toRakutenBook() }
         return BookSearchPage(
             books: books,
+            rawItemCount: rawItemCount,
             totalCount: decoded.totalItems,
             hasMorePages: rawItemCount >= Self.pageSize
         )
@@ -216,7 +218,10 @@ struct GoogleVolumeInfo: Codable {
     /// "2020-01-15" / "2020-01" / "2020" → "2020年01月15日" 等（RakutenBook.publishedYear が解釈できる形式）
     var formattedSalesDate: String {
         guard let publishedDate, !publishedDate.isEmpty else { return "" }
-        let parts = publishedDate.split(separator: "-").map(String.init)
+        // "2009-05-15T00:00:00Z" のようなタイムスタンプ形式は、日付部分（T より前）だけを使う（G-1）。
+        // これをしないと "-" 分割の3要素目が "15T00:00:00Z" となり日付が壊れる。
+        let dateOnly = publishedDate.split(separator: "T", maxSplits: 1).first.map(String.init) ?? publishedDate
+        let parts = dateOnly.split(separator: "-").map(String.init)
         switch parts.count {
         case 1:
             return "\(parts[0])年"

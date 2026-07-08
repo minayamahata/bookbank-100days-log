@@ -33,7 +33,7 @@ class RakutenBooksService {
     /// - Returns: 検索結果の書籍リスト
     func search(_ keyword: String, page: Int = 1) async throws -> BookSearchPage {
         guard !keyword.trimmingCharacters(in: .whitespaces).isEmpty else {
-            return BookSearchPage(books: [], totalCount: 0, hasMorePages: false)
+            return BookSearchPage(books: [], rawItemCount: 0, totalCount: 0, hasMorePages: false)
         }
         
         var components = URLComponents(string: proxyURL)
@@ -180,8 +180,10 @@ class RakutenBooksService {
         // 総合検索APIは size を返さない。発行形態はここで待たず、
         // 呼び出し側が enrichWithFormat で後追い取得する（初期表示を速くするため）。
         // 次ページの有無は、絞り込み後の件数ではなくAPIのページ情報（page < pageCount）で判定する。
+        // 生件数（rawItemCount）は絞り込み前の取得件数。View 側が累積して総件数との到達判定に使う。
         return BookSearchPage(
             books: filteredBooks,
+            rawItemCount: searchResponse.Items.count,
             totalCount: searchResponse.count,
             hasMorePages: searchResponse.page < searchResponse.pageCount
         )

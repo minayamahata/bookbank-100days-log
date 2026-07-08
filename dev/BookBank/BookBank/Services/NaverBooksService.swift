@@ -22,7 +22,7 @@ final class NaverBooksService {
     func search(_ keyword: String, page: Int = 1) async throws -> BookSearchPage {
         let trimmed = keyword.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty, page == 1 else {
-            return BookSearchPage(books: [], totalCount: 0, hasMorePages: false)
+            return BookSearchPage(books: [], rawItemCount: 0, totalCount: 0, hasMorePages: false)
         }
 
         var components = URLComponents(string: proxyURL)
@@ -74,7 +74,12 @@ final class NaverBooksService {
 
         // NAVER プロキシは display=20 固定・ページング未対応のため、次ページは常になし。
         let books = decoded.items.compactMap { $0.toRakutenBook() }
-        return BookSearchPage(books: books, totalCount: decoded.total, hasMorePages: false)
+        return BookSearchPage(
+            books: books,
+            rawItemCount: decoded.items.count,
+            totalCount: decoded.total,
+            hasMorePages: false
+        )
     }
 }
 

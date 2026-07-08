@@ -135,6 +135,75 @@ struct BookBankTests {
         #expect(result.map(\.title) == ["1", "3"])
     }
 
+    // MARK: - SearchPagination（A-5: 累積生件数 vs 総件数でのページ継続判定）
+
+    @Test func pagingContinuesOnThinPageUnderTotal() {
+        // 薄いページ（絞り込みで表示が減った）でも、累積生件数が総件数に未達なら継続する
+        #expect(SearchPagination.canLoadMore(fetchedRawCount: 30, totalCount: 100, providerHasMorePages: true))
+    }
+
+    @Test func pagingStopsWhenReachedExactTotal() {
+        // 総件数ちょうどに達したら停止（末尾ページ）
+        #expect(!SearchPagination.canLoadMore(fetchedRawCount: 40, totalCount: 40, providerHasMorePages: true))
+    }
+
+    @Test func pagingStopsWhenExceededTotal() {
+        // 総件数を超過していたら停止（総件数超過での止まらなすぎ防止・A-8相当）
+        #expect(!SearchPagination.canLoadMore(fetchedRawCount: 45, totalCount: 40, providerHasMorePages: true))
+    }
+
+    @Test func pagingStopsOneShortOfTotalOnlyIfProviderAllows() {
+        // 総件数まで残り1件でも、プロバイダに次ページがなければ停止
+        #expect(SearchPagination.canLoadMore(fetchedRawCount: 39, totalCount: 40, providerHasMorePages: true))
+        #expect(!SearchPagination.canLoadMore(fetchedRawCount: 39, totalCount: 40, providerHasMorePages: false))
+    }
+
+    @Test func pagingFallsBackToProviderWhenTotalUnknown() {
+        // 総件数が不明ならプロバイダのページ判定に委ねる
+        #expect(SearchPagination.canLoadMore(fetchedRawCount: 20, totalCount: nil, providerHasMorePages: true))
+        #expect(!SearchPagination.canLoadMore(fetchedRawCount: 20, totalCount: nil, providerHasMorePages: false))
+    }
+
+    @Test func pagingStopsWhenProviderHasNoMorePages() {
+        // NAVER のように構造的にページングできない場合は、総件数未達でも停止
+        #expect(!SearchPagination.canLoadMore(fetchedRawCount: 20, totalCount: 1000, providerHasMorePages: false))
+    }
+
+    // MARK: - Google formattedSalesDate（G-1: タイムスタンプ形式の日付解析）
+
+    private func googleVolume(publishedDate: String?) -> GoogleVolumeInfo {
+        GoogleVolumeInfo(
+            title: "t",
+            authors: nil,
+            publisher: nil,
+            publishedDate: publishedDate,
+            imageLinks: nil,
+            industryIdentifiers: nil
+        )
+    }
+
+    @Test func googleFormattedSalesDateStripsTimestamp() {
+        // "2009-05-15T00:00:00Z" のタイムスタンプ形式でも日付部分だけを使う（G-1）
+        #expect(googleVolume(publishedDate: "2009-05-15T00:00:00Z").formattedSalesDate == "2009年05月15日")
+    }
+
+    @Test func googleFormattedSalesDateHandlesPlainFormats() {
+        #expect(googleVolume(publishedDate: "2020-01-15").formattedSalesDate == "2020年01月15日")
+        #expect(googleVolume(publishedDate: "2020-01").formattedSalesDate == "2020年01月")
+        #expect(googleVolume(publishedDate: "2020").formattedSalesDate == "2020年")
+        #expect(googleVolume(publishedDate: nil).formattedSalesDate == "")
+    }
+
+    // MARK: - SalesDateParser.year（G-2: JST基準での年抽出）
+
+    @Test func salesDateYearUsesJSTBoundary() {
+        // JSTの元日は Date としては UTC で前年の大晦日になる。JST基準で年を取り出せていれば 2020。
+        #expect(SalesDateParser.year(from: "2020年01月01日") == 2020)
+        #expect(SalesDateParser.year(from: "2019年12月31日") == 2019)
+        #expect(SalesDateParser.year(from: "2012年09月07日発売") == 2012)
+        #expect(SalesDateParser.year(from: "不明") == nil)
+    }
+
     @Test func rakutenNoImagePlaceholderIsExcluded() {
         let placeholder = "https://thumbnail.image.rakuten.co.jp/@0_mall/book/cabinet/noimage_01.gif?_ex=200x200"
         let real = "https://thumbnail.image.rakuten.co.jp/@0_mall/book/cabinet/0247/9784839960247.jpg?_ex=200x200"

@@ -71,14 +71,50 @@ enum SearchProvider {
 
 /// キーワード検索の1ページ分の結果（取得した書籍＋APIが返す総ヒット件数）
 struct BookSearchPage {
-    /// このページで取得した書籍
+    /// このページで取得した書籍（ローカル絞り込み・変換後の表示用）
     let books: [RakutenBook]
+    /// このページで API から取得できた生の件数（重複除去・ローカル絞り込み前）。
+    /// - Note: View 側が全ページ分を累積し、総件数に達したかで「もっと読み込む」の継続を判定する。
+    ///   `books.count` は絞り込みで減るため継続判定には使えない（事実としての取得件数はこちら）。
+    let rawItemCount: Int
     /// 検索にヒットした総件数（APIが返す推定値。取得できない場合は nil）
     let totalCount: Int?
-    /// サーバー側にまだ次のページがあるか。
+    /// サーバー側にまだ次のページがあるか（プロバイダの構造的なページ有無）。
     /// - Note: ローカルの絞り込み後の件数ではなく、API が返す生のページ情報から判定する。
     ///   （絞り込みで 1 ページの件数が減っても、途中でページングが止まらないようにするため）
+    ///   NAVER のようにページングできないプロバイダは常に false を返す。
     let hasMorePages: Bool
+}
+
+/// 追加読み込み（「もっと読み込む」）の継続可否を判定する純関数群。
+///
+/// 設計方針: サービス層は事実（生件数・総件数・構造的なページ有無）だけを返し、
+/// 継続の可否はこの関数で決める（`docs/r2-search-refactor-notes.md` 4.5節・A-5/A-8）。
+enum SearchPagination {
+    /// これ以上ページを読み込んでよいか判定する。
+    ///
+    /// 判定基準は「実際に取得できた累積生件数（重複除去前）が総件数に達したか」。
+    /// 薄いページ（絞り込みで表示が減ったページ）でも総件数に未達なら継続し、
+    /// 総件数ちょうど・超過に達したら停止する。これで A-5（薄いページで止めすぎ）と
+    /// 総件数到達後の空ページ余分取得（A-8）の両方を防ぐ。
+    /// - Parameters:
+    ///   - fetchedRawCount: これまでに取得できた累積生件数（重複除去前）
+    ///   - totalCount: API が返す総ヒット件数（取得できない場合は nil）
+    ///   - providerHasMorePages: プロバイダの構造的なページ有無
+    ///     （NAVER のようにページングできない場合や、楽天のページ上限到達で false）
+    /// - Returns: まだ次ページを読み込んでよければ true
+    static func canLoadMore(
+        fetchedRawCount: Int,
+        totalCount: Int?,
+        providerHasMorePages: Bool
+    ) -> Bool {
+        // プロバイダ側に構造的に次ページがなければ、総件数に関わらず停止
+        guard providerHasMorePages else { return false }
+        // 総件数が不明ならプロバイダのページ判定に委ねる（継続）
+        guard let totalCount else { return true }
+        // 総件数に未達のうちは継続。到達・超過で停止。
+        return fetchedRawCount < totalCount
+    }
 }
 
 /// 検索データベース設定に応じてAPIを振り分ける検索サービス
