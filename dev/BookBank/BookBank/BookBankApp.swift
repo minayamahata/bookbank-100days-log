@@ -63,8 +63,24 @@ struct BookBankApp: App {
             isStoredInMemoryOnly: isPreview
         )
         
+        // R3移行前バックアップ（設計メモ r3-uuid-migration-notes.md 4.5節①）:
+        // 最も危険なのは直後の ModelContainer 生成時に走る軽量スキーママイグレーション。
+        // ストアが開かれる前にファイル一式をコピーし、生成失敗時はバックアップから復元して1回だけ再試行する。
+        let storeURL = modelConfiguration.url
+        if !isPreview {
+            StoreBackupManager.backupIfNeeded(storeURL: storeURL)
+        }
+
         do {
-            modelContainer = try ModelContainer(for: schema, configurations: [modelConfiguration])
+            if isPreview {
+                modelContainer = try ModelContainer(for: schema, configurations: [modelConfiguration])
+            } else {
+                modelContainer = try StoreBackupManager.makeContainerWithRecovery(
+                    schema: schema,
+                    configuration: modelConfiguration,
+                    storeURL: storeURL
+                )
+            }
             
             // 初回起動時のデフォルトデータ作成
             initializeDefaultData()
