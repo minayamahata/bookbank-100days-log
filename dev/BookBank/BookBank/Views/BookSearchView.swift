@@ -756,17 +756,18 @@ struct BookSearchView: View {
     
     // MARK: - Actions
     
-    /// 検索を実行
-    private func performSearch() {
-        guard !searchText.trimmingCharacters(in: .whitespaces).isEmpty else {
-            return
-        }
-        
+    /// 新しい検索（キーワード / ISBN）の開始時に検索状態を一括リセットする。
+    /// キーワード検索・ISBN検索の両方がここを通ることで、リセット漏れ（A-2 / A-7）を防ぐ。
+    /// `showUnregisteredOnly` / `selectedSortOption` / `searchText` は意図的に維持する（現状挙動）。
+    private func beginNewSearch(canLoadMore: Bool = true) {
         isSearching = true
         hasSearched = true
         errorMessage = nil
         currentPage = 1
-        canLoadMore = true
+        self.canLoadMore = canLoadMore
+        isLoadingMore = false
+        isAutoLoadingForFilters = false
+        isSearchingByISBN = false
         searchResults = []
         filteredResults = []
         totalResultCount = nil
@@ -774,6 +775,15 @@ struct BookSearchView: View {
         
         // 検索前にキャッシュを更新
         updateRegisteredISBNsCache()
+    }
+    
+    /// 検索を実行
+    private func performSearch() {
+        guard !searchText.trimmingCharacters(in: .whitespaces).isEmpty else {
+            return
+        }
+        
+        beginNewSearch()
         
         Task {
             do {
@@ -997,18 +1007,10 @@ struct BookSearchView: View {
     
     /// ISBNで本を検索
     private func searchByISBN(_ isbn: String) {
-        isSearching = true
-        hasSearched = true
-        errorMessage = nil
-        isSearchingByISBN = true
-        searchResults = []
-        filteredResults = []
-        totalResultCount = nil
-        selectedFormatFilter = nil
+        // ISBN検索はページングを持たないため canLoadMore=false（設計メモ 4.4節）。
+        beginNewSearch(canLoadMore: false)
         searchText = isbn  // 検索バーにISBNを表示
-        
-        // 検索前にキャッシュを更新
-        updateRegisteredISBNsCache()
+        isSearchingByISBN = true
         
         Task {
             do {
