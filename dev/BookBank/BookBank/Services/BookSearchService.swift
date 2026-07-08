@@ -39,9 +39,9 @@ enum SearchDatabase: String, CaseIterable, Identifiable {
     /// 設定画面の補足表示（実際に使われる提供元ブランド名）
     var displayProviderName: String {
         switch resolvedProvider {
-        case .rakuten: return "楽天ブックス"
-        case .naver: return "NAVER"
-        case .google: return "Google Books"
+        case .rakuten: return L10n.string("search.provider.rakuten")
+        case .naver: return L10n.string("search.provider.naver")
+        case .google: return L10n.string("search.provider.google")
         }
     }
 

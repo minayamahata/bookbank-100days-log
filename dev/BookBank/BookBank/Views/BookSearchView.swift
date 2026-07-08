@@ -41,6 +41,16 @@ struct BookSearchView: View {
     @Environment(ExchangeRateService.self) private var exchangeRates
     @Environment(\.floatingButtonState) private var floatingButtonState
     
+    // MARK: - Search Phase
+    
+    /// 検索結果の状態。`loaded` は0件を含む。`failed` はキーワード/ISBN検索の失敗（再試行可能）。
+    private enum SearchPhase: Equatable {
+        case idle
+        case searching
+        case loaded
+        case failed
+    }
+    
     // MARK: - Properties
     
     /// 登録先の口座（初期値）
@@ -89,17 +99,15 @@ struct BookSearchView: View {
     /// 検索にヒットした総件数（APIが返す推定値。取得できない場合は nil）
     @State private var totalResultCount: Int?
     
-    /// 検索中フラグ
-    @State private var isSearching: Bool = false
+    /// 検索結果の状態（未検索 / 検索中 / 取得済み〈0件含む〉 / 失敗）。
+    /// 従来の isSearching / hasSearched / errorMessage を一元化し、エラーと0件を区別する（A-4）。
+    @State private var searchPhase: SearchPhase = .idle
+    
+    /// ISBN検索で本が見つからなかったときの誘導アラート表示フラグ（ハードコード文字列比較を置換）
+    @State private var showISBNNotFoundAlert: Bool = false
     
     /// 手動登録画面の表示フラグ
     @State private var isShowingManualEntry: Bool = false
-    
-    /// 検索を実行したかどうか（検索結果が0件かどうかを判定するため）
-    @State private var hasSearched: Bool = false
-    
-    /// エラーメッセージ
-    @State private var errorMessage: String?
     
     /// 現在のページ番号
     @State private var currentPage: Int = 1
@@ -288,7 +296,7 @@ struct BookSearchView: View {
     ) {
         guard hasActiveFilters else { return }
         guard filteredResults.count < pageSize, canLoadMore else { return }
-        guard !isLoadingMore, !isSearching, !isAutoLoadingForFilters else { return }
+        guard !isLoadingMore, searchPhase != .searching, !isAutoLoadingForFilters else { return }
         guard consecutiveEmptyPages < 5, pagesLoaded < maxAutoLoadPages else { return }
 
         loadMoreResults(
@@ -383,12 +391,12 @@ struct BookSearchView: View {
             Spacer(minLength: 8)
 
             // 検索にヒットした総件数（クレジット行の右側）
-            if hasSearched, let total = totalResultCount, total > 0 {
+            if searchPhase == .loaded, let total = totalResultCount, total > 0 {
                 Text(
                     L10n.format(
                         "book.search.result_count",
                         locale: languageManager.resolvedLocale,
-                        total
+                        Int64(total)
                     )
                 )
                 .font(.caption2)
@@ -449,7 +457,7 @@ struct BookSearchView: View {
                 .padding(.bottom, 8)
             
             // 検索結果リスト or 空状態
-            if isSearching {
+            if searchPhase == .searching {
                 // 検索中の表示
                 VStack(spacing: 16) {
                     ProgressView()
@@ -457,7 +465,33 @@ struct BookSearchView: View {
                         .foregroundColor(.secondary)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if searchResults.isEmpty && hasSearched {
+            } else if searchPhase == .failed {
+                // 検索がエラーで失敗（0件とは区別し、再試行導線を出す・A-4）
+                VStack(spacing: 24) {
+                    Text("book.search.error.title")
+                        .font(.headline)
+                        .foregroundColor(.secondary)
+                    
+                    Text("book.search.error.message")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                    
+                    Button(action: {
+                        performSearch()
+                    }) {
+                        Text("book.search.retry")
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 32)
+                            .padding(.vertical, 14)
+                            .background(Capsule().fill(Color.blue))
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding()
+            } else if searchPhase == .loaded && searchResults.isEmpty {
                 // 検索結果が0件の場合
                 VStack(spacing: 24) {
                     Text("book.search.not_found")
@@ -483,7 +517,7 @@ struct BookSearchView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .padding()
-            } else if hasSearched && !searchResults.isEmpty {
+            } else if searchPhase == .loaded && !searchResults.isEmpty {
                 // 検索結果の表示
                 List {
                     // フィルター・口座選択・並べ替え
@@ -658,32 +692,6 @@ struct BookSearchView: View {
                     }
                 }
                 .listStyle(.plain)
-            } else if hasSearched && searchResults.isEmpty {
-                // 検索結果が0件（フィルター前）
-                VStack(spacing: 24) {
-                    Text("book.search.not_found")
-                        .font(.headline)
-                        .foregroundColor(.secondary)
-                    
-                    Text("book.search.try_other")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                        .multilineTextAlignment(.center)
-                    
-                    Button(action: {
-                        isShowingManualEntry = true
-                    }) {
-                        Text("book.search.manual_register")
-                            .font(.subheadline)
-                            .fontWeight(.medium)
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 32)
-                            .padding(.vertical, 14)
-                            .background(Capsule().fill(Color.blue))
-                    }
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .padding()
             } else {
                 // 初期状態（検索前）
                 Spacer()
@@ -735,14 +743,11 @@ struct BookSearchView: View {
                 searchByISBN(isbn)
             }
         }
-        .alert("book.search.not_found.alert_title", isPresented: .constant(errorMessage == "ISBN検索で本が見つかりませんでした")) {
+        .alert("book.search.not_found.alert_title", isPresented: $showISBNNotFoundAlert) {
             Button("book.search.manual_register") {
-                errorMessage = nil
                 isShowingManualEntry = true
             }
-            Button("common.close", role: .cancel) {
-                errorMessage = nil
-            }
+            Button("common.close", role: .cancel) { }
         } message: {
             Text("book.search.isbn_not_found")
         }
@@ -781,9 +786,8 @@ struct BookSearchView: View {
         loadMoreTask?.cancel()
         enrichTask?.cancel()
         
-        isSearching = true
-        hasSearched = true
-        errorMessage = nil
+        searchPhase = .searching
+        showISBNNotFoundAlert = false
         currentPage = 1
         self.canLoadMore = canLoadMore
         isLoadingMore = false
@@ -819,17 +823,16 @@ struct BookSearchView: View {
                 totalResultCount = page.totalCount
                 canLoadMore = page.hasMorePages
                 updateFilteredResults()
-                isSearching = false
+                searchPhase = .loaded
                 // 発行形態は表示をブロックせず後追いで補完する
                 enrichFormatsInBackground(for: page.books)
             } catch {
                 // 旧世代（キャンセル含む）のエラーは UI に反映しない
                 guard generation == searchGeneration else { return }
-                errorMessage = error.localizedDescription
                 searchResults = []
                 filteredResults = []
                 totalResultCount = nil
-                isSearching = false
+                searchPhase = .failed
                 #if DEBUG
                 print("検索エラー: \(error)")
                 #endif
@@ -1062,10 +1065,10 @@ struct BookSearchView: View {
                 guard generation == searchGeneration else { return }
                 
                 if results.isEmpty {
-                    // 本が見つからない場合
-                    errorMessage = "ISBN検索で本が見つかりませんでした"
+                    // 本が見つからない場合（0件＝loaded の一種。誘導アラートを出す）
                     searchResults = []
                     filteredResults = []
+                    showISBNNotFoundAlert = true
                 } else {
                     searchResults = results
                     totalResultCount = results.count
@@ -1080,15 +1083,14 @@ struct BookSearchView: View {
                     }
                 }
                 
-                isSearching = false
+                searchPhase = .loaded
                 isSearchingByISBN = false
             } catch {
                 // 旧世代（キャンセル含む）のエラーは UI に反映しない
                 guard generation == searchGeneration else { return }
-                errorMessage = "検索中にエラーが発生しました: \(error.localizedDescription)"
                 searchResults = []
                 filteredResults = []
-                isSearching = false
+                searchPhase = .failed
                 isSearchingByISBN = false
                 #if DEBUG
                 print("ISBN検索エラー: \(error)")

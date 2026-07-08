@@ -76,11 +76,11 @@ flowchart LR
 | A-1 / A-7 ✅ | 検索タスクの**世代管理**を導入（`searchGeneration` カウンター）。`performSearch` / `loadMoreResults` / `searchByISBN` / `enrichFormatsInBackground` は開始時の世代を持ち、完了時に世代が違えば結果を捨てる。新検索開始時に旧Taskをキャンセルし `isLoadingMore` / `isAutoLoadingForFilters` をリセット。**（A-7のリセット漏れはステップ1の `beginNewSearch()`、A-1の世代管理＋タスクキャンセル＋`currentPage`先行インクリメント廃止はステップ2で完了 (2026-07-08)。手動リグレッション確認は別途）** |
 | A-2 ✅ | `searchByISBN` で `currentPage` / `canLoadMore` / `isLoadingMore` / `totalResultCount` をリセット。→ `beginNewSearch(canLoadMore: false)` に集約 (2026-07-08・R2ステップ1) |
 | A-3 | 形態補完完了時の `updateFilteredResults()` を「並び保持のin-place更新」に変更（全件再ソートしない） |
-| A-4 | `performSearch` のcatchでエラー状態を保持し、空状態UIを「0件」と「エラー＋再試行ボタン」に分岐 |
+| A-4 ✅ | `performSearch` のcatchでエラー状態を保持し、空状態UIを「0件」と「エラー＋再試行ボタン」に分岐。→ `SearchPhase` enum 導入で完了 (2026-07-08・R2ステップ3) |
 | A-5 | 楽天のローカル絞り込み後0件時の `hasMorePages` 判定を補正 |
 | A-6 | `loadMoreResults` の重複排除をISBNなし書籍の安定ID（タイトル+著者+発売日ハッシュ）でも効かせる |
 | A-8 | Googleの `hasMorePages` に `totalItems` 照合を追加 |
-| G-1 / G-2 / G-3 / G-5 | ついでに検索系の軽微修正: Googleタイムスタンプ形式の発売日パース、`SalesDateParser` のタイムゾーン固定（JST基準）、`%lld` 統一、`displayProviderName` のローカライズ |
+| G-1 / G-2 / G-3 / G-5 | ついでに検索系の軽微修正: Googleタイムスタンプ形式の発売日パース、`SalesDateParser` のタイムゾーン固定（JST基準）、`%lld` 統一、`displayProviderName` のローカライズ。**（G-3・G-5はステップ3で完了 (2026-07-08)。G-1・G-2はサービス層のためステップ6）** |
 | **S: 本棚内検索** | 本棚のフィルター行に虫眼鏡→行がインライン検索フィールドに変形。所有本（タイトル・著者・シリーズ・出版社・メモ）のライブ絞り込み（NFKC＋カナ同一視・複数語AND）。グリッドをその場で絞る（登録検索とUIを意図的に分離）。`ShelfSearchMatcher` は純関数として切り出しユニットテスト。詳細は `docs/bookshelf-search-spec.md` |
 
 対象: `Views/BookSearchView.swift`・`Services/RakutenBooksService.swift`・`Services/GoogleBooksService.swift`・`Services/BookSearchService.swift`・`Views/BookshelfView.swift`・新規 `Utils/ShelfSearchMatcher.swift`
