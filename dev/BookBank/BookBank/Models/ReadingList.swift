@@ -15,6 +15,11 @@ final class ReadingList {
     
     // MARK: - Properties
     
+    /// 安定ID（UUID文字列）。R3で追加したFirestore docID用の「眠った土台」。
+    /// R6では listId＝uuid。R3ではどのViewからも参照されない。
+    /// 既存行の一意性はデフォルト式ではなく UUIDBackfillMigration が保証する（設計メモ 4.2）。
+    var uuid: String = UUID().uuidString
+    
     /// リストのタイトル（例：「2024年ベスト」）
     var title: String
     
@@ -45,6 +50,7 @@ final class ReadingList {
         title: String,
         listDescription: String? = nil
     ) {
+        self.uuid = UUID().uuidString
         self.title = title
         self.listDescription = listDescription
         self.createdAt = Date()

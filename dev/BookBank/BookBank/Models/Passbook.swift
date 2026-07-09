@@ -8,6 +8,11 @@ final class Passbook {
 
     // MARK: - Properties
 
+    /// 安定ID（UUID文字列）。R3で追加したFirestore docID用の「眠った土台」。
+    /// R3の時点ではどのViewからも参照されない（UIの同一性判定は引き続き persistentModelID）。
+    /// 既存行の一意性はデフォルト式ではなく UUIDBackfillMigration が保証する（設計メモ 4.2）。
+    var uuid: String = UUID().uuidString
+
     /// 口座名（例: "総合口座", "技術書", "漫画"）
     var name: String
 
@@ -46,6 +51,7 @@ final class Passbook {
         sortOrder: Int = 0,
         isActive: Bool = true
     ) {
+        self.uuid = UUID().uuidString
         self.name = name
         self.type = type
         self.sortOrder = sortOrder

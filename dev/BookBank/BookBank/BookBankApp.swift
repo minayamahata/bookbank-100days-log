@@ -179,6 +179,9 @@ struct RootView: View {
                 return
             }
 
+            // R3移行（設計メモ 5.4節の実行順）: UUIDバックフィルを他マイグレーションより先に実行する
+            // （uuidは他のあらゆる処理の前提。並び順変換＝ステップ3はこの後に追加予定）
+            UUIDBackfillMigration.migrateIfNeeded(context: modelContext)
             CurrencyMigration.migrateIfNeeded(context: modelContext)
             Task {
                 await exchangeRateService.refreshIfNeeded()

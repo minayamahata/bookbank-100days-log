@@ -7,6 +7,13 @@ import UIKit
 @Model
 final class UserBook {
 
+    // MARK: - Identity
+
+    /// 安定ID（UUID文字列）。R3で追加したFirestore docID用の「眠った土台」。
+    /// R6では bookId＝uuid・表紙画像のStorageパス users/{uid}/covers/{bookId}.jpg にも使う（設計メモ 3.2）。
+    /// R3ではどのViewからも参照されない。既存行の一意性は UUIDBackfillMigration が保証する（設計メモ 4.2）。
+    var uuid: String = UUID().uuidString
+
     // MARK: - Book Master Properties（書籍マスター情報）
 
     /// 書籍タイトル
@@ -99,6 +106,7 @@ final class UserBook {
         passbook: Passbook? = nil,
         currencyCode: String? = nil
     ) {
+        self.uuid = UUID().uuidString
         self.title = title
         self.author = author
         self.isbn = isbn
