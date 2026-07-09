@@ -179,10 +179,20 @@ struct RootView: View {
                 return
             }
 
-            // R3移行（設計メモ 5.4節の実行順）: UUIDバックフィルを他マイグレーションより先に実行する
-            // （uuidは他のあらゆる処理の前提。並び順変換＝ステップ3はこの後に追加予定）
+            // R3移行（設計メモ 5.4節の実行順）: UUIDバックフィル → 並び順変換 → 通貨。
+            // 1→2の順序は必須（並び順変換が uuid を参照するため）。
             UUIDBackfillMigration.migrateIfNeeded(context: modelContext)
+            ReadingListOrderMigration.migrateIfNeeded(context: modelContext)
             CurrencyMigration.migrateIfNeeded(context: modelContext)
+
+            // 全マイグレーションの検証通過後にのみ移行前バックアップを削除する
+            // （設計メモ 前提9・判断点①: 全検証通過まで保険を手放さない）
+            if UUIDBackfillMigration.hasCompleted,
+               ReadingListOrderMigration.hasCompleted,
+               let storeURL = modelContext.container.configurations.first?.url {
+                StoreBackupManager.deleteBackup(storeURL: storeURL)
+            }
+
             Task {
                 await exchangeRateService.refreshIfNeeded()
             }

@@ -17,6 +17,11 @@ enum UUIDBackfillMigration {
     /// （このフラグが立つと移行前バックアップの再取得も止まる）。
     private static let didBackfillKey = StoreBackupManager.didBackfillUUIDsKey
 
+    /// バックフィルが完了しているか（バックアップ削除の配線判定に使う）
+    static var hasCompleted: Bool {
+        UserDefaults.standard.bool(forKey: didBackfillKey)
+    }
+
     private static var logger: Logger {
         Logger(subsystem: Bundle.main.bundleIdentifier ?? "BookBank", category: "UUIDBackfill")
     }

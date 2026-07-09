@@ -35,7 +35,12 @@ final class ReadingList {
     /// テーマカラーのインデックス（nilの場合はデフォルト色）
     var colorIndex: Int?
     
-    /// 本の並び順を保持するJSON文字列（各本の stableID を配列で保持）
+    /// 本の並び順（各本の UserBook.uuid を並び順どおりに保持）。R3で bookOrderData から移行。
+    var bookIds: [String] = []
+    
+    /// 【レガシー】旧・並び順JSON（stableID配列）。R3で bookIds へ移行済みで読み書きは停止。
+    /// ReadingListOrderMigration が変換時に一度だけ読むためだけに残す。
+    /// 物理削除はSwiftData廃止時に行う（設計メモ 前提6・変換失敗時のフォールバック源）。
     var bookOrderData: String?
     
     // MARK: - Relationships
@@ -55,6 +60,7 @@ final class ReadingList {
         self.listDescription = listDescription
         self.createdAt = Date()
         self.updatedAt = Date()
+        self.bookIds = []
         self.bookOrderData = nil
         self.books = []
     }
@@ -63,50 +69,33 @@ final class ReadingList {
 // MARK: - Computed Properties
 
 extension ReadingList {
-    /// 本の安定した識別子を生成（title + createdAt のハッシュ）
-    static func stableID(for book: UserBook) -> String {
-        "\(book.title)_\(book.createdAt.timeIntervalSince1970)"
-    }
-    
-    /// bookOrderData をデコードして ID 配列を取得
-    private var bookOrderIDs: [String] {
-        guard let data = bookOrderData?.data(using: .utf8),
-              let ids = try? JSONDecoder().decode([String].self, from: data) else {
-            return []
-        }
-        return ids
-    }
-    
-    /// bookOrder に基づいてソートされた本のリスト
+    /// bookIds（UserBook.uuid の配列）に基づいてソートされた本のリスト。
+    /// bookIds に記載のない本は末尾に追記する（現行のフォールバックを維持）。
     var orderedBooks: [UserBook] {
-        let ids = bookOrderIDs
-        guard !ids.isEmpty else { return books }
-        let idToBook = Dictionary(
-            books.map { (Self.stableID(for: $0), $0) },
+        guard !bookIds.isEmpty else { return books }
+        let uuidToBook = Dictionary(
+            books.map { ($0.uuid, $0) },
             uniquingKeysWith: { first, _ in first }
         )
         var ordered: [UserBook] = []
-        var usedIDs = Set<String>()
-        for id in ids {
-            if let book = idToBook[id] {
+        var usedUUIDs = Set<String>()
+        for id in bookIds {
+            if let book = uuidToBook[id] {
                 ordered.append(book)
-                usedIDs.insert(id)
+                usedUUIDs.insert(id)
             }
         }
         for book in books {
-            if !usedIDs.contains(Self.stableID(for: book)) {
+            if !usedUUIDs.contains(book.uuid) {
                 ordered.append(book)
             }
         }
         return ordered
     }
     
-    /// 本の並び順を保存
+    /// 本の並び順を保存（UserBook.uuid の配列として保持）
     func saveBookOrder(_ orderedBooks: [UserBook]) {
-        let ids = orderedBooks.map { Self.stableID(for: $0) }
-        if let data = try? JSONEncoder().encode(ids) {
-            bookOrderData = String(data: data, encoding: .utf8)
-        }
+        bookIds = orderedBooks.map { $0.uuid }
     }
     
     /// リスト内の書籍数
