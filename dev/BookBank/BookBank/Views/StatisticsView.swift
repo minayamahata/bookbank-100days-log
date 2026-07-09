@@ -275,7 +275,7 @@ struct YearlyChartContent: View {
     let displayCurrency: AppCurrency
     let exchangeRates: ExchangeRateService
     let locale: Locale
-    
+
     // MARK: - Year-specific Computed Properties
     
     /// 指定年の書籍
@@ -500,7 +500,7 @@ struct YearlyChartContent: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(14)
-        .glassSectionCard(cornerRadius: 8)
+        .modifier(StatsGlassCardModifier(cornerRadius: 8))
     }
 
     /// 冊数統計カード
@@ -524,7 +524,7 @@ struct YearlyChartContent: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(14)
-        .glassSectionCard(cornerRadius: 8)
+        .modifier(StatsGlassCardModifier(cornerRadius: 8))
     }
     
     /// 金額と冊数を上下2段で表示
@@ -682,6 +682,42 @@ struct YearlyChartContent: View {
         }
         .padding()
         .glassSectionCard(cornerRadius: 12)
+    }
+}
+
+// MARK: - StatsGlassCardModifier
+
+/// 集計サマリーカード専用のガラス背景。
+/// 共通の `glassSectionCard`（ダークは `.clear` で透明）とは異なり、
+/// ライト・ダークとも同じ `.regular` マテリアルを使って透過レベルを揃える。
+/// ダークはテーマ色グラデ数字と干渉しないよう、`.regular` を黒でティントする
+/// （ライトの半透明な白と対になる、半透明な黒）。
+private struct StatsGlassCardModifier: ViewModifier {
+    var cornerRadius: CGFloat = 8
+
+    @Environment(\.colorScheme) private var colorScheme
+
+    private var isRunningForPreviews: Bool {
+        ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
+    }
+
+    func body(content: Content) -> some View {
+        Group {
+            if isRunningForPreviews {
+                content
+                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: cornerRadius))
+            } else if colorScheme == .dark {
+                content
+                    .glassEffect(.regular.tint(.black), in: .rect(cornerRadius: cornerRadius))
+            } else {
+                content
+                    .glassEffect(.regular, in: .rect(cornerRadius: cornerRadius))
+            }
+        }
+        .overlay(
+            RoundedRectangle(cornerRadius: cornerRadius)
+                .stroke(Color.primary.opacity(0.1), lineWidth: 0.5)
+        )
     }
 }
 
