@@ -9,6 +9,12 @@ import SwiftData
 /// バックアップは「ストアが開かれる前」に取得する（WAL込みでファイル一式をコピーすれば整合したスナップショットになる）。
 /// バックアップは追加の防御層であり、それ自体が起動障害の原因になってはならない
 /// （失敗・容量不足時はスキップして通常起動する。設計メモ前提10）。
+///
+/// **バックアップ対象はDBファイル（`default.store`・`-shm`・`-wal`）のみ**。
+/// 移行（スキーマ変更・UUIDバックフィル・並び順変換）が書き換えるのはDBだけで、
+/// 書影（`.externalStorage` の外部blob）は移行中に不変であり保護不要なため対象外とする。
+/// これにより必要容量が数MB規模に収まり、容量不足によるスキップが事実上発生しなくなる。
+/// externalStorage をコピー対象にも復元削除対象にも含めないことで、復元時に画像を削除する事故が構造的に起きない。
 enum StoreBackupManager {
 
     // MARK: - Constants
@@ -105,7 +111,7 @@ enum StoreBackupManager {
             try fm.removeItem(at: tempDir)
         }
         try fm.createDirectory(at: tempDir, withIntermediateDirectories: true)
-        for item in backupItems(for: storeURL) where fm.fileExists(atPath: item.path) {
+        for item in storeFileItems(for: storeURL) where fm.fileExists(atPath: item.path) {
             try fm.copyItem(at: item, to: tempDir.appendingPathComponent(item.lastPathComponent))
         }
         // リネームで確定（部分コピーがバックアップ扱いされない）
@@ -122,8 +128,9 @@ enum StoreBackupManager {
         let backupDir = backupDirectoryURL(for: storeURL)
         guard fm.fileExists(atPath: backupDir.path) else { return false }
 
-        // 壊れた現行ファイルを除去（バックアップに無い古いWAL等が復元後のストアと混ざらないように）
-        for item in backupItems(for: storeURL) where fm.fileExists(atPath: item.path) {
+        // 壊れた現行DBファイルのみを除去（バックアップに無い古いWAL等が復元後のストアと混ざらないように）。
+        // externalStorage（書影）は storeFileItems に含まれないため削除されず、そのまま据え置かれる。
+        for item in storeFileItems(for: storeURL) where fm.fileExists(atPath: item.path) {
             try fm.removeItem(at: item)
         }
         let storeDirectory = storeURL.deletingLastPathComponent()
@@ -179,28 +186,27 @@ enum StoreBackupManager {
             .appendingPathComponent(backupDirectoryName, isDirectory: true)
     }
 
-    /// バックアップ対象の候補（存在するもののみコピーされる）:
-    /// ストア本体・-shm・-wal・`.externalStorage` の外部データフォルダ
-    nonisolated static func backupItems(for storeURL: URL) -> [URL] {
+    /// バックアップ・復元の対象（DBファイルのみ・存在するもののみ扱う）:
+    /// ストア本体・`-shm`・`-wal`。**コピー対象と復元時削除対象で共用する単一の真実源**。
+    ///
+    /// 書影（`.externalStorage` の外部blob）は意図的に含めない。移行で書き換えられず保護不要であり、
+    /// この集合に現れないことで復元時に画像を削除する事故が構造的に起きない（承認事項・決定点①A）。
+    nonisolated static func storeFileItems(for storeURL: URL) -> [URL] {
         let directory = storeURL.deletingLastPathComponent()
-        let fileName = storeURL.lastPathComponent                          // 例: default.store
-        let baseName = storeURL.deletingPathExtension().lastPathComponent  // 例: default
+        let fileName = storeURL.lastPathComponent  // 例: default.store
         return [
             storeURL,
             directory.appendingPathComponent(fileName + "-shm"),
             directory.appendingPathComponent(fileName + "-wal"),
-            // Core Data外部ストレージ（.externalStorage）の隠しフォルダ。
-            // 命名はOS実装依存のため両候補を対象にする（存在しない方は単にスキップされる）
-            directory.appendingPathComponent(".\(baseName)_SUPPORT", isDirectory: true),
-            directory.appendingPathComponent(".\(fileName)_SUPPORT", isDirectory: true),
         ]
     }
 
     // MARK: - Sizes
 
-    /// バックアップに必要なサイズ（対象ファイル・フォルダの合計バイト数）
+    /// バックアップに必要なサイズ（DBファイルの合計バイト数）。
+    /// 書影を含めないため数MB規模に収まる。
     nonisolated static func requiredSpaceForBackup(storeURL: URL) -> Int64 {
-        backupItems(for: storeURL).reduce(0) { $0 + itemSize(at: $1) }
+        storeFileItems(for: storeURL).reduce(0) { $0 + itemSize(at: $1) }
     }
 
     /// ストアのあるボリュームの空き容量。取得不能時は「充足」とみなす

@@ -76,7 +76,50 @@ struct StoreBackupManagerTests {
         let (directory, store) = try makeTempStore()
         defer { try? FileManager.default.removeItem(at: directory) }
 
-        // ストア一式（本体・WAL・外部ストレージフォルダ）を模擬
+        // DBファイル一式（本体・WAL）を模擬
+        try Data("original-store".utf8).write(to: store)
+        try Data("original-wal".utf8).write(to: directory.appendingPathComponent("default.store-wal"))
+
+        try StoreBackupManager.performBackup(storeURL: store)
+        #expect(StoreBackupManager.backupExists(storeURL: store))
+
+        // 破損を模擬（本体をゴミに）
+        try Data("corrupted".utf8).write(to: store)
+
+        let restored = try StoreBackupManager.restoreBackup(storeURL: store)
+        #expect(restored)
+        #expect(try contents(of: store) == "original-store")
+        #expect(try contents(of: directory.appendingPathComponent("default.store-wal")) == "original-wal")
+    }
+
+    // MARK: - DBのみバックアップ（externalStorage 非対象）
+
+    /// バックアップフォルダにはDBファイルのみが含まれ、書影（externalStorage）は含まれない
+    @Test func backupExcludesExternalStorage() throws {
+        let (directory, store) = try makeTempStore()
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        try Data("store".utf8).write(to: store)
+        try Data("wal".utf8).write(to: directory.appendingPathComponent("default.store-wal"))
+        // 書影の外部ストレージフォルダを模擬
+        let support = directory.appendingPathComponent(".default_SUPPORT", isDirectory: true)
+        try FileManager.default.createDirectory(at: support, withIntermediateDirectories: true)
+        try Data("cover-image".utf8).write(to: support.appendingPathComponent("cover.jpg"))
+
+        try StoreBackupManager.performBackup(storeURL: store)
+
+        let backupDir = StoreBackupManager.backupDirectoryURL(for: store)
+        let names = try FileManager.default.contentsOfDirectory(atPath: backupDir.path)
+        #expect(Set(names) == ["default.store", "default.store-wal"])
+        // externalStorage 由来の痕跡がバックアップに一切ないこと
+        #expect(!names.contains(where: { $0.hasSuffix("_SUPPORT") }))
+    }
+
+    /// DBのみを復元しても書影（externalStorage）は削除されず据え置かれ、整合が保たれる
+    @Test func restorePreservesExternalStorage() throws {
+        let (directory, store) = try makeTempStore()
+        defer { try? FileManager.default.removeItem(at: directory) }
+
         try Data("original-store".utf8).write(to: store)
         try Data("original-wal".utf8).write(to: directory.appendingPathComponent("default.store-wal"))
         let support = directory.appendingPathComponent(".default_SUPPORT", isDirectory: true)
@@ -84,16 +127,16 @@ struct StoreBackupManagerTests {
         try Data("cover-image".utf8).write(to: support.appendingPathComponent("cover.jpg"))
 
         try StoreBackupManager.performBackup(storeURL: store)
-        #expect(StoreBackupManager.backupExists(storeURL: store))
 
-        // 破損を模擬（本体をゴミに・外部ストレージを喪失）
+        // DB本体の破損を模擬。書影はユーザーがそのまま保持している状態
         try Data("corrupted".utf8).write(to: store)
-        try FileManager.default.removeItem(at: support)
 
         let restored = try StoreBackupManager.restoreBackup(storeURL: store)
         #expect(restored)
+        // DBは復元される
         #expect(try contents(of: store) == "original-store")
         #expect(try contents(of: directory.appendingPathComponent("default.store-wal")) == "original-wal")
+        // 書影は復元処理に触れられず、そのまま残っている（削除事故が起きない）
         #expect(try contents(of: support.appendingPathComponent("cover.jpg")) == "cover-image")
     }
 
@@ -135,17 +178,19 @@ struct StoreBackupManagerTests {
         #expect(!StoreBackupManager.backupExists(storeURL: store))
     }
 
-    @Test func requiredSpaceSumsFilesAndDirectories() throws {
+    /// 必要容量はDBファイルのみを合算する（書影＝externalStorage は含めない）
+    @Test func requiredSpaceSumsOnlyDatabaseFiles() throws {
         let (directory, store) = try makeTempStore()
         defer { try? FileManager.default.removeItem(at: directory) }
 
         try Data(repeating: 0, count: 100).write(to: store)
         try Data(repeating: 0, count: 50).write(to: directory.appendingPathComponent("default.store-wal"))
+        // 大きな書影フォルダがあっても必要容量に加算されない
         let support = directory.appendingPathComponent(".default_SUPPORT", isDirectory: true)
         try FileManager.default.createDirectory(at: support, withIntermediateDirectories: true)
-        try Data(repeating: 0, count: 25).write(to: support.appendingPathComponent("cover.jpg"))
+        try Data(repeating: 0, count: 999).write(to: support.appendingPathComponent("cover.jpg"))
 
-        #expect(StoreBackupManager.requiredSpaceForBackup(storeURL: store) == 175)
+        #expect(StoreBackupManager.requiredSpaceForBackup(storeURL: store) == 150)
     }
 
     // MARK: - 復元リトライ経路の統合テスト（故障注入）
