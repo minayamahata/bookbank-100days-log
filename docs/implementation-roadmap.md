@@ -107,6 +107,8 @@ flowchart LR
 
 ### R4: v1.6.0 — 移行Phase 1（リポジトリ抽象化・最大工数）
 
+**設計メモは `docs/r4-repository-abstraction-notes.md`**（2026-07-11 作成・オーナー承認済み。実装順・ファイル一覧・リスクは同メモ第7章の7ステップが正）。着手はR3（v1.5.0）の本番浸透確認後。
+
 | 項目 | 実装内容 |
 |------|---------|
 | プロトコル定義 | `BookRepository` / `PassbookRepository` / `ReadingListRepository` / `MonthlyMemoRepository`（`observe〜` は `AsyncStream`、DTOはプレーン構造体） |
