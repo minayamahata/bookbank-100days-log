@@ -6,6 +6,9 @@
 //
 
 import SwiftUI
+#if DEBUG
+import UniformTypeIdentifiers
+#endif
 
 /// アプリメニュー（テーマ切替・Unlimited・法務リンク）
 struct AppMenuView: View {
@@ -19,6 +22,14 @@ struct AppMenuView: View {
     
     @State private var showUnlimitedPaywall = false
     @State private var safariLink: SafariLink?
+
+    #if DEBUG
+    @Environment(\.modelContext) private var modelContext
+    @State private var showN0Exporter = false
+    @State private var n0ExportDocument = N0SpikeJSONDocument(text: "")
+    @State private var showN0ExportError = false
+    @State private var n0ExportErrorMessage = ""
+    #endif
     
     var body: some View {
         let _ = themeManager.currentTheme
@@ -121,6 +132,10 @@ struct AppMenuView: View {
                             .fill(Color.appCardBackground)
                     )
                     .padding(.horizontal, 16)
+
+                    #if DEBUG
+                    n0SpikeExportSection
+                    #endif
                 }
                 .padding(.top, 20)
                 .padding(.bottom, 24)
@@ -147,7 +162,65 @@ struct AppMenuView: View {
             SafariView(url: link.url)
                 .ignoresSafeArea()
         }
+        #if DEBUG
+        .fileExporter(
+            isPresented: $showN0Exporter,
+            document: n0ExportDocument,
+            contentType: .json,
+            defaultFilename: "shelf-export.json"
+        ) { _ in }
+        .alert(Text(verbatim: "エクスポート失敗"), isPresented: $showN0ExportError) {
+            Button(role: .cancel) {} label: { Text(verbatim: "OK") }
+        } message: {
+            Text(verbatim: n0ExportErrorMessage)
+        }
+        #endif
     }
+
+    #if DEBUG
+    /// N0スパイク用の本棚JSONエクスポート（DEBUGビルド限定・docs/n0-spike-plan.md 3.2節）
+    private var n0SpikeExportSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(verbatim: "DEBUG")
+                .font(.footnote)
+                .foregroundColor(.secondary)
+                .padding(.horizontal, 20)
+
+            VStack(spacing: 0) {
+                Button {
+                    exportN0SpikeJSON()
+                } label: {
+                    HStack {
+                        Text(verbatim: "N0スパイク用JSONエクスポート")
+                            .font(.body)
+                            .foregroundColor(.primary)
+                        Spacer()
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 14)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color.appCardBackground)
+            )
+            .padding(.horizontal, 16)
+        }
+    }
+
+    private func exportN0SpikeJSON() {
+        do {
+            let json = try generateN0SpikeExportJSON(context: modelContext)
+            n0ExportDocument = N0SpikeJSONDocument(text: json)
+            showN0Exporter = true
+        } catch {
+            n0ExportErrorMessage = error.localizedDescription
+            showN0ExportError = true
+        }
+    }
+    #endif
     
     private var showsSubscriptionSection: Bool {
         !unlimitedManager.isUnlimited || unlimitedManager.hasActiveYearlySubscription

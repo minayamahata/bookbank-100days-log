@@ -1,0 +1,532 @@
+{
+  "_note": "N0スパイク用5言語テストデータ（docs/n0-spike-plan.md 3.4節）。ja20/en15/ko10/zh-Hans8/zh-Hant7=60冊。expectedSeriesKeyが正解ラベル（nullは非シリーズ）。意図した既知の取りこぼしケース: galileo（基底タイトル不一致3ペア）・asoiaf（接頭辞なし1ペア）・dune（ラテン1単語接頭辞1ペア）。日本語のメモは助詞・形式名詞（これ・それ・ところ・きっかけ・という・について等）の混入検出用に意図的に雑音を多く含む。ISBNは合成値（計算には未使用）。",
+  "books": [
+    {
+      "uuid": "ja-01",
+      "title": "鬼滅の刃 1",
+      "author": "吾峠呼世晴",
+      "isbn": "9780000000010",
+      "publishedYear": 2016,
+      "registeredAt": "2026-03-05T09:00:00Z",
+      "expectedSeriesKey": "kimetsu"
+    },
+    {
+      "uuid": "ja-02",
+      "title": "鬼滅の刃 (2)",
+      "author": "吾峠呼世晴",
+      "isbn": "9780000000020",
+      "publishedYear": 2016,
+      "registeredAt": "2026-03-05T09:05:00Z",
+      "expectedSeriesKey": "kimetsu"
+    },
+    {
+      "uuid": "ja-03",
+      "title": "鬼滅の刃 ③",
+      "author": "吾峠呼世晴",
+      "isbn": "9780000000030",
+      "publishedYear": 2016,
+      "registeredAt": "2026-03-12T09:00:00Z",
+      "expectedSeriesKey": "kimetsu"
+    },
+    {
+      "uuid": "ja-04",
+      "title": "月の影 影の海 上",
+      "author": "小野不由美",
+      "isbn": "9780000000040",
+      "publishedYear": 2012,
+      "registeredAt": "2026-03-20T09:00:00Z",
+      "expectedSeriesKey": "junikoku"
+    },
+    {
+      "uuid": "ja-05",
+      "title": "月の影 影の海 下",
+      "author": "小野不由美",
+      "isbn": "9780000000050",
+      "publishedYear": 2012,
+      "registeredAt": "2026-03-20T09:05:00Z",
+      "expectedSeriesKey": "junikoku"
+    },
+    {
+      "uuid": "ja-06",
+      "title": "銀河英雄伝説 第1巻",
+      "author": "田中芳樹",
+      "isbn": "9780000000060",
+      "publishedYear": 2007,
+      "registeredAt": "2026-04-02T09:00:00Z",
+      "expectedSeriesKey": "gineiden"
+    },
+    {
+      "uuid": "ja-07",
+      "title": "銀河英雄伝説 第2巻",
+      "author": "田中芳樹",
+      "isbn": "9780000000070",
+      "publishedYear": 2007,
+      "registeredAt": "2026-04-02T09:05:00Z",
+      "expectedSeriesKey": "gineiden"
+    },
+    {
+      "uuid": "ja-08",
+      "title": "涼宮ハルヒの憂鬱",
+      "author": "谷川流",
+      "seriesName": "涼宮ハルヒシリーズ",
+      "isbn": "9780000000080",
+      "publishedYear": 2003,
+      "registeredAt": "2026-04-10T09:00:00Z",
+      "expectedSeriesKey": "haruhi"
+    },
+    {
+      "uuid": "ja-09",
+      "title": "涼宮ハルヒの溜息",
+      "author": "谷川流",
+      "seriesName": "涼宮ハルヒシリーズ",
+      "isbn": "9780000000090",
+      "publishedYear": 2003,
+      "registeredAt": "2026-04-10T09:05:00Z",
+      "expectedSeriesKey": "haruhi"
+    },
+    {
+      "uuid": "ja-10",
+      "title": "探偵ガリレオ",
+      "author": "東野圭吾",
+      "isbn": "9780000000100",
+      "publishedYear": 2002,
+      "registeredAt": "2026-04-15T09:00:00Z",
+      "expectedSeriesKey": "galileo"
+    },
+    {
+      "uuid": "ja-11",
+      "title": "予知夢",
+      "author": "東野圭吾",
+      "isbn": "9780000000110",
+      "publishedYear": 2003,
+      "registeredAt": "2026-04-15T09:05:00Z",
+      "expectedSeriesKey": "galileo"
+    },
+    {
+      "uuid": "ja-12",
+      "title": "容疑者Xの献身",
+      "author": "東野圭吾",
+      "memo": "それにしても見事なミステリー。数学者の孤独について考えさせられた。ラストのあたりで泣いたのはこれが初めてかもしれない。",
+      "isbn": "9780000000120",
+      "publishedYear": 2005,
+      "registeredAt": "2026-05-08T09:00:00Z",
+      "expectedSeriesKey": "galileo"
+    },
+    {
+      "uuid": "ja-13",
+      "title": "ノルウェイの森",
+      "author": "村上春樹",
+      "isbn": "9780000000130",
+      "publishedYear": 1987,
+      "registeredAt": "2026-04-20T09:00:00Z"
+    },
+    {
+      "uuid": "ja-14",
+      "title": "海辺のカフカ",
+      "author": "村上春樹",
+      "isbn": "9780000000140",
+      "publishedYear": 2002,
+      "registeredAt": "2026-04-20T09:05:00Z"
+    },
+    {
+      "uuid": "ja-15",
+      "title": "1Q84 BOOK1",
+      "author": "村上春樹",
+      "isbn": "9780000000150",
+      "publishedYear": 2009,
+      "registeredAt": "2026-04-25T09:00:00Z",
+      "expectedSeriesKey": "1q84"
+    },
+    {
+      "uuid": "ja-16",
+      "title": "1Q84 BOOK2",
+      "author": "村上春樹",
+      "isbn": "9780000000160",
+      "publishedYear": 2009,
+      "registeredAt": "2026-04-25T09:05:00Z",
+      "expectedSeriesKey": "1q84"
+    },
+    {
+      "uuid": "ja-17",
+      "title": "こころ",
+      "author": "夏目漱石",
+      "publishedYear": 1914,
+      "registeredAt": "2026-03-28T09:00:00Z"
+    },
+    {
+      "uuid": "ja-18",
+      "title": "坊っちゃん",
+      "author": "夏目漱石",
+      "publishedYear": 1906,
+      "registeredAt": "2026-03-28T09:05:00Z"
+    },
+    {
+      "uuid": "ja-19",
+      "title": "火車",
+      "author": "宮部みゆき",
+      "memo": "これは傑作だと思う。読み終えたところで、しばらく余韻から抜けられなかった。社会派ミステリーというものの面白さを知るきっかけになった一冊。",
+      "publishedYear": 1992,
+      "registeredAt": "2026-05-12T09:00:00Z"
+    },
+    {
+      "uuid": "ja-20",
+      "title": "舟を編む",
+      "author": "三浦しをん",
+      "memo": "辞書を編むことに人生を懸けた人たちの物語。言葉というものについて考えるきっかけになった。こういう仕事への向き合い方をしたいと思ったのはこれが初めて。",
+      "isbn": "9780000000200",
+      "publishedYear": 2011,
+      "registeredAt": "2026-06-03T09:00:00Z"
+    },
+    {
+      "uuid": "en-01",
+      "title": "Harry Potter and the Philosopher's Stone",
+      "author": "J. K. Rowling",
+      "seriesName": "Harry Potter",
+      "isbn": "9780000000210",
+      "publishedYear": 1997,
+      "registeredAt": "2026-03-08T09:00:00Z",
+      "expectedSeriesKey": "hp"
+    },
+    {
+      "uuid": "en-02",
+      "title": "Harry Potter and the Chamber of Secrets",
+      "author": "Rowling, J. K.",
+      "seriesName": "Harry Potter",
+      "isbn": "9780000000220",
+      "publishedYear": 1998,
+      "registeredAt": "2026-03-08T09:05:00Z",
+      "expectedSeriesKey": "hp"
+    },
+    {
+      "uuid": "en-03",
+      "title": "The Lord of the Rings vol. 1",
+      "author": "J. R. R. Tolkien",
+      "isbn": "9780000000230",
+      "publishedYear": 1954,
+      "registeredAt": "2026-03-15T09:00:00Z",
+      "expectedSeriesKey": "lotr"
+    },
+    {
+      "uuid": "en-04",
+      "title": "The Lord of the Rings vol. 2",
+      "author": "Tolkien, J. R. R.",
+      "isbn": "9780000000240",
+      "publishedYear": 1954,
+      "registeredAt": "2026-03-15T09:05:00Z",
+      "expectedSeriesKey": "lotr"
+    },
+    {
+      "uuid": "en-05",
+      "title": "A Game of Thrones",
+      "author": "George R. R. Martin",
+      "isbn": "9780000000250",
+      "publishedYear": 1996,
+      "registeredAt": "2026-04-05T09:00:00Z",
+      "expectedSeriesKey": "asoiaf"
+    },
+    {
+      "uuid": "en-06",
+      "title": "A Clash of Kings",
+      "author": "George Martin",
+      "isbn": "9780000000260",
+      "publishedYear": 1998,
+      "registeredAt": "2026-04-05T09:05:00Z",
+      "expectedSeriesKey": "asoiaf"
+    },
+    {
+      "uuid": "en-07",
+      "title": "Dune",
+      "author": "Frank Herbert",
+      "isbn": "9780000000270",
+      "publishedYear": 1965,
+      "registeredAt": "2026-04-12T09:00:00Z",
+      "expectedSeriesKey": "dune"
+    },
+    {
+      "uuid": "en-08",
+      "title": "Dune Messiah",
+      "author": "Frank Herbert",
+      "isbn": "9780000000280",
+      "publishedYear": 1969,
+      "registeredAt": "2026-04-12T09:05:00Z",
+      "expectedSeriesKey": "dune"
+    },
+    {
+      "uuid": "en-09",
+      "title": "The Sandman vol. 1",
+      "author": "Neil Gaiman",
+      "isbn": "9780000000290",
+      "publishedYear": 1989,
+      "registeredAt": "2026-04-18T09:00:00Z",
+      "expectedSeriesKey": "sandman"
+    },
+    {
+      "uuid": "en-10",
+      "title": "The Sandman vol. 2",
+      "author": "Neil Gaiman",
+      "isbn": "9780000000300",
+      "publishedYear": 1990,
+      "registeredAt": "2026-04-18T09:05:00Z",
+      "expectedSeriesKey": "sandman"
+    },
+    {
+      "uuid": "en-11",
+      "title": "1984",
+      "author": "George Orwell",
+      "isbn": "9780000000310",
+      "publishedYear": 1949,
+      "registeredAt": "2026-06-10T09:00:00Z"
+    },
+    {
+      "uuid": "en-12",
+      "title": "Animal Farm",
+      "author": "George Orwell",
+      "isbn": "9780000000320",
+      "publishedYear": 1945,
+      "registeredAt": "2026-04-22T09:00:00Z"
+    },
+    {
+      "uuid": "en-13",
+      "title": "Brave New World",
+      "author": "Aldous Huxley",
+      "isbn": "9780000000330",
+      "publishedYear": 1932,
+      "registeredAt": "2026-04-22T09:05:00Z"
+    },
+    {
+      "uuid": "en-14",
+      "title": "Norwegian Wood",
+      "author": "Haruki Murakami",
+      "memo": "A quiet story about loss and memory. This is the book that got me into Murakami.",
+      "isbn": "9780000000340",
+      "publishedYear": 2000,
+      "registeredAt": "2026-05-15T09:00:00Z"
+    },
+    {
+      "uuid": "en-15",
+      "title": "The Art of War",
+      "author": "Sun Tzu",
+      "publishedYear": 1963,
+      "registeredAt": "2026-04-28T09:00:00Z"
+    },
+    {
+      "uuid": "ko-01",
+      "title": "토지 1권",
+      "author": "박경리",
+      "isbn": "9780000000360",
+      "publishedYear": 1994,
+      "registeredAt": "2026-03-10T09:00:00Z",
+      "expectedSeriesKey": "toji"
+    },
+    {
+      "uuid": "ko-02",
+      "title": "토지 2권",
+      "author": "박경리",
+      "isbn": "9780000000370",
+      "publishedYear": 1994,
+      "registeredAt": "2026-03-10T09:05:00Z",
+      "expectedSeriesKey": "toji"
+    },
+    {
+      "uuid": "ko-03",
+      "title": "토지 제3권",
+      "author": "박경리",
+      "isbn": "9780000000380",
+      "publishedYear": 1994,
+      "registeredAt": "2026-03-18T09:00:00Z",
+      "expectedSeriesKey": "toji"
+    },
+    {
+      "uuid": "ko-04",
+      "title": "아몬드",
+      "author": "손원평",
+      "memo": "주인공의 감정을 따라가면서 나도 함께 성장하는 기분이 들었다. 감정을 배운다는 것에 대해 생각하게 된 소설.",
+      "isbn": "9780000000390",
+      "publishedYear": 2017,
+      "registeredAt": "2026-05-20T09:00:00Z"
+    },
+    {
+      "uuid": "ko-05",
+      "title": "채식주의자",
+      "author": "한강",
+      "isbn": "9780000000400",
+      "publishedYear": 2007,
+      "registeredAt": "2026-04-08T09:00:00Z"
+    },
+    {
+      "uuid": "ko-06",
+      "title": "소년이 온다",
+      "author": "한강",
+      "isbn": "9780000000410",
+      "publishedYear": 2014,
+      "registeredAt": "2026-04-08T09:05:00Z"
+    },
+    {
+      "uuid": "ko-07",
+      "title": "82년생 김지영",
+      "author": "조남주",
+      "isbn": "9780000000420",
+      "publishedYear": 2016,
+      "registeredAt": "2026-04-14T09:00:00Z"
+    },
+    {
+      "uuid": "ko-08",
+      "title": "나미야 잡화점의 기적",
+      "author": "히가시노 게이고",
+      "isbn": "9780000000430",
+      "publishedYear": 2012,
+      "registeredAt": "2026-04-14T09:05:00Z"
+    },
+    {
+      "uuid": "ko-09",
+      "title": "달러구트 꿈 백화점",
+      "author": "이미예",
+      "memo": "꿈을 파는 백화점이라는 설정이 신선했다. 자기 전에 읽기 좋은 책.",
+      "publishedYear": 2020,
+      "registeredAt": "2026-06-15T09:00:00Z"
+    },
+    {
+      "uuid": "ko-10",
+      "title": "해리 포터와 마법사의 돌",
+      "author": "조앤 K. 롤링",
+      "isbn": "9780000000450",
+      "publishedYear": 1999,
+      "registeredAt": "2026-04-30T09:00:00Z"
+    },
+    {
+      "uuid": "zhs-01",
+      "title": "盗墓笔记 第1册",
+      "author": "南派三叔",
+      "isbn": "9780000000460",
+      "publishedYear": 2007,
+      "registeredAt": "2026-03-22T09:00:00Z",
+      "expectedSeriesKey": "daomu"
+    },
+    {
+      "uuid": "zhs-02",
+      "title": "盗墓笔记 第2册",
+      "author": "南派三叔",
+      "isbn": "9780000000470",
+      "publishedYear": 2007,
+      "registeredAt": "2026-03-22T09:05:00Z",
+      "expectedSeriesKey": "daomu"
+    },
+    {
+      "uuid": "zhs-03",
+      "title": "三体",
+      "author": "刘慈欣",
+      "isbn": "9780000000480",
+      "publishedYear": 2008,
+      "registeredAt": "2026-04-06T09:00:00Z"
+    },
+    {
+      "uuid": "zhs-04",
+      "title": "球状闪电",
+      "author": "刘慈欣",
+      "isbn": "9780000000490",
+      "publishedYear": 2004,
+      "registeredAt": "2026-04-06T09:05:00Z"
+    },
+    {
+      "uuid": "zhs-05",
+      "title": "活着",
+      "author": "余华",
+      "isbn": "9780000000500",
+      "publishedYear": 1993,
+      "registeredAt": "2026-04-16T09:00:00Z"
+    },
+    {
+      "uuid": "zhs-06",
+      "title": "许三观卖血记",
+      "author": "余华",
+      "isbn": "9780000000510",
+      "publishedYear": 1995,
+      "registeredAt": "2026-04-16T09:05:00Z"
+    },
+    {
+      "uuid": "zhs-07",
+      "title": "围城",
+      "author": "钱锺书",
+      "publishedYear": 1947,
+      "registeredAt": "2026-04-24T09:00:00Z"
+    },
+    {
+      "uuid": "zhs-08",
+      "title": "百年孤独",
+      "author": "加西亚·马尔克斯",
+      "memo": "魔幻现实主义的代表作，家族的命运让人唏嘘。",
+      "isbn": "9780000000530",
+      "publishedYear": 1967,
+      "registeredAt": "2026-05-25T09:00:00Z"
+    },
+    {
+      "uuid": "zht-01",
+      "title": "射鵰英雄傳 第一卷",
+      "author": "金庸",
+      "isbn": "9780000000540",
+      "publishedYear": 1957,
+      "registeredAt": "2026-03-25T09:00:00Z",
+      "expectedSeriesKey": "shediao"
+    },
+    {
+      "uuid": "zht-02",
+      "title": "射鵰英雄傳 第二卷",
+      "author": "金庸",
+      "isbn": "9780000000550",
+      "publishedYear": 1957,
+      "registeredAt": "2026-03-25T09:05:00Z",
+      "expectedSeriesKey": "shediao"
+    },
+    {
+      "uuid": "zht-03",
+      "title": "神鵰俠侶",
+      "author": "金庸",
+      "isbn": "9780000000560",
+      "publishedYear": 1959,
+      "registeredAt": "2026-04-09T09:00:00Z"
+    },
+    {
+      "uuid": "zht-04",
+      "title": "倚天屠龍記",
+      "author": "金庸",
+      "isbn": "9780000000570",
+      "publishedYear": 1961,
+      "registeredAt": "2026-04-09T09:05:00Z"
+    },
+    {
+      "uuid": "zht-05",
+      "title": "天龍八部",
+      "author": "金庸",
+      "isbn": "9780000000580",
+      "publishedYear": 1963,
+      "registeredAt": "2026-04-19T09:00:00Z"
+    },
+    {
+      "uuid": "zht-06",
+      "title": "解憂雜貨店",
+      "author": "東野圭吾",
+      "isbn": "9780000000590",
+      "publishedYear": 2013,
+      "registeredAt": "2026-06-20T09:00:00Z"
+    },
+    {
+      "uuid": "zht-07",
+      "title": "房思琪的初戀樂園",
+      "author": "林奕含",
+      "publishedYear": 2017,
+      "registeredAt": "2026-04-26T09:00:00Z"
+    }
+  ],
+  "monthlyMemos": [
+    {
+      "year": 2026,
+      "month": 5,
+      "text": "今月はミステリーばかり読んでいた。これというのも通勤時間が長くなったためで、読むことそのものが習慣になったのは良いことだと思う。"
+    },
+    {
+      "year": 2026,
+      "month": 6,
+      "text": "梅雨に入ってから家で過ごす時間が増えた。翻訳ものを読み始めたのがこの月のこと。"
+    }
+  ]
+}
