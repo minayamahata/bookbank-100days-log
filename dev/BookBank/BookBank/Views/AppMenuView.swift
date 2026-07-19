@@ -7,6 +7,7 @@
 
 import SwiftUI
 #if DEBUG
+import SwiftData
 import UniformTypeIdentifiers
 #endif
 
