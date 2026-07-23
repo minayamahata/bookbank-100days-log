@@ -33,9 +33,9 @@ final class MonthlyMemo {
     }
 }
 
-// MARK: - Repository
+// MARK: - Legacy Repository（R4ステップ1でプロトコル名と衝突するためリネーム。ステップ2で廃止）
 
-enum MonthlyMemoRepository {
+enum LegacyMonthlyMemoRepository {
 
     /// 指定年月のメモを取得（なければ nil）
     static func fetch(year: Int, month: Int, context: ModelContext) -> MonthlyMemo? {

@@ -306,7 +306,7 @@ struct BookshelfView: View {
                 memo: .constant(target.text),
                 title: "bookshelf.monthly_log"
             ) { newText in
-                MonthlyMemoRepository.save(
+                LegacyMonthlyMemoRepository.save(
                     year: target.year,
                     month: target.month,
                     text: newText,
@@ -610,7 +610,7 @@ struct BookshelfView: View {
     // MARK: - Monthly Memo
 
     private func openMonthlyMemo(year: Int, month: Int) {
-        let text = MonthlyMemoRepository.fetch(year: year, month: month, context: context)?.text ?? ""
+        let text = LegacyMonthlyMemoRepository.fetch(year: year, month: month, context: context)?.text ?? ""
         monthlyMemoTarget = MonthlyMemoTarget(year: year, month: month, text: text)
     }
 }

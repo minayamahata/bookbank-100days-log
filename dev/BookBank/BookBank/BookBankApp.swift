@@ -28,6 +28,9 @@ struct BookBankApp: App {
 
     /// 為替レート
     @State private var exchangeRateService = ExchangeRateService.shared
+
+    /// データアクセス（R4・View接続はステップ2以降）
+    @State private var repositories: AppRepositories
     
     // MARK: - Initialization
     
@@ -72,15 +75,18 @@ struct BookBankApp: App {
         }
 
         do {
+            let container: ModelContainer
             if isPreview {
-                modelContainer = try ModelContainer(for: schema, configurations: [modelConfiguration])
+                container = try ModelContainer(for: schema, configurations: [modelConfiguration])
             } else {
-                modelContainer = try StoreBackupManager.makeContainerWithRecovery(
+                container = try StoreBackupManager.makeContainerWithRecovery(
                     schema: schema,
                     configuration: modelConfiguration,
                     storeURL: storeURL
                 )
             }
+            modelContainer = container
+            _repositories = State(initialValue: AppRepositories(container: container))
             
             // 初回起動時のデフォルトデータ作成
             initializeDefaultData()
@@ -118,6 +124,7 @@ struct BookBankApp: App {
                 .environment(languageManager)
                 .environment(currencyManager)
                 .environment(exchangeRateService)
+                .environment(repositories)
                 .environment(\.locale, languageManager.resolvedLocale)
                 .preferredColorScheme(themeManager.currentTheme.colorScheme)
         }
