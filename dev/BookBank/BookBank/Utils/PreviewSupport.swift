@@ -46,6 +46,10 @@ enum PreviewSupport {
         return container
     }()
 
+    /// プレビュー用リポジトリ束（インメモリSwiftData実装・設計メモ 5.5節）
+    @MainActor
+    static let repositories = AppRepositories(container: modelContainer)
+
     @MainActor
     static func passbook(named name: String) -> Passbook? {
         let descriptor = FetchDescriptor<Passbook>()
@@ -103,6 +107,7 @@ extension View {
             .environment(PreviewSupport.languageManager)
             .environment(PreviewSupport.currencyManager)
             .environment(PreviewSupport.exchangeRates)
+            .environment(PreviewSupport.repositories)
             .environment(\.locale, PreviewSupport.languageManager.resolvedLocale)
             .modelContainer(PreviewSupport.modelContainer)
     }

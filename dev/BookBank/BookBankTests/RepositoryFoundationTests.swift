@@ -341,4 +341,38 @@ final class RepositoryFoundationTests: XCTestCase {
         memo = await firstValue(repos.monthlyMemos.observeMemo(year: 2026, month: 7))
         XCTAssertNil(memo)
     }
+
+    /// R4ステップ2確認項目: メモ編集→アプリ再起動→保持
+    /// オンディスクのストアに保存し、コンテナを破棄・再生成（＝再起動相当）しても読めることを確認する
+    func testMonthlyMemoPersistsAcrossContainerReload() async throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let storeURL = dir.appendingPathComponent("restart-test.store")
+        let schema = Schema([
+            Passbook.self, UserBook.self, Subscription.self, ReadingList.self, MonthlyMemo.self
+        ])
+
+        // 1回目の「起動」で保存
+        do {
+            let config = ModelConfiguration(schema: schema, url: storeURL)
+            let firstContainer = try ModelContainer(for: schema, configurations: [config])
+            let repo = SwiftDataMonthlyMemoRepository(
+                context: firstContainer.mainContext,
+                pulse: RepositoryChangePulse()
+            )
+            try await repo.saveMemo(year: 2026, month: 7, text: "再起動チェック")
+        }
+
+        // 2回目の「起動」（別コンテナ）で読み出し
+        let config = ModelConfiguration(schema: schema, url: storeURL)
+        let secondContainer = try ModelContainer(for: schema, configurations: [config])
+        let repo = SwiftDataMonthlyMemoRepository(
+            context: secondContainer.mainContext,
+            pulse: RepositoryChangePulse()
+        )
+        let memo = await firstValue(repo.observeMemo(year: 2026, month: 7))
+        XCTAssertEqual(memo?.text, "再起動チェック")
+    }
 }

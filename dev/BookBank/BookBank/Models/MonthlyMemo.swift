@@ -1,5 +1,4 @@
 import Foundation
-import OSLog
 import SwiftData
 
 /// 月別メモモデル
@@ -33,53 +32,6 @@ final class MonthlyMemo {
     }
 }
 
-// MARK: - Legacy Repository（R4ステップ1でプロトコル名と衝突するためリネーム。ステップ2で廃止）
-
-enum LegacyMonthlyMemoRepository {
-
-    /// 指定年月のメモを取得（なければ nil）
-    static func fetch(year: Int, month: Int, context: ModelContext) -> MonthlyMemo? {
-        let descriptor = FetchDescriptor<MonthlyMemo>(
-            predicate: #Predicate { $0.year == year && $0.month == month }
-        )
-        return try? context.fetch(descriptor).first
-    }
-
-    /// 指定年月のメモを取得、なければ新規作成して返す
-    static func fetchOrCreate(year: Int, month: Int, context: ModelContext) -> MonthlyMemo {
-        if let existing = fetch(year: year, month: month, context: context) {
-            return existing
-        }
-        let memo = MonthlyMemo(year: year, month: month)
-        context.insert(memo)
-        return memo
-    }
-
-    /// メモを保存（空文字の場合はレコードを削除してストレージを節約）
-    /// - Returns: 保存に成功したら true。失敗時はログを残して false を返す。
-    @discardableResult
-    static func save(year: Int, month: Int, text: String, context: ModelContext) -> Bool {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        if trimmed.isEmpty {
-            if let existing = fetch(year: year, month: month, context: context) {
-                context.delete(existing)
-            }
-        } else {
-            let memo = fetchOrCreate(year: year, month: month, context: context)
-            memo.text = trimmed
-            memo.updatedAt = Date()
-        }
-
-        do {
-            try context.save()
-            return true
-        } catch {
-            Logger(subsystem: Bundle.main.bundleIdentifier ?? "BookBank", category: "MonthlyMemo")
-                .error("月別メモの保存に失敗: year=\(year) month=\(month) error=\(error.localizedDescription)")
-            // 失敗した変更が後続の保存に混ざらないようロールバックする
-            context.rollback()
-            return false
-        }
-    }
-}
+// R4ステップ2（2026-07-23）: 旧 `MonthlyMemoRepository` enum（→一時 `LegacyMonthlyMemoRepository`）は
+// `SwiftDataMonthlyMemoRepository`（Repositories/）へ置換し廃止。
+// 空文字＝削除・rollback・OSLog（category: "MonthlyMemo"）の挙動は実装へ移設済み。

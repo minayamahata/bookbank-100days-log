@@ -24,7 +24,7 @@ protocol ReadingListRepository: AnyObject {
 }
 
 /// 月別メモのリポジトリ契約（設計メモ 3.1節）。
-/// 既存の `LegacyMonthlyMemoRepository` enum（旧 `MonthlyMemoRepository`）はステップ2で本プロトコル実装へ置換する。
+/// 旧 `MonthlyMemoRepository` enum はステップ2（2026-07-23）で本プロトコル実装へ置換・廃止済み。
 protocol MonthlyMemoRepository: AnyObject {
     func observeMemo(year: Int, month: Int) -> AsyncStream<MonthlyMemoDTO?>
     func saveMemo(year: Int, month: Int, text: String) async throws

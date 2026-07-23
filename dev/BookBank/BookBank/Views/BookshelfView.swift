@@ -21,7 +21,7 @@ struct BookshelfView: View {
 
     @Environment(LanguageManager.self) private var languageManager
     @Environment(\.colorScheme) private var colorScheme
-    @Environment(\.modelContext) private var context
+    @Environment(AppRepositories.self) private var repos
     @Environment(BookshelfChromeState.self) private var bookshelfChromeState
     
     // MARK: - SwiftData Query
@@ -306,12 +306,14 @@ struct BookshelfView: View {
                 memo: .constant(target.text),
                 title: "bookshelf.monthly_log"
             ) { newText in
-                LegacyMonthlyMemoRepository.save(
-                    year: target.year,
-                    month: target.month,
-                    text: newText,
-                    context: context
-                )
+                // 失敗は現行同様に静かに飲む（リポジトリ内でOSLog記録・rollback済み。設計メモ 4.5節）
+                Task {
+                    try? await repos.monthlyMemos.saveMemo(
+                        year: target.year,
+                        month: target.month,
+                        text: newText
+                    )
+                }
             }
         }
     }
@@ -610,8 +612,15 @@ struct BookshelfView: View {
     // MARK: - Monthly Memo
 
     private func openMonthlyMemo(year: Int, month: Int) {
-        let text = LegacyMonthlyMemoRepository.fetch(year: year, month: month, context: context)?.text ?? ""
-        monthlyMemoTarget = MonthlyMemoTarget(year: year, month: month, text: text)
+        // observeMemo は購読開始時に現在値を即yieldするため、先頭値の取得＝現行fetchと同義
+        Task {
+            var text = ""
+            for await memo in repos.monthlyMemos.observeMemo(year: year, month: month) {
+                text = memo?.text ?? ""
+                break
+            }
+            monthlyMemoTarget = MonthlyMemoTarget(year: year, month: month, text: text)
+        }
     }
 }
 
