@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(xcodebuild -project BookBank.xcodeproj -scheme BookBank -destination 'platform=iOS Simulator,name=iPhone 17' test)"
+    ]
+  }
+}
