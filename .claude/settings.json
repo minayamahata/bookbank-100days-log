@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(xcodebuild -project BookBank.xcodeproj -scheme BookBank -destination 'platform=iOS Simulator,name=iPhone 17' test)"
+      "Bash(xcodebuild -project BookBank.xcodeproj -scheme BookBank -destination 'platform=iOS Simulator,name=iPhone 17' test)",
+      "Bash(sed -n '/let toSave = updated/,/^    }/p' Views/EditBookView.swift)",
+      "Bash(sed -n '/private func deleteBook/,/^    }/p' Views/UserBookDetailView.swift)"
     ]
   }
 }
