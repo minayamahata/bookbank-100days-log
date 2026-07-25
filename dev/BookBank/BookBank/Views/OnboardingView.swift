@@ -6,12 +6,11 @@
 //
 
 import SwiftUI
-import SwiftData
 
 struct OnboardingView: View {
     var onComplete: (() -> Void)?
     
-    @Environment(\.modelContext) private var context
+    @Environment(AppRepositories.self) private var repos
     @Environment(\.dismiss) private var dismiss
 
     @State private var accountName: String = String(localized: "category.novel")
@@ -207,28 +206,33 @@ struct OnboardingView: View {
     private func createAccount() {
         guard !accountName.isEmpty else { return }
 
-        let newPassbook = Passbook(
+        let now = Date()
+        let dto = PassbookDTO(
+            id: UUID().uuidString,
             name: accountName,
             type: .custom,
             sortOrder: 1,
-            isActive: true
+            isActive: true,
+            colorIndex: 10,
+            customColorHex: nil,
+            createdAt: now,
+            updatedAt: now
         )
-        newPassbook.colorIndex = 10
 
-        context.insert(newPassbook)
-
-        do {
-            try context.save()
-            if let onComplete {
-                onComplete()
-            } else {
-                dismiss()
+        Task {
+            do {
+                try await repos.passbooks.addPassbook(dto)
+                if let onComplete {
+                    onComplete()
+                } else {
+                    dismiss()
+                }
+            } catch {
+                #if DEBUG
+                print("❌ Error creating first passbook: \(error)")
+                #endif
+                showError = true
             }
-        } catch {
-            #if DEBUG
-            print("❌ Error creating first passbook: \(error)")
-            #endif
-            showError = true
         }
     }
 }
@@ -340,5 +344,5 @@ struct FlowLayout: Layout {
 
 #Preview {
     OnboardingView()
-        .modelContainer(for: [Passbook.self, UserBook.self])
+        .bookBankPreviewEnvironment()
 }

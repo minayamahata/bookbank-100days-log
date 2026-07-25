@@ -48,7 +48,7 @@ struct ExportFormattingContext {
 /// 口座のマークダウンを生成
 @MainActor
 func generatePassbookMarkdown(
-    passbook: Passbook,
+    passbook: PassbookDTO,
     books: [UserBook],
     exportType: ExportType,
     formatting: ExportFormattingContext

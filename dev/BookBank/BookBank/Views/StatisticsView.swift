@@ -24,7 +24,7 @@ struct StatisticsView: View {
     
     // MARK: - Environment
     
-    @Environment(\.modelContext) private var context
+    @Environment(AppRepositories.self) private var repos
     @Environment(LanguageManager.self) private var languageManager
     @Environment(CurrencyManager.self) private var currencyManager
     @Environment(ExchangeRateService.self) private var exchangeRates
@@ -32,12 +32,12 @@ struct StatisticsView: View {
     // MARK: - Properties
     
     /// 表示対象の口座（nilの場合は総合口座）
-    let passbook: Passbook?
+    let passbook: PassbookDTO?
     
-    // MARK: - SwiftData Query
+    // MARK: - SwiftData Query / State
     
     @Query private var allUserBooks: [UserBook]
-    @Query(sort: \Passbook.sortOrder) private var allPassbooks: [Passbook]
+    @State private var allPassbooks: [PassbookDTO] = []
     
     // MARK: - State
     
@@ -47,7 +47,7 @@ struct StatisticsView: View {
     // MARK: - Computed Properties
     
     /// カスタム口座のリスト
-    private var customPassbooks: [Passbook] {
+    private var customPassbooks: [PassbookDTO] {
         allPassbooks.filter { $0.type == .custom && $0.isActive }
     }
     
@@ -78,7 +78,7 @@ struct StatisticsView: View {
     /// 対象口座の書籍（口座指定がない場合は全書籍）
     private var targetBooks: [UserBook] {
         if let passbook = passbook {
-            return allUserBooks.filter { $0.passbook?.id == passbook.id }
+            return allUserBooks.filter { $0.passbook?.uuid == passbook.id }
         }
         return allUserBooks
     }
@@ -232,6 +232,11 @@ struct StatisticsView: View {
         }
         .onAppear { correctSelectedYearIfNeeded() }
         .onChange(of: availableYears) { correctSelectedYearIfNeeded() }
+        .task {
+            for await value in repos.passbooks.observePassbooks() {
+                allPassbooks = value
+            }
+        }
     }
 
     /// 選択中の年が availableYears から外れた場合（その年の本が全削除された等）に、
@@ -269,7 +274,7 @@ struct StatisticsView: View {
 /// 年別グラフコンテンツ（統計サマリー + グラフ）
 struct YearlyChartContent: View {
     let year: Int
-    let passbook: Passbook?
+    let passbook: PassbookDTO?
     let targetBooks: [UserBook]
     let themeColor: Color
     let displayCurrency: AppCurrency
@@ -725,11 +730,12 @@ private struct StatsGlassCardModifier: ViewModifier {
 
 /// 読書レポート画面（プレースホルダー）
 struct ReadingReportView: View {
-    let passbook: Passbook?
+    let passbook: PassbookDTO?
+
+    @Environment(AppRepositories.self) private var repos
+    @State private var allPassbooks: [PassbookDTO] = []
     
-    @Query(sort: \Passbook.sortOrder) private var allPassbooks: [Passbook]
-    
-    private var customPassbooks: [Passbook] {
+    private var customPassbooks: [PassbookDTO] {
         allPassbooks.filter { $0.type == .custom && $0.isActive }
     }
     
@@ -757,54 +763,19 @@ struct ReadingReportView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .navigationTitle("statistics.report.title")
         .navigationBarTitleDisplayMode(.inline)
+        .task {
+            for await value in repos.passbooks.observePassbooks() {
+                allPassbooks = value
+            }
+        }
     }
 }
 
 struct StatisticsView_Previews: PreviewProvider {
     static var previews: some View {
-        let container = try! ModelContainer(
-            for: Passbook.self, UserBook.self, Subscription.self,
-            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
-        )
-        
-        let context = container.mainContext
-        
-        // テスト用の口座を作成
-        let testPassbook = Passbook(name: "テスト口座", type: .custom, sortOrder: 1)
-        context.insert(testPassbook)
-        
-        // 各月にテストデータを作成（2026年1月〜12月）
-        let calendar = Calendar.current
-        let year = 2026
-        
-        for month in 1...12 {
-            // 各月に1〜3冊のランダムな本を登録
-            let booksInMonth = Int.random(in: 1...3)
-            
-            for _ in 0..<booksInMonth {
-                var components = DateComponents()
-                components.year = year
-                components.month = month
-                components.day = Int.random(in: 1...28)
-                
-                if let date = calendar.date(from: components) {
-                    let book = UserBook(
-                        title: "テスト書籍 \(month)月",
-                        author: "著者名",
-                        isbn: "",
-                        price: Int.random(in: 1000...5000),
-                        passbook: testPassbook
-                    )
-                    // 登録日を手動で設定
-                    book.registeredAt = date
-                    context.insert(book)
-                }
-            }
-        }
-        
-        return NavigationStack {
+        NavigationStack {
             StatisticsView(passbook: nil)
         }
-        .modelContainer(container)
+        .bookBankPreviewEnvironment()
     }
 }

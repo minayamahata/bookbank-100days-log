@@ -39,6 +39,7 @@ struct BookSearchView: View {
     @Environment(LanguageManager.self) private var languageManager
     @Environment(CurrencyManager.self) private var currencyManager
     @Environment(ExchangeRateService.self) private var exchangeRates
+    @Environment(AppRepositories.self) private var repos
     @Environment(\.floatingButtonState) private var floatingButtonState
     
     // MARK: - Search Phase
@@ -54,21 +55,21 @@ struct BookSearchView: View {
     // MARK: - Properties
     
     /// 登録先の口座（初期値）
-    let passbook: Passbook
+    let passbook: PassbookDTO
     
     /// 口座選択を許可するかどうか
     let allowPassbookChange: Bool
     
-    // MARK: - SwiftData Query
+    // MARK: - SwiftData Query / State
     
     /// 全ての登録済み書籍を取得
     @Query private var allUserBooks: [UserBook]
     
-    /// すべての口座を取得
-    @Query(sort: \Passbook.sortOrder) private var allPassbooks: [Passbook]
+    /// すべての口座（リポジトリストリーム）
+    @State private var allPassbooks: [PassbookDTO] = []
     
     /// カスタム口座のみ取得
-    private var customPassbooks: [Passbook] {
+    private var customPassbooks: [PassbookDTO] {
         allPassbooks.filter { $0.type == .custom && $0.isActive }
     }
 
@@ -150,7 +151,7 @@ struct BookSearchView: View {
     @State private var selectedSortOption: SortOption = .newestFirst
     
     /// 選択中の口座
-    @State private var selectedPassbook: Passbook?
+    @State private var selectedPassbook: PassbookDTO?
     
     /// 検索バーのフォーカス状態
     @FocusState private var isSearchFocused: Bool
@@ -209,7 +210,7 @@ struct BookSearchView: View {
     
     // MARK: - Initialization
     
-    init(passbook: Passbook, allowPassbookChange: Bool = false) {
+    init(passbook: PassbookDTO, allowPassbookChange: Bool = false) {
         self.passbook = passbook
         self.allowPassbookChange = allowPassbookChange
         _selectedPassbook = State(initialValue: passbook)
@@ -561,7 +562,7 @@ struct BookSearchView: View {
                                         Button(action: {
                                             selectedPassbook = passbook
                                         }) {
-                                            if selectedPassbook?.persistentModelID == passbook.persistentModelID {
+                                            if selectedPassbook?.id == passbook.id {
                                                 Label(passbook.name, systemImage: "checkmark")
                                             } else {
                                                 Text(passbook.name)
@@ -774,6 +775,11 @@ struct BookSearchView: View {
             }
         } message: { _ in
             Text("book.search.price_input.message")
+        }
+        .task {
+            for await value in repos.passbooks.observePassbooks() {
+                allPassbooks = value
+            }
         }
     }
     
@@ -997,7 +1003,8 @@ struct BookSearchView: View {
         overridePrice: Int? = nil,
         overrideCurrency: AppCurrency? = nil
     ) {
-        guard let targetPassbook = selectedPassbook else { return }
+        guard let targetDTO = selectedPassbook,
+              let targetPassbook = PassbookModelLookup.fetch(id: targetDTO.id, context: context) else { return }
         // 二重タップ等での同一書籍の重複登録を防ぐ（ボタンの disabled だけに頼らず保存直前に再チェック）
         guard !isBookRegistered(result) else { return }
         let newBook = result.toUserBook(passbook: targetPassbook)
@@ -1234,7 +1241,19 @@ struct BookSearchResultRow: View {
 
 #Preview {
     NavigationStack {
-        BookSearchView(passbook: Passbook.createOverall())
+        BookSearchView(
+            passbook: PassbookDTO(
+                id: UUID().uuidString,
+                name: "総合口座",
+                type: .overall,
+                sortOrder: 0,
+                isActive: true,
+                colorIndex: nil,
+                customColorHex: nil,
+                createdAt: Date(),
+                updatedAt: Date()
+            )
+        )
     }
     .bookBankPreviewEnvironment()
 }

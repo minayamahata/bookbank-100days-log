@@ -6,19 +6,22 @@
 //
 
 import SwiftUI
-import SwiftData
 
 struct HomeView: View {
-    @Query(sort: \Passbook.sortOrder) private var passbooks: [Passbook]
+    @Environment(AppRepositories.self) private var repos
+    @State private var passbooks: [PassbookDTO] = []
+    @State private var hasLoadedPassbooks = false
     
     // カスタム口座を取得
-    private var customPassbooks: [Passbook] {
+    private var customPassbooks: [PassbookDTO] {
         passbooks.filter { $0.type == .custom && $0.isActive }
     }
     
     var body: some View {
         Group {
-            if customPassbooks.isEmpty {
+            if !hasLoadedPassbooks {
+                Color.clear
+            } else if customPassbooks.isEmpty {
                 // カスタム口座がない場合
                 VStack(spacing: 16) {
                     Image(systemName: "doc.text")
@@ -35,18 +38,18 @@ struct HomeView: View {
                 PassbookDetailView(passbook: firstPassbook)
             }
         }
+        .task {
+            for await value in repos.passbooks.observePassbooks() {
+                passbooks = value
+                hasLoadedPassbooks = true
+            }
+        }
     }
 }
 
 #Preview {
-    let config = ModelConfiguration(isStoredInMemoryOnly: true)
-    let container = try! ModelContainer(for: Passbook.self, UserBook.self, configurations: config)
-    
-    let passbook = Passbook(name: "漫画口座", type: .custom, sortOrder: 1)
-    container.mainContext.insert(passbook)
-    
-    return NavigationStack {
+    NavigationStack {
         HomeView()
-            .modelContainer(container)
     }
+    .bookBankPreviewEnvironment()
 }

@@ -23,11 +23,12 @@ struct AddBookView: View {
     @Environment(\.dismiss) private var dismiss
 
     @Environment(CurrencyManager.self) private var currencyManager
+    @Environment(AppRepositories.self) private var repos
     
     // MARK: - Properties
     
     /// 登録先の口座（初期値）
-    let passbook: Passbook
+    let passbook: PassbookDTO
     
     /// 口座選択を許可するかどうか
     let allowPassbookChange: Bool
@@ -35,13 +36,13 @@ struct AddBookView: View {
     /// 保存成功時のコールバック（親画面を閉じるため）
     var onSave: (() -> Void)?
     
-    // MARK: - SwiftData Query
+    // MARK: - SwiftData Query / State
     
-    /// すべての口座を取得
-    @Query(sort: \Passbook.sortOrder) private var allPassbooks: [Passbook]
+    /// すべての口座（リポジトリストリーム）
+    @State private var allPassbooks: [PassbookDTO] = []
     
     /// カスタム口座のみ取得
-    private var customPassbooks: [Passbook] {
+    private var customPassbooks: [PassbookDTO] {
         allPassbooks.filter { $0.type == .custom && $0.isActive }
     }
 
@@ -56,7 +57,12 @@ struct AddBookView: View {
     // MARK: - Form State
     
     /// 選択中の口座
-    @State private var selectedPassbook: Passbook?
+    @State private var selectedPassbookId: String
+    private var selectedPassbook: PassbookDTO? {
+        customPassbooks.first { $0.id == selectedPassbookId }
+            ?? allPassbooks.first { $0.id == selectedPassbookId }
+            ?? (passbook.id == selectedPassbookId ? passbook : nil)
+    }
     
     /// 書籍タイトル（必須）
     @State private var title: String = ""
@@ -97,11 +103,11 @@ struct AddBookView: View {
     
     // MARK: - Initialization
     
-    init(passbook: Passbook, allowPassbookChange: Bool = false, onSave: (() -> Void)? = nil) {
+    init(passbook: PassbookDTO, allowPassbookChange: Bool = false, onSave: (() -> Void)? = nil) {
         self.passbook = passbook
         self.allowPassbookChange = allowPassbookChange
         self.onSave = onSave
-        _selectedPassbook = State(initialValue: passbook)
+        _selectedPassbookId = State(initialValue: passbook.id)
     }
     
     // MARK: - Validation
@@ -263,11 +269,11 @@ struct AddBookView: View {
                 // 口座選択（allowPassbookChangeがtrueの場合のみ表示）
                 if allowPassbookChange {
                     Section {
-                        Picker("account.title", selection: $selectedPassbook) {
+                        Picker("account.title", selection: $selectedPassbookId) {
                             ForEach(customPassbooks) { passbook in
                                 Text(passbook.name)
                                     .foregroundColor(.primary)
-                                    .tag(passbook as Passbook?)
+                                    .tag(passbook.id)
                             }
                         }
                         .pickerStyle(.menu)
@@ -276,6 +282,11 @@ struct AddBookView: View {
                 }
             }
             .scrollDismissesKeyboard(.interactively)
+            .task {
+                for await value in repos.passbooks.observePassbooks() {
+                    allPassbooks = value
+                }
+            }
             .onTapGesture {
                 focusedField = nil
             }
@@ -383,7 +394,8 @@ struct AddBookView: View {
     /// 本を保存する
     private func saveBook() {
         guard let price = currencyManager.displayCurrency.minorUnits(fromInput: priceText),
-              let targetPassbook = selectedPassbook else {
+              let targetDTO = selectedPassbook,
+              let targetPassbook = PassbookModelLookup.fetch(id: targetDTO.id, context: context) else {
             return
         }
         
@@ -424,12 +436,18 @@ struct AddBookView: View {
 // MARK: - Preview
 
 #Preview {
-    let config = ModelConfiguration(isStoredInMemoryOnly: true)
-    let container = try! ModelContainer(for: Passbook.self, UserBook.self, configurations: config)
-    
-    let passbook = Passbook(name: "漫画口座", type: .custom, sortOrder: 1)
-    container.mainContext.insert(passbook)
-    
-    return AddBookView(passbook: passbook)
-        .modelContainer(container)
+    AddBookView(
+        passbook: PassbookDTO(
+            id: UUID().uuidString,
+            name: "漫画口座",
+            type: .custom,
+            sortOrder: 1,
+            isActive: true,
+            colorIndex: 0,
+            customColorHex: nil,
+            createdAt: Date(),
+            updatedAt: Date()
+        )
+    )
+    .bookBankPreviewEnvironment()
 }

@@ -11,12 +11,12 @@ import SwiftData
 @Observable
 class AppShellState {
     var showAppMenu = false
-    var onPassbookSelected: ((Passbook) -> Void)?
+    var onPassbookSelected: ((PassbookDTO) -> Void)?
     var onOverallSelected: (() -> Void)?
     var onShowBookshelf: (() -> Void)?
     var onShowCalendar: (() -> Void)?
 
-    func selectPassbook(_ passbook: Passbook) {
+    func selectPassbook(_ passbook: PassbookDTO) {
         onPassbookSelected?(passbook)
     }
 
@@ -65,10 +65,15 @@ struct MainTabView: View {
     @Environment(LanguageManager.self) private var languageManager
     @Environment(CurrencyManager.self) private var currencyManager
     @Environment(ExchangeRateService.self) private var exchangeRateService
-    @Query(sort: \Passbook.sortOrder) private var passbooks: [Passbook]
+    @Environment(AppRepositories.self) private var repos
+    @State private var passbooks: [PassbookDTO] = []
+    /// ストリームの初回値を受け取ったか（初回bodyの空配列で空状態UIが瞬かないようにする＝設計メモ 5.1節）
+    @State private var hasLoadedPassbooks = false
     @Query(sort: \ReadingList.updatedAt) private var readingLists: [ReadingList]
     private var unlimitedManager: UnlimitedManager { UnlimitedManager.shared }
-    @State private var selectedPassbook: Passbook?
+    /// 選択中の口座ID（uuid）。DTOのコピーではなくIDで保持し、名称・色の変更が
+    /// ストリームの新値から常に反映されるようにする（@Model参照時代の自動反映と同じ見え方）
+    @State private var selectedPassbookId: String?
     @State private var isOverallMode = true
     @State private var appShellState = AppShellState()
     @State private var showAddReadingList = false
@@ -88,23 +93,27 @@ struct MainTabView: View {
     @State private var selectedTab = 1  // デフォルトは通帳タブ
     
     // カスタム口座を取得
-    private var customPassbooks: [Passbook] {
+    private var customPassbooks: [PassbookDTO] {
         passbooks.filter { $0.type == .custom && $0.isActive }
     }
     
-    /// 現在表示対象の口座（selectedPassbookがnilの場合は最初のカスタム口座）
-    private var currentPassbook: Passbook? {
-        selectedPassbook ?? customPassbooks.first
+    /// 現在表示対象の口座（selectedPassbookIdがnil・不一致の場合は最初のカスタム口座）
+    private var currentPassbook: PassbookDTO? {
+        if let id = selectedPassbookId,
+           let match = customPassbooks.first(where: { $0.id == id }) {
+            return match
+        }
+        return customPassbooks.first
     }
     /// 通帳・本棚・集計に渡す口座（総合口座モード時は nil）
-    private var displayPassbook: Passbook? {
+    private var displayPassbook: PassbookDTO? {
         isOverallMode ? nil : currentPassbook
     }
     
     /// 表示用の口座ID（View更新トリガー）
     private var displayPassbookID: String {
         if isOverallMode { return "overall" }
-        return currentPassbook?.persistentModelID.hashValue.description ?? "none"
+        return currentPassbook?.id ?? "none"
     }
     
     private var isNavigating: Bool {
@@ -144,10 +153,18 @@ struct MainTabView: View {
             .environment(passbookSheetChromeState)
             .environment(bookshelfChromeState)
             .environment(\.floatingButtonState, floatingButtonState)
+            .task {
+                for await value in repos.passbooks.observePassbooks() {
+                    passbooks = value
+                    hasLoadedPassbooks = true
+                    // 口座削除後に選択状態が削除済み口座を参照し続けないようにする
+                    validateSelectedPassbook()
+                }
+            }
             .onAppear {
                 appShellState.onPassbookSelected = { passbook in
                     isOverallMode = false
-                    selectedPassbook = passbook
+                    selectedPassbookId = passbook.id
                     selectedTab = 1
                     passbookNavPath = NavigationPath()
                 }
@@ -167,10 +184,6 @@ struct MainTabView: View {
                     bookshelfChromeState.isCalendar = true
                     selectedTab = 2
                 }
-                validateSelectedPassbook()
-            }
-            .onChange(of: customPassbooks) {
-                // 口座削除後に選択状態が削除済みモデルを参照し続けないようにする
                 validateSelectedPassbook()
             }
             .sheet(isPresented: $showAddReadingList) {
@@ -228,7 +241,7 @@ struct MainTabView: View {
                     AccountListView(
                         onPassbookSelected: { passbook in
                             isOverallMode = false
-                            selectedPassbook = passbook
+                            selectedPassbookId = passbook.id
                             selectedTab = 1
                             passbookNavPath = NavigationPath()
                         },
@@ -455,7 +468,7 @@ struct MainTabView: View {
                     switchToPassbook(passbook)
                 } label: {
                     if !isOverallMode,
-                       currentPassbook?.persistentModelID == passbook.persistentModelID {
+                       currentPassbook?.id == passbook.id {
                         Label(passbook.name, systemImage: "checkmark")
                     } else {
                         Text(passbook.name)
@@ -488,9 +501,9 @@ struct MainTabView: View {
     }
 
     /// 指定のカスタム口座へ切り替え
-    private func switchToPassbook(_ passbook: Passbook) {
+    private func switchToPassbook(_ passbook: PassbookDTO) {
         isOverallMode = false
-        selectedPassbook = passbook
+        selectedPassbookId = passbook.id
         resetContentNavigationPaths()
     }
 
@@ -504,12 +517,10 @@ struct MainTabView: View {
 
     /// 選択中の口座が削除されていたら、選択状態を総合口座モードへ戻す
     private func validateSelectedPassbook() {
-        guard let selected = selectedPassbook else { return }
-        let stillExists = customPassbooks.contains {
-            $0.persistentModelID == selected.persistentModelID
-        }
+        guard let selectedId = selectedPassbookId else { return }
+        let stillExists = customPassbooks.contains { $0.id == selectedId }
         if !stillExists {
-            selectedPassbook = nil
+            selectedPassbookId = nil
             isOverallMode = true
             resetContentNavigationPaths()
         }
@@ -536,17 +547,22 @@ struct MainTabView: View {
     }
     
     /// 空状態ビュー
+    /// - Note: ストリーム初回値の受信前（起動直後の1フレーム）は表示しない。
+    ///   `@Query` 時代は初回bodyからデータが入っていたため空状態が瞬かなかった挙動を維持する（設計メモ 5.1節）
+    @ViewBuilder
     private var emptyStateView: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "doc.text")
-                .font(.system(size: 60))
-                .foregroundColor(.gray)
-            
-            Text("account.empty")
-                .font(.headline)
-                .foregroundColor(.secondary)
+        if hasLoadedPassbooks {
+            VStack(spacing: 16) {
+                Image(systemName: "doc.text")
+                    .font(.system(size: 60))
+                    .foregroundColor(.gray)
+                
+                Text("account.empty")
+                    .font(.headline)
+                    .foregroundColor(.secondary)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 
@@ -554,14 +570,14 @@ struct MainTabView: View {
 
 /// 本の検索画面へのナビゲーション用データ
 struct BookSearchDestination: Hashable {
-    let passbook: Passbook
+    let passbook: PassbookDTO
     
     func hash(into hasher: inout Hasher) {
-        hasher.combine(passbook.persistentModelID)
+        hasher.combine(passbook.id)
     }
     
     static func == (lhs: BookSearchDestination, rhs: BookSearchDestination) -> Bool {
-        lhs.passbook.persistentModelID == rhs.passbook.persistentModelID
+        lhs.passbook.id == rhs.passbook.id
     }
 }
 

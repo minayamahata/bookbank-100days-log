@@ -21,14 +21,15 @@ struct BookSelectorView: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(AppRepositories.self) private var repos
     
-    // MARK: - SwiftData Query
+    // MARK: - SwiftData Query / State
     
     /// すべての本を取得（登録日順）
     @Query(sort: \UserBook.registeredAt, order: .reverse) private var allBooks: [UserBook]
     
-    /// すべての口座を取得
-    @Query(sort: \Passbook.sortOrder) private var passbooks: [Passbook]
+    /// すべての口座（リポジトリストリーム）
+    @State private var passbooks: [PassbookDTO] = []
     
     // MARK: - State
     
@@ -44,13 +45,13 @@ struct BookSelectorView: View {
     }
     
     /// アクティブな口座のみ
-    private var activePassbooks: [Passbook] {
+    private var activePassbooks: [PassbookDTO] {
         passbooks.filter { $0.type == .custom && $0.isActive }
     }
     
     /// 指定した口座の本を取得
-    private func books(for passbook: Passbook) -> [UserBook] {
-        allBooks.filter { $0.passbook?.persistentModelID == passbook.persistentModelID }
+    private func books(for passbook: PassbookDTO) -> [UserBook] {
+        allBooks.filter { $0.passbook?.uuid == passbook.id }
     }
     
     // MARK: - Body
@@ -92,6 +93,11 @@ struct BookSelectorView: View {
             }
             .background(Color.clear)
             .navigationBarHidden(true)
+            .task {
+                for await value in repos.passbooks.observePassbooks() {
+                    passbooks = value
+                }
+            }
         }
     }
     
@@ -193,7 +199,7 @@ struct BookSelectorView: View {
     }
     
     /// 本のリストビュー（口座ごと）
-    private func bookListView(for passbook: Passbook) -> some View {
+    private func bookListView(for passbook: PassbookDTO) -> some View {
         let passbookBooks = books(for: passbook)
         let themeColor = PassbookColor.color(for: passbook.colorIndex ?? 0)
         
@@ -360,4 +366,5 @@ struct BookSelectorView: View {
     
     return BookSelectorView(readingList: list)
         .modelContainer(container)
+        .environment(PreviewSupport.repositories)
 }

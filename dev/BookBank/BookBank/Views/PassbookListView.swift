@@ -9,15 +9,20 @@ import SwiftUI
 import SwiftData
 
 struct PassbookListView: View {
-    @Environment(\.modelContext) private var context
+    @Environment(AppRepositories.self) private var repos
     @Environment(CurrencyManager.self) private var currencyManager
     @Environment(ExchangeRateService.self) private var exchangeRates
-    @Query(sort: \Passbook.sortOrder) private var passbooks: [Passbook]
+    @State private var passbooks: [PassbookDTO] = []
+    @Query private var allBooks: [UserBook]
     @State private var showAddPassbook = false
     
     // カスタム口座を取得
-    private var customPassbooks: [Passbook] {
+    private var customPassbooks: [PassbookDTO] {
         passbooks.filter { $0.type == .custom && $0.isActive }
+    }
+
+    private func books(for passbook: PassbookDTO) -> [UserBook] {
+        allBooks.filter { $0.passbook?.uuid == passbook.id }
     }
     
     var body: some View {
@@ -26,11 +31,12 @@ struct PassbookListView: View {
                 // カスタム口座
                 Section {
                     ForEach(customPassbooks) { passbook in
+                        let books = books(for: passbook)
                         NavigationLink(destination: PassbookDetailView(passbook: passbook)) {
                             PassbookRow(
                                 name: passbook.name,
-                                bookCount: passbook.bookCount,
-                                totalValue: passbook.userBooks.totalDisplayAmount(
+                                bookCount: books.count,
+                                totalValue: books.totalDisplayAmount(
                                     in: currencyManager.displayCurrency,
                                     exchangeRates: exchangeRates
                                 )
@@ -59,23 +65,28 @@ struct PassbookListView: View {
             .sheet(isPresented: $showAddPassbook) {
                 AddPassbookView()
             }
+            .task {
+                for await value in repos.passbooks.observePassbooks() {
+                    passbooks = value
+                }
+            }
         }
     }
     
     // MARK: - Private Methods
     
     private func deletePassbooks(at offsets: IndexSet) {
-        for index in offsets {
-            let passbook = customPassbooks[index]
-            context.delete(passbook)
-        }
-        
-        do {
-            try context.save()
-        } catch {
-            #if DEBUG
-            print("❌ Error deleting passbook: \(error)")
-            #endif
+        let targets = offsets.map { customPassbooks[$0] }
+        Task {
+            for passbook in targets {
+                do {
+                    try await repos.passbooks.deletePassbook(id: passbook.id)
+                } catch {
+                    #if DEBUG
+                    print("❌ Error deleting passbook: \(error)")
+                    #endif
+                }
+            }
         }
     }
 }
@@ -112,16 +123,6 @@ struct PassbookRow: View {
 }
 
 #Preview {
-    let config = ModelConfiguration(isStoredInMemoryOnly: true)
-    let container = try! ModelContainer(for: Passbook.self, UserBook.self, configurations: config)
-    
-    // サンプルデータ
-    let manga = Passbook(name: "漫画口座", type: .custom, sortOrder: 1)
-    let work = Passbook(name: "仕事用口座", type: .custom, sortOrder: 2)
-    
-    container.mainContext.insert(manga)
-    container.mainContext.insert(work)
-    
-    return PassbookListView()
-        .modelContainer(container)
+    PassbookListView()
+        .bookBankPreviewEnvironment()
 }

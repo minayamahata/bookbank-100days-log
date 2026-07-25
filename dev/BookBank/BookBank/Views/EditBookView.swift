@@ -13,19 +13,22 @@ struct EditBookView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(LanguageManager.self) private var languageManager
     @Environment(CurrencyManager.self) private var currencyManager
+    @Environment(AppRepositories.self) private var repos
     
     // MARK: - Properties
     
     @Bindable var book: UserBook
     
-    @Query(sort: \Passbook.sortOrder) private var allPassbooks: [Passbook]
+    @State private var allPassbooks: [PassbookDTO] = []
     
-    private var customPassbooks: [Passbook] {
+    private var customPassbooks: [PassbookDTO] {
         allPassbooks.filter { $0.type == .custom && $0.isActive }
     }
     
     private var themeColor: Color {
-        if let passbook = book.passbook {
+        if let uuid = book.passbook?.uuid,
+           let passbook = customPassbooks.first(where: { $0.id == uuid })
+            ?? allPassbooks.first(where: { $0.id == uuid }) {
             return PassbookColor.color(for: passbook, in: customPassbooks)
         }
         return .blue
@@ -49,7 +52,7 @@ struct EditBookView: View {
     @State private var selectedImage: UIImage?
     @State private var imageChanged = false
     @State private var registeredAt: Date = Date()
-    @State private var selectedPassbookID: PersistentIdentifier?
+    @State private var selectedPassbookID: String?
     
     @State private var selectedPhotoItem: PhotosPickerItem?
     @State private var showPhotoPicker = false
@@ -71,7 +74,7 @@ struct EditBookView: View {
         let authorChanged = author.trimmingCharacters(in: .whitespaces) != (book.author ?? "")
         let priceChanged = priceText != (book.price.map { book.storedCurrency.inputString(fromMinor: $0) } ?? "")
         let dateChanged = !Calendar.current.isDate(registeredAt, inSameDayAs: book.registeredAt)
-        let passbookChanged = selectedPassbookID != book.passbook?.persistentModelID
+        let passbookChanged = selectedPassbookID != book.passbook?.uuid
         return titleChanged || authorChanged || priceChanged || imageChanged || dateChanged || passbookChanged
     }
     
@@ -133,7 +136,7 @@ struct EditBookView: View {
                         Picker("account.registered", selection: $selectedPassbookID) {
                             ForEach(customPassbooks) { passbook in
                                 Text(passbook.name)
-                                    .tag(passbook.persistentModelID as PersistentIdentifier?)
+                                    .tag(Optional(passbook.id))
                             }
                         }
                         .pickerStyle(.menu)
@@ -318,9 +321,14 @@ struct EditBookView: View {
                 author = book.author ?? ""
                 priceText = book.price.map { book.storedCurrency.inputString(fromMinor: $0) } ?? ""
                 registeredAt = book.registeredAt
-                selectedPassbookID = book.passbook?.persistentModelID
+                selectedPassbookID = book.passbook?.uuid
                 if let coverImage = book.coverUIImage {
                     selectedImage = coverImage
+                }
+            }
+            .task {
+                for await value in repos.passbooks.observePassbooks() {
+                    allPassbooks = value
                 }
             }
         }
@@ -552,7 +560,7 @@ struct EditBookView: View {
         // 登録日は未来日を許可しない（DatePicker でも制限しているが、旧データ含め保存時にも保証する）
         book.registeredAt = min(registeredAt, Date())
         if let id = selectedPassbookID {
-            book.passbook = customPassbooks.first { $0.persistentModelID == id }
+            book.passbook = PassbookModelLookup.fetch(id: id, context: context)
         }
         book.updatedAt = Date()
         
@@ -570,56 +578,27 @@ struct EditBookView: View {
 // MARK: - Preview
 
 #Preview("手動登録の本") {
-    do {
-        let config = ModelConfiguration(isStoredInMemoryOnly: true)
-        let container = try ModelContainer(for: Passbook.self, UserBook.self, Subscription.self, ReadingList.self, configurations: config)
-        
-        let passbook = Passbook(name: "漫画", type: .custom, sortOrder: 1)
-        container.mainContext.insert(passbook)
-        
-        let book = UserBook(
-            title: "よつばと！",
-            author: "あずまきよひこ",
-            price: 693,
-            source: .manual,
-            passbook: passbook
-        )
-        container.mainContext.insert(book)
-        
-        return EditBookView(book: book)
-            .modelContainer(container)
-    } catch {
-        return Text("Preview error: \(error.localizedDescription)")
+    let descriptor = FetchDescriptor<UserBook>()
+    let book = (try? PreviewSupport.modelContainer.mainContext.fetch(descriptor))?.first
+    Group {
+        if let book {
+            EditBookView(book: book)
+        } else {
+            Text("No preview book")
+        }
     }
+    .bookBankPreviewEnvironment()
 }
 
 #Preview("API取得の本") {
-    do {
-        let config = ModelConfiguration(isStoredInMemoryOnly: true)
-        let container = try ModelContainer(for: Passbook.self, UserBook.self, Subscription.self, ReadingList.self, configurations: config)
-        
-        let passbook = Passbook(name: "技術書", type: .custom, sortOrder: 1)
-        container.mainContext.insert(passbook)
-        
-        let book = UserBook(
-            title: "SwiftUI実践入門",
-            author: "山田太郎",
-            isbn: "9784123456789",
-            publisher: "技術評論社",
-            publishedYear: 2024,
-            seriesName: "プログラミングシリーズ",
-            price: 3200,
-            imageURL: "https://thumbnail.image.rakuten.co.jp/@0_mall/book/cabinet/6789/9784123456789.jpg",
-            bookFormat: "単行本",
-            pageCount: 320,
-            source: .api,
-            passbook: passbook
-        )
-        container.mainContext.insert(book)
-        
-        return EditBookView(book: book)
-            .modelContainer(container)
-    } catch {
-        return Text("Preview error: \(error.localizedDescription)")
+    let descriptor = FetchDescriptor<UserBook>()
+    let book = (try? PreviewSupport.modelContainer.mainContext.fetch(descriptor))?.first
+    Group {
+        if let book {
+            EditBookView(book: book)
+        } else {
+            Text("No preview book")
+        }
     }
+    .bookBankPreviewEnvironment()
 }

@@ -95,21 +95,15 @@ struct BookCoverView: View {
 }
 
 #Preview {
-    let config = ModelConfiguration(isStoredInMemoryOnly: true)
-    let container = try! ModelContainer(for: Passbook.self, UserBook.self, configurations: config)
-    
-    let passbook = Passbook(name: "テスト", type: .custom, sortOrder: 1)
-    container.mainContext.insert(passbook)
-    
-    let book = UserBook(
-        title: "サンプル本",
-        author: "著者名",
-        price: 1500,
-        passbook: passbook
-    )
-    container.mainContext.insert(book)
-    
-    return BookCoverView(book: book)
-        .frame(width: 100)
-        .modelContainer(container)
+    let descriptor = FetchDescriptor<UserBook>()
+    let book = (try? PreviewSupport.modelContainer.mainContext.fetch(descriptor))?.first
+    Group {
+        if let book {
+            BookCoverView(book: book)
+                .frame(width: 100)
+        } else {
+            Text("No preview book")
+        }
+    }
+    .bookBankPreviewEnvironment()
 }

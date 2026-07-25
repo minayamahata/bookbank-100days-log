@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-import SwiftData
 
 // MARK: - Color Extension for Hex
 extension Color {
@@ -93,20 +92,17 @@ struct PassbookColor {
         colors[index % colors.count]
     }
     
-    /// 口座のsortOrderに基づいて色を取得
-    static func color(for passbook: Passbook) -> Color {
-        color(for: passbook.sortOrder)
-    }
-    
     /// 口座リスト内での位置に基づいて色を取得（customColorHex → colorIndex → リスト位置の優先順）
-    static func color(for passbook: Passbook, in passbooks: [Passbook]) -> Color {
+    /// R4ステップ3: 引数を `Passbook`（@Model）から `PassbookDTO` へ変更。
+    /// リスト位置の同一性判定は persistentModelID → uuid（DTOの `id`）に置き換え（設計メモ 5.4節・意味論同一）
+    static func color(for passbook: PassbookDTO, in passbooks: [PassbookDTO]) -> Color {
         if let hex = passbook.customColorHex, !hex.isEmpty {
             return Color(hex: hex)
         }
         if let colorIndex = passbook.colorIndex {
             return color(for: colorIndex)
         }
-        if let index = passbooks.firstIndex(where: { $0.persistentModelID == passbook.persistentModelID }) {
+        if let index = passbooks.firstIndex(where: { $0.id == passbook.id }) {
             return color(for: index)
         }
         return .gray
@@ -128,14 +124,14 @@ struct PassbookColor {
     static let overallThemeColor: Color = overallAccentColor
     
     /// 口座が黒テーマかどうかを判定
-    static func isBlackTheme(for passbook: Passbook, in passbooks: [Passbook]) -> Bool {
+    static func isBlackTheme(for passbook: PassbookDTO, in passbooks: [PassbookDTO]) -> Bool {
         if passbook.customColorHex != nil {
             return false
         }
         if let colorIndex = passbook.colorIndex {
             return colorIndex == blackThemeIndex
         }
-        if let index = passbooks.firstIndex(where: { $0.persistentModelID == passbook.persistentModelID }) {
+        if let index = passbooks.firstIndex(where: { $0.id == passbook.id }) {
             return (index % colors.count) == blackThemeIndex
         }
         return false

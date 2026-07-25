@@ -14,10 +14,11 @@ struct UserBookDetailView: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.floatingButtonState) private var floatingButtonState
     @Environment(LanguageManager.self) private var languageManager
+    @Environment(AppRepositories.self) private var repos
     
     @Bindable var book: UserBook
 
-    @Query(sort: \Passbook.sortOrder) private var allPassbooks: [Passbook]
+    @State private var allPassbooks: [PassbookDTO] = []
 
     @State private var showMemoEditor = false
     @State private var showDeleteAlert = false
@@ -45,19 +46,25 @@ struct UserBookDetailView: View {
         return min(max(base + dragOffset, expandedTop), collapsedTop)
     }
 
-    private var customPassbooks: [Passbook] {
+    private var customPassbooks: [PassbookDTO] {
         allPassbooks.filter { $0.type == .custom && $0.isActive }
     }
 
+    private var bookPassbookDTO: PassbookDTO? {
+        guard let uuid = book.passbook?.uuid else { return nil }
+        return customPassbooks.first(where: { $0.id == uuid })
+            ?? allPassbooks.first(where: { $0.id == uuid })
+    }
+
     private var themeColor: Color {
-        if let passbook = book.passbook {
+        if let passbook = bookPassbookDTO {
             return PassbookColor.color(for: passbook, in: customPassbooks)
         }
         return .blue
     }
     
     private var isBlackTheme: Bool {
-        if let passbook = book.passbook {
+        if let passbook = bookPassbookDTO {
             return PassbookColor.isBlackTheme(for: passbook, in: customPassbooks)
         }
         return false
@@ -150,6 +157,11 @@ struct UserBookDetailView: View {
         }
         .onAppear { floatingButtonState.isHidden = true }
         .onDisappear { floatingButtonState.isHidden = false }
+        .task {
+            for await value in repos.passbooks.observePassbooks() {
+                allPassbooks = value
+            }
+        }
     }
 
     // MARK: - 詳細パネル（ドラッグ可能なボトムシート）
@@ -474,33 +486,16 @@ struct DetailInfoRow: View {
 }
 
 #Preview {
-    do {
-        let config = ModelConfiguration(isStoredInMemoryOnly: true)
-        let container = try ModelContainer(for: Passbook.self, UserBook.self, configurations: config)
-        
-        let passbook = Passbook.createOverall()
-        container.mainContext.insert(passbook)
-        
-        let book = UserBook(
-            title: "SwiftUI実践入門",
-            author: "山田太郎",
-            isbn: "9784123456789",
-            publisher: "技術評論社",
-            publishedYear: 2024,
-            price: 3200,
-            imageURL: nil,
-            source: .api,
-            passbook: passbook
-        )
-        book.memo = "とても分かりやすい本でした。特にSwiftDataの解説が良かったです。"
-        book.isFavorite = true
-        container.mainContext.insert(book)
-        
-        return NavigationStack {
-            UserBookDetailView(book: book)
-                .modelContainer(container)
+    let descriptor = FetchDescriptor<UserBook>()
+    let book = (try? PreviewSupport.modelContainer.mainContext.fetch(descriptor))?.first
+    Group {
+        if let book {
+            NavigationStack {
+                UserBookDetailView(book: book)
+            }
+        } else {
+            Text("No preview book")
         }
-    } catch {
-        return Text("Preview error: \(error.localizedDescription)")
     }
+    .bookBankPreviewEnvironment()
 }

@@ -15,18 +15,19 @@ struct AccountListView: View {
     @Environment(CurrencyManager.self) private var currencyManager
     @Environment(ExchangeRateService.self) private var exchangeRates
     @Environment(AppShellState.self) private var appShellState
+    @Environment(AppRepositories.self) private var repos
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.dismiss) private var dismiss
-    @Query(sort: \Passbook.sortOrder) private var passbooks: [Passbook]
+    @State private var passbooks: [PassbookDTO] = []
     @Query private var allBooks: [UserBook]
     private var unlimitedManager: UnlimitedManager { UnlimitedManager.shared }
     
-    @State private var passbookToEdit: Passbook?
+    @State private var passbookToEdit: PassbookDTO?
     @State private var showAddPassbook = false
     @State private var showUnlimitedPaywall = false
     
     /// 口座選択時のコールバック
-    var onPassbookSelected: ((Passbook) -> Void)?
+    var onPassbookSelected: ((PassbookDTO) -> Void)?
     
     /// 総合口座選択時のコールバック
     var onOverallSelected: (() -> Void)?
@@ -35,7 +36,7 @@ struct AccountListView: View {
     private static let lightModeRowBackground = Color(hex: "F2F2F6")
 
     // カスタム口座を取得
-    private var customPassbooks: [Passbook] {
+    private var customPassbooks: [PassbookDTO] {
         passbooks.filter { $0.type == .custom && $0.isActive }
     }
     
@@ -50,15 +51,15 @@ struct AccountListView: View {
     }
     
     // 特定の口座の合計金額（表示通貨）
-    private func amountForPassbook(_ passbook: Passbook) -> Int {
+    private func amountForPassbook(_ passbook: PassbookDTO) -> Int {
         allBooks
-            .filter { $0.passbook?.persistentModelID == passbook.persistentModelID }
+            .filter { $0.passbook?.uuid == passbook.id }
             .totalDisplayAmount(in: currencyManager.displayCurrency, exchangeRates: exchangeRates)
     }
     
     // 特定の口座の冊数
-    private func bookCountForPassbook(_ passbook: Passbook) -> Int {
-        allBooks.filter { $0.passbook?.persistentModelID == passbook.persistentModelID }.count
+    private func bookCountForPassbook(_ passbook: PassbookDTO) -> Int {
+        allBooks.filter { $0.passbook?.uuid == passbook.id }.count
     }
     
     // 円グラフ用のデータ
@@ -89,7 +90,7 @@ struct AccountListView: View {
     }
     
     // 口座ごとの色を取得
-    private func colorForPassbook(_ passbook: Passbook) -> Color {
+    private func colorForPassbook(_ passbook: PassbookDTO) -> Color {
         PassbookColor.color(for: passbook, in: customPassbooks)
     }
     
@@ -237,6 +238,11 @@ struct AccountListView: View {
         .sheet(isPresented: $showUnlimitedPaywall) {
             UnlimitedPaywallView()
         }
+        .task {
+            for await value in repos.passbooks.observePassbooks() {
+                passbooks = value
+            }
+        }
     }
 
     private var appMenuPresentation: Binding<Bool> {
@@ -246,7 +252,7 @@ struct AccountListView: View {
         )
     }
 
-    private func handlePassbookSelected(_ passbook: Passbook) {
+    private func handlePassbookSelected(_ passbook: PassbookDTO) {
         if let onPassbookSelected {
             onPassbookSelected(passbook)
         } else {
@@ -288,7 +294,7 @@ struct AccountListView: View {
     }
     
     // 口座行のビュー（カスタム口座用）
-    private func accountRow(passbook: Passbook, showEditButton: Bool) -> some View {
+    private func accountRow(passbook: PassbookDTO, showEditButton: Bool) -> some View {
         accountRow(
             name: passbook.name,
             bookCount: bookCountForPassbook(passbook),
@@ -413,67 +419,19 @@ private extension View {
 }
 
 #Preview("Light") {
-    do {
-        let config = ModelConfiguration(isStoredInMemoryOnly: true)
-        let container = try ModelContainer(for: Passbook.self, UserBook.self, configurations: config)
-
-        let passbook = Passbook(name: "読書", type: .custom, sortOrder: 0)
-        container.mainContext.insert(passbook)
-
-        let book = UserBook(
-            title: "SwiftUI実践入門",
-            author: "山田太郎",
-            price: 3200,
-            source: .manual,
-            passbook: passbook,
-            currencyCode: AppCurrency.jpy.code
-        )
-        container.mainContext.insert(book)
-
-        return NavigationStack {
-            AccountListView()
-        }
-        .environment(ThemeManager())
-        .environment(LanguageManager())
-        .environment(CurrencyManager())
-        .environment(ExchangeRateService.shared)
-        .environment(AppShellState())
-        .modelContainer(container)
-        .preferredColorScheme(.light)
-    } catch {
-        return Text("Preview error: \(error.localizedDescription)")
+    NavigationStack {
+        AccountListView()
     }
+    .bookBankPreviewEnvironment()
+    .environment(AppShellState())
+    .preferredColorScheme(.light)
 }
 
 #Preview("Dark") {
-    do {
-        let config = ModelConfiguration(isStoredInMemoryOnly: true)
-        let container = try ModelContainer(for: Passbook.self, UserBook.self, configurations: config)
-
-        let passbook = Passbook(name: "読書", type: .custom, sortOrder: 0)
-        container.mainContext.insert(passbook)
-
-        let book = UserBook(
-            title: "SwiftUI実践入門",
-            author: "山田太郎",
-            price: 3200,
-            source: .manual,
-            passbook: passbook,
-            currencyCode: AppCurrency.jpy.code
-        )
-        container.mainContext.insert(book)
-
-        return NavigationStack {
-            AccountListView()
-        }
-        .environment(ThemeManager())
-        .environment(LanguageManager())
-        .environment(CurrencyManager())
-        .environment(ExchangeRateService.shared)
-        .environment(AppShellState())
-        .modelContainer(container)
-        .preferredColorScheme(.dark)
-    } catch {
-        return Text("Preview error: \(error.localizedDescription)")
+    NavigationStack {
+        AccountListView()
     }
+    .bookBankPreviewEnvironment()
+    .environment(AppShellState())
+    .preferredColorScheme(.dark)
 }

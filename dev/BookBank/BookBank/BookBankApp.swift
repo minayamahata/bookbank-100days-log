@@ -154,6 +154,7 @@ struct RootView: View {
     @Environment(LanguageManager.self) private var languageManager
     @Environment(CurrencyManager.self) private var currencyManager
     @Environment(ExchangeRateService.self) private var exchangeRateService
+    @Environment(AppRepositories.self) private var repositories
     @Environment(\.modelContext) private var modelContext
     @State private var showSplash = true
     @State private var showOnboarding = false
@@ -178,6 +179,7 @@ struct RootView: View {
             .environment(languageManager)
             .environment(currencyManager)
             .environment(exchangeRateService)
+            .environment(repositories)
             .environment(\.locale, languageManager.resolvedLocale)
         }
         .onAppear {

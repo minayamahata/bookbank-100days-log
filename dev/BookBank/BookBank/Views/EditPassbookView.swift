@@ -11,13 +11,13 @@ import UniformTypeIdentifiers
 
 /// 口座編集ビュー
 struct EditPassbookView: View {
-    @Environment(\.modelContext) private var context
+    @Environment(AppRepositories.self) private var repos
     @Environment(\.dismiss) private var dismiss
     @Environment(CurrencyManager.self) private var currencyManager
     @Environment(ExchangeRateService.self) private var exchangeRates
     @Environment(LanguageManager.self) private var languageManager
     
-    @Bindable var passbook: Passbook
+    let passbook: PassbookDTO
     @State private var editingName: String = ""
     @State private var selectedColorIndex: Int = 0
     @State private var showDeleteAlert = false
@@ -29,6 +29,7 @@ struct EditPassbookView: View {
     @State private var customColor: Color = .blue
     @State private var useCustomColor: Bool = false
     @State private var showUnlimitedPaywall = false
+    @State private var allPassbooks: [PassbookDTO] = []
     
     private var unlimitedManager: UnlimitedManager { UnlimitedManager.shared }
     
@@ -37,19 +38,18 @@ struct EditPassbookView: View {
     @State private var originalColorIndex: Int = 0
     @State private var originalCustomColorHex: String? = nil
     
-    // この口座の本の数を取得
+    // この口座の本の数を取得（UserBook は Step4 まで @Query）
     @Query private var allBooks: [UserBook]
-    @Query(sort: \Passbook.sortOrder) private var allPassbooks: [Passbook]
     
     private var passbookBooks: [UserBook] {
-        allBooks.filter { $0.passbook?.persistentModelID == passbook.persistentModelID }
+        allBooks.filter { $0.passbook?.uuid == passbook.id }
     }
     
     private var bookCount: Int {
         passbookBooks.count
     }
     
-    private var customPassbooks: [Passbook] {
+    private var customPassbooks: [PassbookDTO] {
         allPassbooks.filter { $0.type == .custom && $0.isActive }
     }
     
@@ -59,7 +59,7 @@ struct EditPassbookView: View {
         (useCustomColor && PassbookColor.hexString(from: customColor) != originalCustomColorHex)
     }
     
-    init(passbook: Passbook) {
+    init(passbook: PassbookDTO) {
         self.passbook = passbook
         _editingName = State(initialValue: passbook.name)
         _originalName = State(initialValue: passbook.name)
@@ -228,7 +228,7 @@ struct EditPassbookView: View {
                 .onAppear {
                     // colorIndexが未設定の場合、リスト内の位置に基づいた色をデフォルトにする
                     if passbook.colorIndex == nil {
-                        if let index = customPassbooks.firstIndex(where: { $0.persistentModelID == passbook.persistentModelID }) {
+                        if let index = customPassbooks.firstIndex(where: { $0.id == passbook.id }) {
                             selectedColorIndex = index % PassbookColor.count
                             originalColorIndex = selectedColorIndex
                         }
@@ -383,6 +383,11 @@ struct EditPassbookView: View {
             .sheet(isPresented: $showUnlimitedPaywall) {
                 UnlimitedPaywallView()
             }
+            .task {
+                for await value in repos.passbooks.observePassbooks() {
+                    allPassbooks = value
+                }
+            }
         }
     }
     
@@ -408,37 +413,42 @@ struct EditPassbookView: View {
     }
     
     private func savePassbook() {
-        passbook.name = editingName.trimmingCharacters(in: .whitespacesAndNewlines)
+        var updated = passbook
+        updated.name = editingName.trimmingCharacters(in: .whitespacesAndNewlines)
         if useCustomColor {
-            passbook.customColorHex = PassbookColor.hexString(from: customColor)
+            updated.customColorHex = PassbookColor.hexString(from: customColor)
         } else {
-            passbook.customColorHex = nil
-            passbook.colorIndex = selectedColorIndex
+            updated.customColorHex = nil
+            updated.colorIndex = selectedColorIndex
         }
-        try? context.save()
-        dismiss()
+        Task {
+            try? await repos.passbooks.updatePassbook(updated)
+            dismiss()
+        }
     }
     
     private func deletePassbook() {
-        // 関連する本も削除
-        let booksToDelete = allBooks.filter { $0.passbook?.persistentModelID == passbook.persistentModelID }
-        for book in booksToDelete {
-            context.delete(book)
+        // 所属本の削除はリポジトリ側（設計メモ 4.4節）
+        Task {
+            try? await repos.passbooks.deletePassbook(id: passbook.id)
+            dismiss()
         }
-        
-        context.delete(passbook)
-        try? context.save()
-        dismiss()
     }
 }
 
 #Preview {
-    let config = ModelConfiguration(isStoredInMemoryOnly: true)
-    let container = try! ModelContainer(for: Passbook.self, UserBook.self, configurations: config)
-    
-    let passbook = Passbook(name: "プライベート", type: .custom, sortOrder: 1)
-    container.mainContext.insert(passbook)
-    
-    return EditPassbookView(passbook: passbook)
-        .modelContainer(container)
+    EditPassbookView(
+        passbook: PassbookDTO(
+            id: UUID().uuidString,
+            name: "プライベート",
+            type: .custom,
+            sortOrder: 1,
+            isActive: true,
+            colorIndex: 0,
+            customColorHex: nil,
+            createdAt: Date(),
+            updatedAt: Date()
+        )
+    )
+    .bookBankPreviewEnvironment()
 }

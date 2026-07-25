@@ -6,12 +6,11 @@
 //
 
 import SwiftUI
-import SwiftData
 
 struct AddPassbookView: View {
-    @Environment(\.modelContext) private var context
+    @Environment(AppRepositories.self) private var repos
     @Environment(\.dismiss) private var dismiss
-    @Query(sort: \Passbook.sortOrder) private var passbooks: [Passbook]
+    @State private var passbooks: [PassbookDTO] = []
     
     @State private var accountName: String = String(localized: "category.novel")
     @State private var selectedColorIndex: Int = 10
@@ -257,6 +256,11 @@ struct AddPassbookView: View {
             .sheet(isPresented: $showUnlimitedPaywall) {
                 UnlimitedPaywallView()
             }
+            .task {
+                for await value in repos.passbooks.observePassbooks() {
+                    passbooks = value
+                }
+            }
         }
         .tint(.accentColor)
     }
@@ -266,35 +270,35 @@ struct AddPassbookView: View {
     private func createPassbook() {
         guard !accountName.isEmpty else { return }
         
-        // 次のsortOrderを計算
-        let maxSortOrder = passbooks.map { $0.sortOrder }.max() ?? 0
-        
-        let newPassbook = Passbook(
+        let maxSortOrder = passbooks.map(\.sortOrder).max() ?? 0
+        let now = Date()
+        let dto = PassbookDTO(
+            id: UUID().uuidString,
             name: accountName,
             type: .custom,
             sortOrder: maxSortOrder + 1,
-            isActive: true
+            isActive: true,
+            colorIndex: selectedColorIndex,
+            customColorHex: useCustomColor ? PassbookColor.hexString(from: customColor) : nil,
+            createdAt: now,
+            updatedAt: now
         )
-        newPassbook.colorIndex = selectedColorIndex
-        if useCustomColor {
-            newPassbook.customColorHex = PassbookColor.hexString(from: customColor)
-        }
         
-        context.insert(newPassbook)
-        
-        do {
-            try context.save()
-            dismiss()
-        } catch {
-            #if DEBUG
-            print("❌ Error creating passbook: \(error)")
-            #endif
-            showError = true
+        Task {
+            do {
+                try await repos.passbooks.addPassbook(dto)
+                dismiss()
+            } catch {
+                #if DEBUG
+                print("❌ Error creating passbook: \(error)")
+                #endif
+                showError = true
+            }
         }
     }
 }
 
 #Preview {
     AddPassbookView()
-        .modelContainer(for: [Passbook.self, UserBook.self])
+        .bookBankPreviewEnvironment()
 }

@@ -15,12 +15,12 @@ struct PassbookDetailView: View {
     // MARK: - Properties
     
     /// 表示対象の口座（nil = 総合口座）
-    let passbook: Passbook?
+    let passbook: PassbookDTO?
     
     // MARK: - Environment
-    
-    /// SwiftDataのモデルコンテキスト
-    @Environment(\.modelContext) private var context
+
+    /// リポジトリ束（R4ステップ3: 口座はストリーム購読へ切替）
+    @Environment(AppRepositories.self) private var repos
     
     /// 画面を閉じるためのアクション
     @Environment(\.dismiss) private var dismiss
@@ -81,8 +81,8 @@ struct PassbookDetailView: View {
     
     // MARK: - SwiftData Query
     
-    /// すべての口座を取得
-    @Query(sort: \Passbook.sortOrder) private var allPassbooks: [Passbook]
+    /// すべての口座（リポジトリのストリーム購読・sortOrder順）
+    @State private var allPassbooks: [PassbookDTO] = []
     
     /// この口座に紐づく書籍を取得
     @Query private var allUserBooks: [UserBook]
@@ -91,7 +91,7 @@ struct PassbookDetailView: View {
     private var userBooks: [UserBook] {
         if let passbook {
             return allUserBooks.filter { book in
-                book.passbook?.persistentModelID == passbook.persistentModelID
+                book.passbook?.uuid == passbook.id
             }
         }
         return allUserBooks
@@ -113,7 +113,7 @@ struct PassbookDetailView: View {
     }
     
     /// カスタム口座のリスト
-    private var customPassbooks: [Passbook] {
+    private var customPassbooks: [PassbookDTO] {
         allPassbooks.filter { $0.type == .custom && $0.isActive }
     }
     
@@ -172,13 +172,13 @@ struct PassbookDetailView: View {
     }
     
     /// 本の登録先口座（総合口座表示時は先頭のカスタム口座）
-    private var registrationPassbook: Passbook? {
+    private var registrationPassbook: PassbookDTO? {
         passbook ?? customPassbooks.first
     }
     
     // MARK: - Initialization
     
-    init(passbook: Passbook?) {
+    init(passbook: PassbookDTO?) {
         self.passbook = passbook
         // registeredAt の降順でソート（新しい本が上に表示される）
         // 第2キー createdAt で、registeredAt が同秒のときの並びを安定化
@@ -267,7 +267,7 @@ struct PassbookDetailView: View {
             }
             passbookSheetChromeState.isExpanded = false
         }
-        .onChange(of: passbook?.persistentModelID) { _, _ in
+        .onChange(of: passbook?.id) { _, _ in
             sheetDetent = .collapsed
             accountSectionHeight = 0
             contentTopInset = 0
@@ -276,7 +276,12 @@ struct PassbookDetailView: View {
             locksRowNavigation = false
             selectedBook = nil
         }
-        .id(passbook?.persistentModelID.hashValue.description ?? "overall")
+        .task {
+            for await value in repos.passbooks.observePassbooks() {
+                allPassbooks = value
+            }
+        }
+        .id(passbook?.id ?? "overall")
         .navigationDestination(item: $selectedBook) { book in
             UserBookDetailView(book: book)
         }
@@ -573,7 +578,7 @@ struct PassbookDetailView: View {
         .frame(maxWidth: .infinity)
     }
 
-    private func passbookLinkGlassTint(for passbook: Passbook) -> Color {
+    private func passbookLinkGlassTint(for passbook: PassbookDTO) -> Color {
         PassbookColor.color(for: passbook, in: customPassbooks)
     }
 

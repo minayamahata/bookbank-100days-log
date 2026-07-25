@@ -14,7 +14,7 @@ struct BookshelfView: View {
     // MARK: - Properties
     
     /// 表示対象の口座（nil = 総合口座）
-    let passbook: Passbook?
+    let passbook: PassbookDTO?
 
     /// 本棚タブのルートとして表示しているか（カレンダー時の戻るボタン制御を共有状態と同期する）
     let managesCalendarChrome: Bool
@@ -24,10 +24,10 @@ struct BookshelfView: View {
     @Environment(AppRepositories.self) private var repos
     @Environment(BookshelfChromeState.self) private var bookshelfChromeState
     
-    // MARK: - SwiftData Query
+    // MARK: - State / Query
     
-    /// すべての口座を取得
-    @Query(sort: \Passbook.sortOrder) private var allPassbooks: [Passbook]
+    /// すべての口座（リポジトリストリーム）
+    @State private var allPassbooks: [PassbookDTO] = []
     
     /// この口座に紐づく書籍を取得
     @Query private var allUserBooks: [UserBook]
@@ -71,7 +71,7 @@ struct BookshelfView: View {
     private var passbookBooks: [UserBook] {
         if let passbook {
             return allUserBooks.filter { book in
-                book.passbook?.persistentModelID == passbook.persistentModelID
+                book.passbook?.uuid == passbook.id
             }
         }
         return allUserBooks
@@ -111,7 +111,7 @@ struct BookshelfView: View {
     }
     
     /// カスタム口座のリスト
-    private var customPassbooks: [Passbook] {
+    private var customPassbooks: [PassbookDTO] {
         allPassbooks.filter { $0.type == .custom && $0.isActive }
     }
     
@@ -140,7 +140,7 @@ struct BookshelfView: View {
     }
 
     /// 本を登録する対象口座（総合口座のときは先頭のカスタム口座）
-    private var registrationPassbook: Passbook? {
+    private var registrationPassbook: PassbookDTO? {
         passbook ?? customPassbooks.first
     }
 
@@ -207,7 +207,7 @@ struct BookshelfView: View {
     
     // MARK: - Initialization
     
-    init(passbook: Passbook?, startsWithCalendarView: Bool = false, managesCalendarChrome: Bool = false) {
+    init(passbook: PassbookDTO?, startsWithCalendarView: Bool = false, managesCalendarChrome: Bool = false) {
         self.passbook = passbook
         self.managesCalendarChrome = managesCalendarChrome
         _showFavoritesOnly = State(initialValue: false)
@@ -254,7 +254,12 @@ struct BookshelfView: View {
                 .scrollDismissesKeyboard(.immediately)
             }
         }
-        .id(passbook?.persistentModelID.hashValue.description ?? "overall")
+        .id(passbook?.id ?? "overall")
+        .task {
+            for await value in repos.passbooks.observePassbooks() {
+                allPassbooks = value
+            }
+        }
         .background {
             if showCalendarView && colorScheme == .light {
                 // カレンダー表示のライトモードは silver を敷かず白背景にする

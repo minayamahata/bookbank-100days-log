@@ -51,10 +51,10 @@ enum PreviewSupport {
     static let repositories = AppRepositories(container: modelContainer)
 
     @MainActor
-    static func passbook(named name: String) -> Passbook? {
+    static func passbook(named name: String) -> PassbookDTO? {
         let descriptor = FetchDescriptor<Passbook>()
         let passbooks = (try? modelContainer.mainContext.fetch(descriptor)) ?? []
-        return passbooks.first { $0.name == name }
+        return passbooks.first { $0.name == name }.map(ModelDTOMapping.passbookDTO(from:))
     }
 }
 
