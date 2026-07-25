@@ -25,7 +25,8 @@ final class RepositoryFoundationTests: XCTestCase {
             passbooks: SwiftDataPassbookRepository(context: context, pulse: pulse),
             books: SwiftDataBookRepository(context: context, pulse: pulse),
             readingLists: SwiftDataReadingListRepository(context: context, pulse: pulse),
-            monthlyMemos: SwiftDataMonthlyMemoRepository(context: context, pulse: pulse)
+            monthlyMemos: SwiftDataMonthlyMemoRepository(context: context, pulse: pulse),
+            pulse: pulse
         )
     }
 
@@ -38,7 +39,9 @@ final class RepositoryFoundationTests: XCTestCase {
     private func samplePassbookDTO(
         id: String = UUID().uuidString,
         name: String = "技術書",
-        sortOrder: Int = 1
+        sortOrder: Int = 1,
+        colorIndex: Int? = 2,
+        customColorHex: String? = "#FF0000"
     ) -> PassbookDTO {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         return PassbookDTO(
@@ -47,8 +50,8 @@ final class RepositoryFoundationTests: XCTestCase {
             type: .custom,
             sortOrder: sortOrder,
             isActive: true,
-            colorIndex: 2,
-            customColorHex: "#FF0000",
+            colorIndex: colorIndex,
+            customColorHex: customColorHex,
             createdAt: now,
             updatedAt: now
         )
@@ -374,5 +377,91 @@ final class RepositoryFoundationTests: XCTestCase {
         )
         let memo = await firstValue(repo.observeMemo(year: 2026, month: 7))
         XCTAssertEqual(memo?.text, "再起動チェック")
+    }
+
+    // MARK: - R4ステップ3 レビュー修正 (#1/#2/#6)
+
+    func testResolvedDefaultColorIndexEmptyListReturnsNil() {
+        let dto = samplePassbookDTO(colorIndex: nil, customColorHex: nil)
+        XCTAssertNil(PassbookColor.resolvedDefaultColorIndex(for: dto, in: []))
+    }
+
+    func testResolvedDefaultColorIndexReturnsListPosition() {
+        let a = samplePassbookDTO(id: "a", sortOrder: 0, colorIndex: nil, customColorHex: nil)
+        let b = samplePassbookDTO(id: "b", sortOrder: 1, colorIndex: nil, customColorHex: nil)
+        XCTAssertEqual(PassbookColor.resolvedDefaultColorIndex(for: b, in: [a, b]), 1)
+    }
+
+    func testResolvedDefaultColorIndexReturnsNilWhenAlreadySet() {
+        let dto = samplePassbookDTO(colorIndex: 5, customColorHex: nil)
+        XCTAssertNil(PassbookColor.resolvedDefaultColorIndex(for: dto, in: [dto]))
+    }
+
+    func testApplyingResolvedColorIndexAtNonZeroPosition() async throws {
+        let first = samplePassbookDTO(id: "first", sortOrder: 0, colorIndex: 3, customColorHex: nil)
+        let second = samplePassbookDTO(id: "second", sortOrder: 1, colorIndex: nil, customColorHex: nil)
+        try await repos.passbooks.addPassbook(first)
+        try await repos.passbooks.addPassbook(second)
+
+        let list = await firstValue(repos.passbooks.observePassbooks())
+        let index = try XCTUnwrap(PassbookColor.resolvedDefaultColorIndex(for: second, in: list))
+        XCTAssertEqual(index, 1)
+        var updated = second
+        updated.colorIndex = index
+        try await repos.passbooks.updatePassbook(updated)
+
+        let after = await firstValue(repos.passbooks.observePassbooks())
+        let saved = try XCTUnwrap(after.first(where: { $0.id == "second" }))
+        XCTAssertEqual(saved.colorIndex, 1)
+    }
+
+    func testNotifyExternalChangeYieldsUpdatedPassbookUUID() async throws {
+        let dto = samplePassbookDTO(id: "old-uuid")
+        try await repos.passbooks.addPassbook(dto)
+
+        let stream = repos.passbooks.observePassbooks()
+        var iterator = stream.makeAsyncIterator()
+        let initialOptional = await iterator.next()
+        let initial = try XCTUnwrap(initialOptional)
+        XCTAssertEqual(initial.first?.id, "old-uuid")
+
+        // リポジトリ外で uuid を書き換え（マイグレーション相当）
+        let context = container.mainContext
+        let target = "old-uuid"
+        let descriptor = FetchDescriptor<Passbook>(predicate: #Predicate { $0.uuid == target })
+        let model = try XCTUnwrap(try context.fetch(descriptor).first)
+        model.uuid = "backfilled-uuid"
+        try context.save()
+
+        // パルス無しではストリームは旧値のまま（notify しないと next が来ない／値が変わらない）
+        repos.notifyExternalChange()
+        let refreshedOptional = await iterator.next()
+        let refreshed = try XCTUnwrap(refreshedOptional)
+        XCTAssertEqual(refreshed.first?.id, "backfilled-uuid")
+    }
+
+    func testDeletingMultiplePassbooksLeavesOthersIntact() async throws {
+        let keep = samplePassbookDTO(id: "keep", sortOrder: 0)
+        let drop1 = samplePassbookDTO(id: "drop1", sortOrder: 1)
+        let drop2 = samplePassbookDTO(id: "drop2", sortOrder: 2)
+        try await repos.passbooks.addPassbook(keep)
+        try await repos.passbooks.addPassbook(drop1)
+        try await repos.passbooks.addPassbook(drop2)
+        try await repos.books.addBook(sampleBookDTO(passbookId: keep.id), coverImageData: nil)
+        try await repos.books.addBook(sampleBookDTO(passbookId: drop1.id), coverImageData: nil)
+        try await repos.books.addBook(sampleBookDTO(passbookId: drop2.id), coverImageData: nil)
+
+        // PassbookListView と同様: 削除対象を先に配列確定してから逐次削除
+        let targets = [drop1, drop2]
+        for target in targets {
+            try await repos.passbooks.deletePassbook(id: target.id)
+        }
+        // 未知IDは冪等
+        try await repos.passbooks.deletePassbook(id: "unknown-id")
+
+        let passbooks = await firstValue(repos.passbooks.observePassbooks())
+        let books = await firstValue(repos.books.observeBooks())
+        XCTAssertEqual(passbooks.map(\.id), ["keep"])
+        XCTAssertEqual(books.map(\.passbookId), [keep.id])
     }
 }

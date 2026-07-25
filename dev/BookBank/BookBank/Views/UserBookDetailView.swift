@@ -19,6 +19,8 @@ struct UserBookDetailView: View {
     @Bindable var book: UserBook
 
     @State private var allPassbooks: [PassbookDTO] = []
+    /// ストリーム到達済みか。未到達時は book.passbook（@Model）からテーマ色を解決する（レビュー #3）
+    @State private var hasLoadedPassbooks = false
 
     @State private var showMemoEditor = false
     @State private var showDeleteAlert = false
@@ -51,21 +53,29 @@ struct UserBookDetailView: View {
     }
 
     private var bookPassbookDTO: PassbookDTO? {
-        guard let uuid = book.passbook?.uuid else { return nil }
+        guard let model = book.passbook else { return nil }
+        // ストリーム未到達: @Model リレーションから直接解決（ハイブリッド・設計メモ8.4との緊張を記録済み）
+        if !hasLoadedPassbooks {
+            return ModelDTOMapping.passbookDTO(from: model)
+        }
+        let uuid = model.uuid
         return customPassbooks.first(where: { $0.id == uuid })
             ?? allPassbooks.first(where: { $0.id == uuid })
     }
 
     private var themeColor: Color {
         if let passbook = bookPassbookDTO {
-            return PassbookColor.color(for: passbook, in: customPassbooks)
+            // 未ロード時はリスト全体が無いため位置フォールバック不可→colorIndex無なら.gray
+            let list = hasLoadedPassbooks ? customPassbooks : []
+            return PassbookColor.color(for: passbook, in: list)
         }
         return .blue
     }
     
     private var isBlackTheme: Bool {
         if let passbook = bookPassbookDTO {
-            return PassbookColor.isBlackTheme(for: passbook, in: customPassbooks)
+            let list = hasLoadedPassbooks ? customPassbooks : []
+            return PassbookColor.isBlackTheme(for: passbook, in: list)
         }
         return false
     }
@@ -160,6 +170,7 @@ struct UserBookDetailView: View {
         .task {
             for await value in repos.passbooks.observePassbooks() {
                 allPassbooks = value
+                hasLoadedPassbooks = true
             }
         }
     }

@@ -6,14 +6,13 @@
 //
 
 import SwiftUI
-import SwiftData
 
 struct PassbookListView: View {
     @Environment(AppRepositories.self) private var repos
     @Environment(CurrencyManager.self) private var currencyManager
     @Environment(ExchangeRateService.self) private var exchangeRates
     @State private var passbooks: [PassbookDTO] = []
-    @Query private var allBooks: [UserBook]
+    @State private var allBooks: [BookDTO] = []
     @State private var showAddPassbook = false
     
     // カスタム口座を取得
@@ -21,8 +20,8 @@ struct PassbookListView: View {
         passbooks.filter { $0.type == .custom && $0.isActive }
     }
 
-    private func books(for passbook: PassbookDTO) -> [UserBook] {
-        allBooks.filter { $0.passbook?.uuid == passbook.id }
+    private func books(for passbook: PassbookDTO) -> [BookDTO] {
+        allBooks.filter { $0.passbookId == passbook.id }
     }
     
     var body: some View {
@@ -68,6 +67,11 @@ struct PassbookListView: View {
             .task {
                 for await value in repos.passbooks.observePassbooks() {
                     passbooks = value
+                }
+            }
+            .task {
+                for await value in repos.books.observeBooks() {
+                    allBooks = value
                 }
             }
         }

@@ -1,8 +1,8 @@
 # R4 リポジトリ抽象化 設計メモ（移行Phase 1・クラウド接続の準備）
 
 作成日: 2026-07-11
-更新日: 2026-07-23（ステップ0完了報告を受けステップ1着手・完了。プロトコル名衝突回避のため既存enumを `LegacyMonthlyMemoRepository` にリネーム＝ステップ2で廃止予定）
-ステータス: 設計承認済み・**ステップ1完了・ステップ2着手可**（ステップ0のベースラインスクショは2026-07-23オーナー完了報告済み）
+更新日: 2026-07-25（ステップ3レビュー修正反映・#1〜#9・設計メモ4節）
+ステータス: 設計承認済み・**ステップ3完了（外部レビュー・修正済み 2026-07-25）・ステップ4着手可（#4/#5構造はステップ4送り）**（ステップ0のベースラインスクショは2026-07-23オーナー完了報告済み）
 関連文書:
 
 - `docs/implementation-roadmap.md`（R4の項目定義。本書はその設計メモ）
@@ -218,6 +218,7 @@ flowchart TB
 
 - 再fetchのコスト: パルス1回あたり「アクティブなストリームの数×全件fetch」。数千冊規模・書き込みはユーザー操作起因（毎秒発生しない）なので問題にならない。`coverImageData` はDTOに載せないため実体化しない（3.4節）
 - R6の `FirestoreBookRepository` は同じ `observe〜` シグネチャをFirestoreの**スナップショットリスナー**で実装する。プロトコルが `AsyncStream` である理由はこの差し替えを無変更で受けるため（移行設計書 5.2節）
+- **マイグレーションはパルス外（2026-07-25 追記）**: チェンジパルスはリポジトリ経由の書き込みしか拾わない。前提7により**マイグレーション3種と `StoreBackupManager` は恒久的にパルス外**であり、起動時マイグレーションの書き込みは購読済みストリームに反映されない。`@Query` はmainContextのsaveを自動検知して自己修復していたが、ストリームは検知しない。起動シーケンスの末尾で `AppRepositories.notifyExternalChange()` を1回叩くことでこの穴を塞ぐ（R6でも同じ配線が必要）
 
 ### 4.4 書き込みセマンティクスの明示化（カスケードの廃止準備）
 
@@ -226,6 +227,8 @@ flowchart TB
 - 最終状態は現行と完全に同一（cascadeの結果と等価）
 - **R6への接続点**: Firestoreにカスケード削除は存在しないため、R6の実装は必ず明示削除になる。R4でセマンティクスを「リポジトリが明示的に責任を持つ」形に寄せておくことで、R6差し替え時の挙動差を消す
 - 本の削除がリストから消える挙動（`ReadingList.books` リレーションの自動整理）も同様に、`deleteBook` が「本の削除＋所属リストの `bookIds` からの除去」を明示的に行う形へ寄せる
+- **スキーマ上の cascade は残置**: `Passbook.userBooks` の `deleteRule: .cascade` は R4 ではスキーマ非変更制約のため無変更。明示削除は意味論の宣言であり、cascade はバックストップとして効いたままである
+- **ステップ3時点の非対称（ステップ4送り・2026-07-25）**: `deletePassbook` は所属本を明示削除するが、`deleteBook` が行う `ReadingList.bookIds` の掃除は行っていない。現行挙動からの回帰ではない（旧 cascade / 明示delete も掃除していなかった）が、リポジトリ層の内側に削除経路ごとのセマンティクス差が再生産されている。ステップ4で UserBook 削除を全面移行する際に `deletePassbook` から `deleteBook` のセマンティクスを再利用する形へ揃える。あわせて `PassbookModelLookup` 失敗時のユーザー向け扱い（現状は OSLog のみで保存を黙ってスキップ）もステップ4で構造判断する
 
 ### 4.5 エラーの扱い
 
@@ -299,10 +302,10 @@ R4の成果物がR6でそのまま使えることの確認（移行設計書と�
 | 0 | **ベースラインスクリーンショット取得（人間タスク・着手前）** ✅ 完了 (2026-07-23) | - | ステップ7比較用の基準画像 |
 | 1 | **基盤** ✅ 完了 (2026-07-23): DTO4種＋プロトコル4種＋SwiftData実装4種＋チェンジパルス＋`AppRepositories` 環境注入。**Viewは未接続**（挙動完全不変）。既存enumはプロトコル名衝突回避のため `LegacyMonthlyMemoRepository` にリネーム（ステップ2で廃止） | 新規 `Repositories/`＋`BookBankApp.swift`（注入のみ）＋`BookshelfView` のenum参照2箇所のみリネーム | 契約テスト（変換・ソート・並び解決・パルス・削除波及）グリーン |
 | 2 | **MonthlyMemo切替**（最小・肩慣らし）✅ 完了 (2026-07-23): 既存enum（一時名 `LegacyMonthlyMemoRepository`）をプロトコル実装へ置換・廃止。`BookshelfView` のメモ読み書きを差し替え | `Models/MonthlyMemo.swift`・`Views/BookshelfView.swift`（＋`PreviewSupport` にリポジトリ注入・5.5節の先行実施） | 空文字＝削除・rollback は維持を確認（空文字削除はテスト実測、rollbackはコード等価）。再起動後の保持はコンテナ再生成テスト（`testMonthlyMemoPersistsAcrossContainerReload`）で確認。**挙動差分2点（承認済み 2026-07-23）**: ① OSLogはsubsystem・category・メッセージとも維持だが、エラー内容に `privacy: .public` を付与（旧はリリースビルドで `<private>` に伏字。診断性の改善方向の意図的変更であり「現行挙動維持」には含めない） ② メモシートの表示が `Task` 経由の非同期になり1ランループ分遅延（体感差なし） |
-| 3 | **Passbook切替**: 全Viewの `@Query`（passbooks）と作成/更新/削除をリポジトリへ。削除セマンティクスの明示化（4.4節）。`PassbookColor.theme(for:)` のDTO化 | `OnboardingView` / `AddPassbookView` / `EditPassbookView` / `PassbookListView` ほかpassbooksを読む全View・`Utils/PassbookColor.swift` | 口座削除で所属本が消える（2経路とも）・口座色の解決・並び順（sortOrder）・オンボーディングの初回口座作成 |
-| 4 | **UserBook切替**（最大工数）: 本の一覧・登録・編集・削除・お気に入り・表紙画像の分離（`loadCoverImage`）。`BookshelfCalendarView` / `MarkdownExporter` の引数DTO化 | `BookshelfView` / `BookSearchView` / `AddBookView` / `EditBookView` / `UserBookDetailView` / `PassbookDetailView` / `AccountListView` / `StatisticsView` ほか | 登録直後の一覧反映（パルス）・手動表紙画像の表示/変更・本棚内検索/フィルター/統計の結果不変・C-4の第2キーソート維持・**本の削除→直後に編集操作の競合スモーク**（`UserBookDetailView` で削除確定の直後・dismiss完了前に編集シートを開こうとしてもクラッシュしないこと。8.4節のv1.5.0クラッシュの再現操作） |
+| 3 | **Passbook切替** ✅ 完了（外部レビュー・修正済み 2026-07-25）: 全Viewの `@Query`（passbooks）と作成/更新/削除をリポジトリへ。削除セマンティクスの明示化（4.4節）。`PassbookColor.color(for:in:)` のDTO化。UserBook作成時は `PassbookModelLookup` で @Model を解決（ハイブリッド）。`MarkdownExporter.generatePassbookMarkdown` の第1引数DTO化は5.5節ではステップ4/5想定だったが先行実施。単一引数版 `PassbookColor.color(for: Passbook)`（sortOrder基準）は参照ゼロのため削除 | `OnboardingView` / `AddPassbookView` / `EditPassbookView` / `PassbookListView` ほかpassbooksを読む全View・`Utils/PassbookColor.swift`・`Utils/MarkdownExporter.swift`・`Repositories/PassbookModelLookup.swift` | **テストで担保**: `resolvedDefaultColorIndex`（空→nil／位置index／設定済み→nil）＋非0位置の `updatePassbook` 読み戻し・`notifyExternalChange` でuuid更新がストリームに載る・複数口座連続削除＋未知ID冪等・既存の口座削除→本消滅／sortOrder昇順。**コードレビューで担保**: View→`deletePassbook` 結線（List/Edit）・オンボーディング/`addPassbook`・3口座上限・選択状態のuuid化（MainTab/AddBook/BookSearch）。**目視スモーク送り（ステップ7）**: テーマ色の1フレーム差（書籍詳細の青→正色・`colorIndex==nil` 時の未ロード `.gray`）は静止画比較では検出不能。口座色のリスト位置フォールバックはDTO単体では解けず口座リスト全体が要る |
+| 4 | **UserBook切替**（最大工数）: 本の一覧・登録・編集・削除・お気に入り・表紙画像の分離（`loadCoverImage`）。`BookshelfCalendarView` / `MarkdownExporter` の引数DTO化（MarkdownExporterのPassbook引数はステップ3で先行済み）。**申し送り（2026-07-25）**: `deletePassbook` を `deleteBook` の `bookIds` 掃除セマンティクスへ寄せる（4.4節）。`PassbookModelLookup` 失敗時のユーザー向け扱いを構造判断する | `BookshelfView` / `BookSearchView` / `AddBookView` / `EditBookView` / `UserBookDetailView` / `PassbookDetailView` / `AccountListView` / `StatisticsView` ほか | 登録直後の一覧反映（パルス）・手動表紙画像の表示/変更・本棚内検索/フィルター/統計の結果不変・C-4の第2キーソート維持・**本の削除→直後に編集操作の競合スモーク**（`UserBookDetailView` で削除確定の直後・dismiss完了前に編集シートを開こうとしてもクラッシュしないこと。8.4節のv1.5.0クラッシュの再現操作） |
 | 5 | **ReadingList切替**: リストCRUD・本の追加/除去/並び替え（`updateReadingList` へ集約＝3.1節）・`ShareService` の引数DTO化（`legacyShareId`） | `ReadingListView` / `AddReadingListView` / `ReadingListDetailView`（内包View含む）/ `BookSelectorView`・`Services/ShareService.swift` | 並び順の保存/復元（タイトル変更を挟んでも維持＝R3の成果の非破壊）・**共有URLの同一性**（同じリスト→同じURL） |
-| 6 | **残渣掃除**: `@Query` / `@Environment(\.modelContext)` の残存ゼロ確認（マイグレーション系＝前提7を除く）・`@Model` の計算プロパティのうちDTOへ移設済みのものの削除・未使用 `modelContext` 宣言（`PassbookDetailView` / `StatisticsView`）の削除・プレビューのリポジトリ注入統一 | 全体 | 「View層が `@Model` に依存しない」をgrepで機械的に確認（レビュー基準＝3.4節）。**計算プロパティの削除は、実行前にマイグレーション3種＋`StoreBackupManager` からの参照ゼロをgrepで確認し、結果を報告してから行う**（設計メモ作成時点=2026-07-11の確認では参照ゼロ。万一参照が見つかった場合はマイグレーション側を直さず＝前提7、該当プロパティを削除せず残す） |
+| 6 | **残渣掃除**: `@Query` / `@Environment(\.modelContext)` の残存ゼロ確認（マイグレーション系＝前提7を除く）・`@Model` の計算プロパティのうちDTOへ移設済みのものの削除・未使用 `modelContext` 宣言の削除・プレビューのリポジトリ注入統一。※`PassbookDetailView` / `StatisticsView` の未使用 `modelContext` 削除はステップ3で先行実施済み（8.3節-2） | 全体 | 「View層が `@Model` に依存しない」をgrepで機械的に確認（レビュー基準＝3.4節）。**計算プロパティの削除は、実行前にマイグレーション3種＋`StoreBackupManager` からの参照ゼロをgrepで確認し、結果を報告してから行う**（設計メモ作成時点=2026-07-11の確認では参照ゼロ。万一参照が見つかった場合はマイグレーション側を直さず＝前提7、該当プロパティを削除せず残す） |
 | 7 | **検証＋ドキュメント同期**: `xcodebuild test` 全通し・シミュレータ操作スモーク・**全画面スクリーンショット比較（人間タスク）**・ロードマップR4の完了マーク・本書のズレ修正 | - | ロードマップR4の完了条件。実機確認・TestFlightは人間タスクとして明示報告 |
 
 - 各ステップ後に `xcodebuild test` を通す（実装ガイド 4.3節）。**ステップ4完了時点が最大のリグレッションポイント**（書き込み経路が最多）なので、8.2節のシナリオを手動確認してから5以降へ進む
@@ -354,7 +357,7 @@ R4はスキーマ非変更・データ移行なしのため、R3型の「起動�
 | リポジトリ経由の書き込みが `@Query` 画面に反映されない（ハイブリッド期間） | `@Query` はmainContextの変更を自動検知するため、**リポジトリ（mainContext使用・前提10）の書き込みは既存 `@Query` に必ず映る**。逆方向（直接書き込み→ストリーム）だけが穴であり、「同一モデルの読み書きを同時に切り替える」刻み方（前提8）で構造的に塞ぐ |
 | 削除の波及漏れ（口座→本・本→リスト） | 削除セマンティクスの明示化（4.4節）＋波及のユニットテスト（第7章(e)）＋チェンジパルスが全ストリームを再fetchするため、モデル横断の画面反映も漏れない |
 | 並び順の巻き戻り（リスト・口座） | `bookIds` の書き込みを `updateReadingList` に集約（3.1節）。R3の検証観点（タイトル変更を挟んだ並び維持）を再実施 |
-| DTOコピーの編集競合（編集中に他画面で同じ対象が更新される） | 単一端末・単一ユーザーの逐次操作であり実害なし。「最後に保存した編集が勝つ」は現行の `@Bindable`＋saveと同じ意味論 |
+| DTOコピーの編集競合（編集中に他画面で同じ対象が更新される） | 単一端末・単一ユーザーの逐次操作であり実害なし。「最後に保存した編集が勝つ」は現行の `@Bindable`＋saveと同じ意味論。**Passbook追記（2026-07-25）**: `EditPassbookView.savePassbook` は旧実装が `name`/`customColorHex`/`colorIndex` のみ書き戻していたのに対し、新実装は `updatePassbook`→`ModelDTOMapping.apply` 経由で **`type`/`sortOrder`/`isActive`/`createdAt`/`updatedAt` も含む全フィールドをスナップショット値で上書き**する。編集シートを開いたまま並び替え等が起きれば `sortOrder` が巻き戻る——上記「実害なし」の適用範囲が Passbook では `sortOrder` にまで広がった。`updatedAt` を据え置く点は前提12どおりで正しい |
 | ストリーム購読のライフサイクル（画面破棄後のyield・多重購読） | `.task` はViewの消滅で自動キャンセルされる。`AsyncStream` の `onTermination` で購読解除を実装し、リークをテストで確認 |
 
 ### 8.2 壊してはいけない既存挙動
@@ -376,11 +379,12 @@ R4はスキーマ非変更・データ移行なしのため、R3型の「起動�
 ### 8.3 実装時の注意（棚卸しで確認した点）
 
 1. **`updatedAt` の更新箇所は現行どおりに**: `EditBookView`・リスト系3箇所のみが明示更新しており、お気に入りトグル等は更新しない。リポジトリで一律更新すると「更新日時順のリスト並び」が変わる（`ReadingListView` は `updatedAt` 降順）。前提12を厳守し、R6への申し送り（第6章）を残す
-2. **`PassbookDetailView` / `StatisticsView` の未使用 `modelContext`**: 宣言のみで未参照のデッドコード。ステップ6で削除する（それまでは触らない）
+2. **未使用 `modelContext` の削除**: 当初はステップ6で削除する予定だったが、`PassbookDetailView` / `StatisticsView` については**ステップ3で `AppRepositories` 置換に伴い先行削除済み（2026-07-25 追認）**。機能的には無害。他画面の未使用宣言はステップ6で掃除
 3. **`AddReadingListView` のrollback削除**: 空リスト作成→キャンセルでdeleteする現行フローがある。DTO化では「保存確定まで `addReadingList` を呼ばない」形に直せるが、挙動（キャンセルでリストが残らない）が同一であることをテストで確認
 4. **`Passbook.bookCount` / `totalValue` 等の計算プロパティ**: リレーション経由の集計。View側は現状 `allBooks` のメモリ上フィルターで集計している箇所が主のため、DTOには**持たせず**、集計はViewの純関数に統一する（Firestoreドキュメントにもこれらのフィールドはない。`users/{uid}` のカウンターはR6のCloud Functions管轄＝移行設計書 3.3節） 
-5. **プレビューの個別 `ModelContainer` 生成（十数箇所）**: ステップ6で `PreviewSupport` のリポジトリ束に統一。それまでは各ステップで壊れていないか代表数画面を確認（R3メモ 8.3節と同じ観点）
+5. **プレビューの個別 `ModelContainer` 生成（十数箇所）**: ステップ6で `PreviewSupport` のリポジトリ束に統一。それまでは各ステップで壊れていないか代表数画面を確認（R3メモ 8.3節と同じ観点）。**ステップ3で確認された後退（2026-07-25）**: (a) `EditBookView` の `#Preview("手動登録の本")` / `#Preview("API取得の本")` がどちらも「1冊目をfetch」の同一内容になり `source` 差分を見る目的が失われている。(b) `BookSelectorView` プレビューはローカル `ModelContainer` と `PreviewSupport.repositories`（別コンテナ）を混在注入しており、口座リストと本のリストが別ストアを向く——5.5節未達。ステップ6で是正
 6. **`BookSearchView` の登録済み判定（`registeredISBNs`）**: `allUserBooks` から構築するキャッシュ。DTO化後も構築タイミング（検索開始時・登録時）を変えないこと（R2の世代管理との相互作用に注意。検索の状態機械そのものには触らない）
+7. **書籍詳細のテーマ色フォールバックと8.4節の緊張（2026-07-25・レビュー#3）**: `UserBookDetailView` / `EditBookView` はストリーム未到達の初回フレームで、見た目不変のため `book.passbook`（@Model）からテーマ色を解決する。増分は現状の `book.passbook?.uuid` 読み取りに近く小さいが、8.4節の趣旨（生の PersistentModel をViewが読む構造を減らす）とは逆行する。ステップ4で `BookDTO` 化すれば解消。`colorIndex == nil` 口座のリスト位置フォールバックは未ロード時に解決不能で初回は `.gray` になりうる——ステップ7の目視スモーク項目
 
 ### 8.4 R4で解消されるべき既知問題（v1.5.0クラッシュレポートより・2026-07-19 追記）
 

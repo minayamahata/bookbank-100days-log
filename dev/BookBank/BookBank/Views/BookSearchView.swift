@@ -150,8 +150,13 @@ struct BookSearchView: View {
     /// 選択中の並べ替えオプション
     @State private var selectedSortOption: SortOption = .newestFirst
     
-    /// 選択中の口座
-    @State private var selectedPassbook: PassbookDTO?
+    /// 選択中の口座ID（ストリーム到達後はリストから解決し、未到達時は引数DTOをシードに使う・レビュー #8）
+    @State private var selectedPassbookId: String
+    private var selectedPassbook: PassbookDTO? {
+        customPassbooks.first { $0.id == selectedPassbookId }
+            ?? allPassbooks.first { $0.id == selectedPassbookId }
+            ?? (passbook.id == selectedPassbookId ? passbook : nil)
+    }
     
     /// 検索バーのフォーカス状態
     @FocusState private var isSearchFocused: Bool
@@ -213,7 +218,7 @@ struct BookSearchView: View {
     init(passbook: PassbookDTO, allowPassbookChange: Bool = false) {
         self.passbook = passbook
         self.allowPassbookChange = allowPassbookChange
-        _selectedPassbook = State(initialValue: passbook)
+        _selectedPassbookId = State(initialValue: passbook.id)
     }
     
     // MARK: - Cache Update
@@ -560,9 +565,9 @@ struct BookSearchView: View {
                                 Menu {
                                     ForEach(customPassbooks) { passbook in
                                         Button(action: {
-                                            selectedPassbook = passbook
+                                            selectedPassbookId = passbook.id
                                         }) {
-                                            if selectedPassbook?.id == passbook.id {
+                                            if selectedPassbookId == passbook.id {
                                                 Label(passbook.name, systemImage: "checkmark")
                                             } else {
                                                 Text(passbook.name)

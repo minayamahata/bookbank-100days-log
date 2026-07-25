@@ -568,7 +568,9 @@ struct MainTabView: View {
 
 // MARK: - Navigation Destination
 
-/// 本の検索画面へのナビゲーション用データ
+/// 本の検索画面へのナビゲーション用データ。
+/// `passbook` DTOは初回フレーム用のシード（ストリーム未到達時のフォールバック）。
+/// 等価判定・ハッシュは id のみ。選択状態の解決は `BookSearchView` 側で ID 保持＋ストリーム解決する（レビュー #8）。
 struct BookSearchDestination: Hashable {
     let passbook: PassbookDTO
     

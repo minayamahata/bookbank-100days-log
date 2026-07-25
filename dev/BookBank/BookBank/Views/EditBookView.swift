@@ -20,16 +20,27 @@ struct EditBookView: View {
     @Bindable var book: UserBook
     
     @State private var allPassbooks: [PassbookDTO] = []
+    /// ストリーム到達済みか。未到達時は book.passbook（@Model）からテーマ色を解決する（レビュー #3）
+    @State private var hasLoadedPassbooks = false
     
     private var customPassbooks: [PassbookDTO] {
         allPassbooks.filter { $0.type == .custom && $0.isActive }
     }
+
+    private var bookPassbookDTO: PassbookDTO? {
+        guard let model = book.passbook else { return nil }
+        if !hasLoadedPassbooks {
+            return ModelDTOMapping.passbookDTO(from: model)
+        }
+        let uuid = model.uuid
+        return customPassbooks.first(where: { $0.id == uuid })
+            ?? allPassbooks.first(where: { $0.id == uuid })
+    }
     
     private var themeColor: Color {
-        if let uuid = book.passbook?.uuid,
-           let passbook = customPassbooks.first(where: { $0.id == uuid })
-            ?? allPassbooks.first(where: { $0.id == uuid }) {
-            return PassbookColor.color(for: passbook, in: customPassbooks)
+        if let passbook = bookPassbookDTO {
+            let list = hasLoadedPassbooks ? customPassbooks : []
+            return PassbookColor.color(for: passbook, in: list)
         }
         return .blue
     }
@@ -329,6 +340,7 @@ struct EditBookView: View {
             .task {
                 for await value in repos.passbooks.observePassbooks() {
                     allPassbooks = value
+                    hasLoadedPassbooks = true
                 }
             }
         }

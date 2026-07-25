@@ -30,6 +30,8 @@ struct EditPassbookView: View {
     @State private var useCustomColor: Bool = false
     @State private var showUnlimitedPaywall = false
     @State private var allPassbooks: [PassbookDTO] = []
+    /// ストリーム初回値でのみリスト位置フォールバックを適用する（レビュー #1）
+    @State private var hasResolvedDefaultColor = false
     
     private var unlimitedManager: UnlimitedManager { UnlimitedManager.shared }
     
@@ -225,15 +227,6 @@ struct EditPassbookView: View {
                     .padding(.horizontal, 16)
                     .padding(.top, 24)
                 }
-                .onAppear {
-                    // colorIndexが未設定の場合、リスト内の位置に基づいた色をデフォルトにする
-                    if passbook.colorIndex == nil {
-                        if let index = customPassbooks.firstIndex(where: { $0.id == passbook.id }) {
-                            selectedColorIndex = index % PassbookColor.count
-                            originalColorIndex = selectedColorIndex
-                        }
-                    }
-                }
                 
                 // アクションボタン（画面下固定）
                 VStack(spacing: 12) {
@@ -386,6 +379,17 @@ struct EditPassbookView: View {
             .task {
                 for await value in repos.passbooks.observePassbooks() {
                     allPassbooks = value
+                    // 初回yieldでのみデフォルト色を解決（2回目以降やユーザー選択を上書きしない）
+                    if !hasResolvedDefaultColor {
+                        hasResolvedDefaultColor = true
+                        if let index = PassbookColor.resolvedDefaultColorIndex(
+                            for: passbook,
+                            in: customPassbooks
+                        ) {
+                            selectedColorIndex = index
+                            originalColorIndex = index
+                        }
+                    }
                 }
             }
         }

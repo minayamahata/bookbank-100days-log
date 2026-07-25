@@ -202,6 +202,10 @@ struct RootView: View {
                 StoreBackupManager.deleteBackup(storeURL: storeURL)
             }
 
+            // マイグレーションはリポジトリ外書き込みのためパルスに乗らない（設計メモ 4.3節）。
+            // 子Viewの .task が先に購読していた場合、バックフィル前uuidのDTOを掴み続ける穴を塞ぐ。
+            repositories.notifyExternalChange()
+
             Task {
                 await exchangeRateService.refreshIfNeeded()
             }

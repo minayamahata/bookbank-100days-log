@@ -102,10 +102,19 @@ struct PassbookColor {
         if let colorIndex = passbook.colorIndex {
             return color(for: colorIndex)
         }
-        if let index = passbooks.firstIndex(where: { $0.id == passbook.id }) {
+        if let index = resolvedDefaultColorIndex(for: passbook, in: passbooks) {
             return color(for: index)
         }
         return .gray
+    }
+
+    /// `colorIndex == nil` の口座について、リスト内位置由来のデフォルト色indexを返す。
+    /// - 既に `colorIndex` が設定済み、またはリストに未登場（空配列含む）なら nil。
+    /// - EditPassbookView の初回ストリーム到達時フォールバックと単体テストの共通化用（レビュー #1）。
+    static func resolvedDefaultColorIndex(for passbook: PassbookDTO, in passbooks: [PassbookDTO]) -> Int? {
+        guard passbook.colorIndex == nil else { return nil }
+        guard let index = passbooks.firstIndex(where: { $0.id == passbook.id }) else { return nil }
+        return index % colors.count
     }
     
     /// 黒テーマのインデックス（ピンクの次、ゴールドの前）

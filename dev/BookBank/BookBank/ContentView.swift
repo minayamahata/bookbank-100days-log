@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-import SwiftData
 
 /// 口座一覧画面
 /// ユーザーが作成した全ての口座（通帳）を表示
@@ -18,10 +17,10 @@ struct ContentView: View {
     @Environment(CurrencyManager.self) private var currencyManager
     @Environment(ExchangeRateService.self) private var exchangeRates
     @State private var passbooks: [PassbookDTO] = []
-    @Query private var allBooks: [UserBook]
+    @State private var allBooks: [BookDTO] = []
 
-    private func books(for passbook: PassbookDTO) -> [UserBook] {
-        allBooks.filter { $0.passbook?.uuid == passbook.id }
+    private func books(for passbook: PassbookDTO) -> [BookDTO] {
+        allBooks.filter { $0.passbookId == passbook.id }
     }
     
     // MARK: - Body
@@ -61,6 +60,11 @@ struct ContentView: View {
             .task {
                 for await value in repos.passbooks.observePassbooks() {
                     passbooks = value
+                }
+            }
+            .task {
+                for await value in repos.books.observeBooks() {
+                    allBooks = value
                 }
             }
         }
