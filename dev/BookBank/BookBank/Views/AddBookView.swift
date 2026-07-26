@@ -16,9 +16,6 @@ struct AddBookView: View {
     
     // MARK: - Environment
     
-    /// SwiftDataのモデルコンテキスト
-    @Environment(\.modelContext) private var context
-    
     /// モーダルを閉じるためのアクション
     @Environment(\.dismiss) private var dismiss
 
@@ -394,41 +391,48 @@ struct AddBookView: View {
     /// 本を保存する
     private func saveBook() {
         guard let price = currencyManager.displayCurrency.minorUnits(fromInput: priceText),
-              let targetDTO = selectedPassbook,
-              let targetPassbook = PassbookModelLookup.fetch(id: targetDTO.id, context: context) else {
+              let targetDTO = selectedPassbook else {
             return
         }
-        
+
         let imageData = selectedImage.flatMap { compressedImageData(from: $0) }
-        
-        let newBook = UserBook(
+        let now = Date()
+
+        let newBook = BookDTO(
+            id: UUID().uuidString,
             title: title.trimmingCharacters(in: .whitespaces),
             author: author.isEmpty ? nil : author.trimmingCharacters(in: .whitespaces),
             isbn: nil,
             publisher: nil,
             publishedYear: nil,
+            seriesName: nil,
             price: price,
             imageURL: nil,
-            coverImageData: imageData,
+            bookFormat: nil,
+            pageCount: nil,
             source: .manual,
             memo: nil,
             isFavorite: false,
-            passbook: targetPassbook,
-            currencyCode: currencyManager.displayCurrency.code
+            priceAtRegistration: price,
+            currencyCode: currencyManager.displayCurrency.code,
+            // 登録日は未来日を許可しない（DatePicker でも制限しているが、保存時にも保証する）
+            registeredAt: min(registeredAt, now),
+            createdAt: now,
+            updatedAt: now,
+            passbookId: targetDTO.id,
+            hasCoverImage: imageData?.isEmpty == false
         )
-        // 登録日は未来日を許可しない（DatePicker でも制限しているが、保存時にも保証する）
-        newBook.registeredAt = min(registeredAt, Date())
-        
-        context.insert(newBook)
-        
-        do {
-            try context.save()
+
+        // 保存に失敗したら画面を閉じない・onSave も呼ばない（旧実装の do/catch と同じ・レビュー S4-3）。
+        // エラーUIは新設しない（設計メモ 4.5節・前提13）
+        Task {
+            do {
+                try await repos.books.addBook(newBook, coverImageData: imageData)
+            } catch {
+                return
+            }
             dismiss()
             onSave?()
-        } catch {
-            #if DEBUG
-            print("Error saving book: \(error)")
-            #endif
         }
     }
 }

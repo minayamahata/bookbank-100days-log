@@ -116,9 +116,9 @@ struct DisplayCurrencyPriceText: View {
     }
 }
 
-/// UserBook 用の価格表示
+/// 書籍（`BookDTO`）用の価格表示
 struct BookPriceText: View {
-    let book: UserBook
+    let book: BookDTO
 
     var font: Font = .body
     var fontWeight: Font.Weight = .regular

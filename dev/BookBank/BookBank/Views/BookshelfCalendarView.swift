@@ -12,7 +12,7 @@ import SwiftUI
 struct BookshelfCalendarView<Header: View>: View {
 
     /// 表示対象の書籍（フィルタ適用後）
-    let books: [UserBook]
+    let books: [BookDTO]
 
     /// 月メモを開くコールバック（year, month）
     /// - Note: 月別メモは口座横断（年月ごとに1つ）のため、どの口座のカレンダーからでも
@@ -41,7 +41,7 @@ struct BookshelfCalendarView<Header: View>: View {
     private struct MonthGroup: Identifiable {
         let year: Int
         let month: Int
-        let books: [UserBook]
+        let books: [BookDTO]
         var id: String { "\(year)-\(month)" }
     }
 
@@ -58,7 +58,7 @@ struct BookshelfCalendarView<Header: View>: View {
         let month: Int
         let day: Int
         /// その日の書籍（新しい順）
-        let books: [UserBook]
+        let books: [BookDTO]
         var id: String { "\(year)-\(month)-\(day)" }
     }
 
@@ -67,7 +67,7 @@ struct BookshelfCalendarView<Header: View>: View {
     /// 新しい年が先・各年内は新しい月が先
     private var booksByYear: [YearGroup] {
         // "year-month" -> 書籍配列
-        var booksMap: [String: [UserBook]] = [:]
+        var booksMap: [String: [BookDTO]] = [:]
         var earliest: (year: Int, month: Int)?
         var latest: (year: Int, month: Int)?
 
@@ -153,7 +153,7 @@ struct BookshelfCalendarView<Header: View>: View {
 
     // MARK: - 月セクション
 
-    private func monthSection(year: Int, month: Int, books: [UserBook]) -> some View {
+    private func monthSection(year: Int, month: Int, books: [BookDTO]) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             // 月ヘッダー
             HStack(spacing: 8) {
@@ -228,7 +228,7 @@ struct BookshelfCalendarView<Header: View>: View {
 
     // MARK: - カレンダーグリッド
 
-    private func calendarGrid(year: Int, month: Int, books: [UserBook]) -> some View {
+    private func calendarGrid(year: Int, month: Int, books: [BookDTO]) -> some View {
         let booksByDay = groupByDay(books)
         let leadingBlanks = leadingBlankCount(year: year, month: month)
         let dayCount = daysInMonth(year: year, month: month)
@@ -250,7 +250,7 @@ struct BookshelfCalendarView<Header: View>: View {
     }
 
     @ViewBuilder
-    private func dayCell(year: Int, month: Int, day: Int, books: [UserBook]) -> some View {
+    private func dayCell(year: Int, month: Int, day: Int, books: [BookDTO]) -> some View {
         if let latest = books.first {
             if books.count > 1 {
                 // 複数冊：タップで一覧シートを提示し、各本の詳細へ遷移できるようにする
@@ -297,7 +297,7 @@ struct BookshelfCalendarView<Header: View>: View {
     }
 
     /// リスト1行（表紙サムネイル + タイトル / 著者 / 登録日 + 金額）
-    private func dayBookRow(_ book: UserBook) -> some View {
+    private func dayBookRow(_ book: BookDTO) -> some View {
         HStack(spacing: 12) {
             rowCover(for: book)
                 .frame(width: 50, height: 75)
@@ -327,9 +327,9 @@ struct BookshelfCalendarView<Header: View>: View {
     }
 
     /// リスト行用の固定サイズ表紙（2:3）
-    private func rowCover(for book: UserBook) -> some View {
-        Group {
-            if let coverImage = book.coverUIImage {
+    private func rowCover(for book: BookDTO) -> some View {
+        LocalCoverImage(book: book) { coverImage in
+            if let coverImage {
                 Image(uiImage: coverImage)
                     .resizable()
                     .aspectRatio(contentMode: .fill)
@@ -359,7 +359,7 @@ struct BookshelfCalendarView<Header: View>: View {
     }
 
     /// 本が登録された日のセル（表紙＋日付＋緑チェック＋複数時バッジ）
-    private func filledDayCell(day: Int, latest: UserBook, extraCount: Int) -> some View {
+    private func filledDayCell(day: Int, latest: BookDTO, extraCount: Int) -> some View {
         cover(for: latest)
             .overlay {
                 Color.black.opacity(0.2)
@@ -399,10 +399,10 @@ struct BookshelfCalendarView<Header: View>: View {
     }
 
     /// 表紙（2:3・列幅いっぱい）
-    private func cover(for book: UserBook) -> some View {
+    private func cover(for book: BookDTO) -> some View {
         GeometryReader { geometry in
-            Group {
-                if let coverImage = book.coverUIImage {
+            LocalCoverImage(book: book) { coverImage in
+                if let coverImage {
                     Image(uiImage: coverImage)
                         .resizable()
                         .aspectRatio(contentMode: .fill)
@@ -428,8 +428,8 @@ struct BookshelfCalendarView<Header: View>: View {
     // MARK: - ヘルパー
 
     /// その月の本を「日 -> 書籍配列（新しい順）」にまとめる
-    private func groupByDay(_ books: [UserBook]) -> [Int: [UserBook]] {
-        var result: [Int: [UserBook]] = [:]
+    private func groupByDay(_ books: [BookDTO]) -> [Int: [BookDTO]] {
+        var result: [Int: [BookDTO]] = [:]
         for book in books {
             let day = calendar.component(.day, from: book.registeredAt)
             result[day, default: []].append(book)
@@ -489,10 +489,30 @@ struct BookshelfCalendarView<Header: View>: View {
     let calendar = Calendar.current
     let now = Date()
 
-    func sampleBook(_ title: String, monthsAgo: Int, price: Int) -> UserBook {
-        let book = UserBook(title: title, price: price, currencyCode: AppCurrency.jpy.code)
-        book.registeredAt = calendar.date(byAdding: .month, value: -monthsAgo, to: now) ?? now
-        return book
+    func sampleBook(_ title: String, monthsAgo: Int, price: Int) -> BookDTO {
+        BookDTO(
+            id: UUID().uuidString,
+            title: title,
+            author: nil,
+            isbn: nil,
+            publisher: nil,
+            publishedYear: nil,
+            seriesName: nil,
+            price: price,
+            imageURL: nil,
+            bookFormat: nil,
+            pageCount: nil,
+            source: .manual,
+            memo: nil,
+            isFavorite: false,
+            priceAtRegistration: price,
+            currencyCode: AppCurrency.jpy.code,
+            registeredAt: calendar.date(byAdding: .month, value: -monthsAgo, to: now) ?? now,
+            createdAt: now,
+            updatedAt: now,
+            passbookId: nil,
+            hasCoverImage: false
+        )
     }
 
     let books = [

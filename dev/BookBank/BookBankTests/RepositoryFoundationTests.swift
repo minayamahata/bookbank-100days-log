@@ -21,9 +21,10 @@ final class RepositoryFoundationTests: XCTestCase {
         container = try ModelContainer(for: schema, configurations: [configuration])
         pulse = RepositoryChangePulse()
         let context = container.mainContext
+        let books = SwiftDataBookRepository(context: context, pulse: pulse)
         repos = AppRepositories(
-            passbooks: SwiftDataPassbookRepository(context: context, pulse: pulse),
-            books: SwiftDataBookRepository(context: context, pulse: pulse),
+            passbooks: SwiftDataPassbookRepository(context: context, pulse: pulse, books: books),
+            books: books,
             readingLists: SwiftDataReadingListRepository(context: context, pulse: pulse),
             monthlyMemos: SwiftDataMonthlyMemoRepository(context: context, pulse: pulse),
             pulse: pulse
@@ -34,6 +35,9 @@ final class RepositoryFoundationTests: XCTestCase {
         repos = nil
         pulse = nil
         container = nil
+        // プロセス共有のシングルトンがテスト間で状態を持ち越さないようにする（レビュー S4-5）。
+        // 脱シングルトン化（DI）はステップ6またはR6の解体時（設計メモ 4.6節）
+        LocalCoverDataCache.shared.removeAll()
     }
 
     private func samplePassbookDTO(
@@ -438,6 +442,347 @@ final class RepositoryFoundationTests: XCTestCase {
         let refreshedOptional = await iterator.next()
         let refreshed = try XCTUnwrap(refreshedOptional)
         XCTAssertEqual(refreshed.first?.id, "backfilled-uuid")
+    }
+
+    // MARK: - R4ステップ4
+
+    /// 申し送り（設計メモ 4.4節）: `deletePassbook` を `deleteBook` の bookIds 掃除セマンティクスへ寄せた
+    func testDeletingPassbookRemovesItsBooksFromReadingListBookIds() async throws {
+        let passbook = samplePassbookDTO()
+        try await repos.passbooks.addPassbook(passbook)
+
+        let inPassbook = sampleBookDTO(passbookId: passbook.id)
+        let otherPassbookBook = sampleBookDTO(passbookId: passbook.id)
+        let unrelated = sampleBookDTO(passbookId: nil)
+        try await repos.books.addBook(inPassbook, coverImageData: nil)
+        try await repos.books.addBook(otherPassbookBook, coverImageData: nil)
+        try await repos.books.addBook(unrelated, coverImageData: nil)
+
+        let list = ReadingListDTO(
+            id: UUID().uuidString,
+            title: "リスト",
+            description: nil,
+            colorIndex: nil,
+            bookIds: [inPassbook.id, unrelated.id, otherPassbookBook.id],
+            books: [],
+            createdAt: Date(),
+            updatedAt: Date(),
+            legacyShareId: ""
+        )
+        try await repos.readingLists.addReadingList(list)
+
+        try await repos.passbooks.deletePassbook(id: passbook.id)
+
+        let observed = await firstValue(repos.readingLists.observeReadingLists())
+        let dto = try XCTUnwrap(observed.first)
+        // 口座に属していた本のuuidだけが bookIds から消え、無関係な本は順序ごと残る
+        XCTAssertEqual(dto.bookIds, [unrelated.id])
+        XCTAssertEqual(dto.books.map(\.id), [unrelated.id])
+
+        let books = await firstValue(repos.books.observeBooks())
+        XCTAssertEqual(books.map(\.id), [unrelated.id])
+    }
+
+    /// ステップ3 #2 の UserBook 版。`CurrencyMigration` はリポジトリを介さず UserBook を書くため、
+    /// `notifyExternalChange()` で UserBook ストリームが再fetchされる経路を固定する（設計メモ 4.3節）
+    func testNotifyExternalChangeYieldsUpdatedBook() async throws {
+        let dto = sampleBookDTO(id: "book-uuid")
+        try await repos.books.addBook(dto, coverImageData: nil)
+
+        let stream = repos.books.observeBooks()
+        var iterator = stream.makeAsyncIterator()
+        let initialOptional = await iterator.next()
+        let initial = try XCTUnwrap(initialOptional)
+        XCTAssertEqual(initial.first?.id, "book-uuid")
+        XCTAssertEqual(initial.first?.currencyCode, "JPY")
+
+        // リポジトリ外で書き換え（CurrencyMigration 相当）
+        let context = container.mainContext
+        let target = "book-uuid"
+        let descriptor = FetchDescriptor<UserBook>(predicate: #Predicate { $0.uuid == target })
+        let model = try XCTUnwrap(try context.fetch(descriptor).first)
+        model.currencyCode = "USD"
+        model.title = "マイグレーション後"
+        try context.save()
+
+        repos.notifyExternalChange()
+        let refreshedOptional = await iterator.next()
+        let refreshed = try XCTUnwrap(refreshedOptional)
+        XCTAssertEqual(refreshed.first?.currencyCode, "USD")
+        XCTAssertEqual(refreshed.first?.title, "マイグレーション後")
+    }
+
+    /// `BookSelectorView` の追加順（＝ReadingList.bookIds の並び）は、渡した ids の順序で決まる。
+    /// ストア順ではなく入力順を返すことを固定する（R3で守った並び順の非破壊）
+    func testBookModelLookupPreservesRequestedOrder() async throws {
+        let first = sampleBookDTO(id: "a", title: "A")
+        let second = sampleBookDTO(id: "b", title: "B")
+        let third = sampleBookDTO(id: "c", title: "C")
+        // 挿入順は a → b → c
+        try await repos.books.addBook(first, coverImageData: nil)
+        try await repos.books.addBook(second, coverImageData: nil)
+        try await repos.books.addBook(third, coverImageData: nil)
+
+        // 逆順・未知IDを混ぜて要求する
+        let resolved = BookModelLookup.fetch(
+            ids: ["c", "unknown", "a", "b"],
+            context: container.mainContext
+        )
+        XCTAssertEqual(resolved.map(\.uuid), ["c", "a", "b"])
+    }
+
+    // MARK: - 表紙画像（レビュー S4-4）
+
+    private func makeCoverData(_ byte: UInt8, count: Int = 32) -> Data {
+        Data(repeating: byte, count: count)
+    }
+
+    /// ① `updateCoverImage(data:)` / `(nil)` → `loadCoverImage` の読み戻しと `hasCoverImage` の追従
+    func testUpdateCoverImageRoundTripsAndTracksHasCoverImage() async throws {
+        let book = sampleBookDTO(id: "cover-book")
+        try await repos.books.addBook(book, coverImageData: nil)
+
+        var observed = await firstValue(repos.books.observeBooks())
+        XCTAssertEqual(observed.first?.hasCoverImage, false)
+        var loaded = await repos.books.loadCoverImage(bookId: "cover-book")
+        XCTAssertNil(loaded)
+
+        // 設定
+        let data = makeCoverData(0xAB)
+        try await repos.books.updateCoverImage(bookId: "cover-book", data: data)
+        loaded = await repos.books.loadCoverImage(bookId: "cover-book")
+        XCTAssertEqual(loaded, data)
+        observed = await firstValue(repos.books.observeBooks())
+        XCTAssertEqual(observed.first?.hasCoverImage, true)
+        XCTAssertEqual(LocalCoverDataCache.shared.hasData(for: "cover-book"), true)
+
+        // 削除
+        try await repos.books.updateCoverImage(bookId: "cover-book", data: nil)
+        loaded = await repos.books.loadCoverImage(bookId: "cover-book")
+        XCTAssertNil(loaded)
+        observed = await firstValue(repos.books.observeBooks())
+        XCTAssertEqual(observed.first?.hasCoverImage, false)
+        XCTAssertEqual(LocalCoverDataCache.shared.hasData(for: "cover-book"), false)
+    }
+
+    /// ② 本を削除したら `loadCoverImage` は nil を返し、表紙キャッシュも残らない
+    func testDeletingBookDropsItsCoverImage() async throws {
+        let book = sampleBookDTO(id: "doomed")
+        try await repos.books.addBook(book, coverImageData: makeCoverData(0x11))
+        XCTAssertEqual(LocalCoverDataCache.shared.hasData(for: "doomed"), true)
+
+        try await repos.books.deleteBook(id: "doomed")
+
+        let loaded = await repos.books.loadCoverImage(bookId: "doomed")
+        XCTAssertNil(loaded)
+        XCTAssertEqual(LocalCoverDataCache.shared.hasData(for: "doomed"), false)
+    }
+
+    /// 口座ごと削除しても、所属本の表紙キャッシュが取り残されない
+    func testDeletingPassbookDropsCoverImagesOfItsBooks() async throws {
+        let passbook = samplePassbookDTO()
+        try await repos.passbooks.addPassbook(passbook)
+        let book = sampleBookDTO(id: "in-passbook", passbookId: passbook.id)
+        try await repos.books.addBook(book, coverImageData: makeCoverData(0x22))
+        XCTAssertEqual(LocalCoverDataCache.shared.hasData(for: "in-passbook"), true)
+
+        try await repos.passbooks.deletePassbook(id: passbook.id)
+
+        XCTAssertEqual(LocalCoverDataCache.shared.hasData(for: "in-passbook"), false)
+    }
+
+    /// ③ `RakutenBook.toBookDTO` が旧 `toUserBook` と同じ値を組み立てる（全フィールド等価）
+    func testToBookDTOMapsAllFields() throws {
+        let result = RakutenBook(
+            title: "テスト書籍",
+            author: "著者名",
+            publisherName: "出版社名",
+            isbn: "9781234567897",
+            itemPrice: 1234,
+            salesDate: "2024年05月01日",
+            itemCaption: "本文の説明。320ページ。",
+            mediumImageUrl: "https://example.com/medium.jpg",
+            largeImageUrl: "https://example.com/large.jpg",
+            size: "文庫",
+            seriesName: "テストシリーズ",
+            booksGenreId: nil
+        )
+
+        let before = Date()
+        let dto = result.toBookDTO(passbookId: "pb-1")
+        let after = Date()
+
+        XCTAssertFalse(dto.id.isEmpty)
+        XCTAssertEqual(dto.title, "テスト書籍")
+        XCTAssertEqual(dto.author, "著者名")
+        XCTAssertEqual(dto.isbn, "9781234567897")
+        XCTAssertEqual(dto.publisher, "出版社名")
+        XCTAssertEqual(dto.publishedYear, result.publishedYear)
+        XCTAssertEqual(dto.seriesName, "テストシリーズ")
+        XCTAssertEqual(dto.price, 1234)
+        XCTAssertEqual(dto.imageURL, BookCoverImageURL.normalized("https://example.com/large.jpg"))
+        XCTAssertEqual(dto.bookFormat, result.displayFormat)
+        XCTAssertEqual(dto.pageCount, 320)
+        XCTAssertEqual(dto.source, .api)
+        XCTAssertNil(dto.memo)
+        XCTAssertFalse(dto.isFavorite)
+        // 旧 UserBook.init と同じ規則: 登録時価格は定価のコピー
+        XCTAssertEqual(dto.priceAtRegistration, 1234)
+        XCTAssertEqual(dto.currencyCode, AppCurrency(code: result.sourceCurrencyCode)?.code ?? AppCurrency.jpy.code)
+        XCTAssertEqual(dto.passbookId, "pb-1")
+        XCTAssertFalse(dto.hasCoverImage)
+        // 日時は生成時刻（3つとも同値）
+        XCTAssertEqual(dto.registeredAt, dto.createdAt)
+        XCTAssertEqual(dto.createdAt, dto.updatedAt)
+        XCTAssertGreaterThanOrEqual(dto.registeredAt, before)
+        XCTAssertLessThanOrEqual(dto.registeredAt, after)
+    }
+
+    // MARK: - 保存失敗の意味論（レビュー S4-11 / S4-12）
+
+    /// `passbookId` が引けないとき、旧実装と同じく**保存しない**（`passbook: nil` で保存しない）
+    func testAddBookThrowsWhenPassbookMissing() async throws {
+        let book = sampleBookDTO(id: "orphan", passbookId: "no-such-passbook")
+
+        do {
+            try await repos.books.addBook(book, coverImageData: nil)
+            XCTFail("passbook が引けないのに保存された")
+        } catch RepositoryError.passbookNotFound(let id) {
+            XCTAssertEqual(id, "no-such-passbook")
+        }
+
+        let observed = await firstValue(repos.books.observeBooks())
+        XCTAssertTrue(observed.isEmpty, "保存されていないこと")
+    }
+
+    /// 更新でも「意図しない nil 化（総合口座送り）」を許さない
+    func testUpdateBookThrowsWhenPassbookMissingAndKeepsOldValues() async throws {
+        let passbook = samplePassbookDTO()
+        try await repos.passbooks.addPassbook(passbook)
+        let book = sampleBookDTO(id: "keeper", passbookId: passbook.id)
+        try await repos.books.addBook(book, coverImageData: nil)
+
+        var broken = book
+        broken.title = "変更後"
+        broken.passbookId = "no-such-passbook"
+        do {
+            try await repos.books.updateBook(broken)
+            XCTFail("passbook が引けないのに更新された")
+        } catch RepositoryError.passbookNotFound {
+            // 期待どおり
+        }
+
+        let observed = await firstValue(repos.books.observeBooks())
+        let saved = try XCTUnwrap(observed.first)
+        XCTAssertEqual(saved.passbookId, passbook.id, "口座が nil 化していないこと")
+        XCTAssertEqual(saved.title, book.title, "タイトルも巻き戻っていること")
+    }
+
+    /// 更新対象の本が無いときは throw する（log+return で握り潰さない・2026-07-26 オーナー判断）
+    func testUpdateBookThrowsWhenBookMissing() async throws {
+        let ghost = sampleBookDTO(id: "ghost")
+
+        do {
+            try await repos.books.updateBook(ghost)
+            XCTFail("本が存在しないのに更新が成功として扱われた")
+        } catch RepositoryError.bookNotFound(let id) {
+            XCTAssertEqual(id, "ghost")
+        }
+
+        let observed = await firstValue(repos.books.observeBooks())
+        XCTAssertTrue(observed.isEmpty, "存在しない本が作られていないこと")
+    }
+
+    /// 表紙単独更新も同じ契約（更新系の not-found は throw）
+    func testUpdateCoverImageThrowsWhenBookMissing() async throws {
+        do {
+            try await repos.books.updateCoverImage(bookId: "ghost", data: makeCoverData(0x55))
+            XCTFail("本が存在しないのに表紙更新が成功として扱われた")
+        } catch RepositoryError.bookNotFound(let id) {
+            XCTAssertEqual(id, "ghost")
+        }
+    }
+
+    /// 削除系の not-found は据え置き（冪等削除）
+    func testDeleteBookIsIdempotentForMissingId() async throws {
+        try await repos.books.deleteBook(id: "never-existed")
+        let observed = await firstValue(repos.books.observeBooks())
+        XCTAssertTrue(observed.isEmpty)
+    }
+
+    // MARK: - 楽観更新の鮮度ガード（2026-07-26）
+
+    /// 現在値がまだ自分の楽観値なら、直前の値へ書き戻す
+    func testRollbackAppliesWhenCurrentStillMatchesOptimisticValue() {
+        let previous = sampleBookDTO(id: "x", title: "元")
+        var optimistic = previous
+        optimistic.isFavorite.toggle()
+
+        let value = OptimisticUpdate.rollbackValue(
+            current: optimistic,
+            optimistic: optimistic,
+            previous: previous
+        )
+        XCTAssertEqual(value, previous)
+    }
+
+    /// 待っている間に別の値が入っていたら書き戻さない（自分より新しい値を踏み潰さない）
+    func testRollbackSkippedWhenCurrentDivergedFromOptimisticValue() {
+        let previous = sampleBookDTO(id: "x", title: "元")
+        var optimistic = previous
+        optimistic.isFavorite.toggle()
+        // ストリームのyieldや別操作で先へ進んだ状態
+        var newer = optimistic
+        newer.title = "他経路で更新"
+
+        let value = OptimisticUpdate.rollbackValue(
+            current: newer,
+            optimistic: optimistic,
+            previous: previous
+        )
+        XCTAssertNil(value, "自分より新しい値を踏み潰さないこと")
+    }
+
+    /// `passbookId == nil`（未割当）は正常系
+    func testAddBookWithoutPassbookSucceeds() async throws {
+        let book = sampleBookDTO(id: "unassigned", passbookId: nil)
+        try await repos.books.addBook(book, coverImageData: nil)
+
+        let observed = await firstValue(repos.books.observeBooks())
+        XCTAssertEqual(observed.map(\.id), ["unassigned"])
+        XCTAssertNil(observed.first?.passbookId)
+    }
+
+    /// 書誌と表紙が1トランザクションで反映される（S4-12）
+    func testUpdateBookWritesFieldsAndCoverTogether() async throws {
+        let book = sampleBookDTO(id: "combined")
+        try await repos.books.addBook(book, coverImageData: nil)
+
+        var updated = book
+        updated.title = "新しいタイトル"
+        try await repos.books.updateBook(updated, cover: .replace(makeCoverData(0x33)))
+
+        let observed = await firstValue(repos.books.observeBooks())
+        let saved = try XCTUnwrap(observed.first)
+        XCTAssertEqual(saved.title, "新しいタイトル")
+        XCTAssertEqual(saved.hasCoverImage, true)
+        let loaded = await repos.books.loadCoverImage(bookId: "combined")
+        XCTAssertEqual(loaded, makeCoverData(0x33))
+    }
+
+    /// `.unchanged` は表紙に触れない（お気に入り・メモ更新で表紙が消えない）
+    func testUpdateBookUnchangedKeepsCover() async throws {
+        let book = sampleBookDTO(id: "keep-cover")
+        try await repos.books.addBook(book, coverImageData: makeCoverData(0x44))
+
+        var updated = book
+        updated.isFavorite.toggle()
+        try await repos.books.updateBook(updated)
+
+        let loaded = await repos.books.loadCoverImage(bookId: "keep-cover")
+        XCTAssertEqual(loaded, makeCoverData(0x44))
+        let observed = await firstValue(repos.books.observeBooks())
+        XCTAssertEqual(observed.first?.hasCoverImage, true)
     }
 
     func testDeletingMultiplePassbooksLeavesOthersIntact() async throws {

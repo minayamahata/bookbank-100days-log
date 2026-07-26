@@ -30,9 +30,6 @@ struct BookSearchView: View {
     
     // MARK: - Environment
     
-    /// SwiftDataのモデルコンテキスト
-    @Environment(\.modelContext) private var context
-    
     /// モーダルを閉じるためのアクション
     @Environment(\.dismiss) private var dismiss
 
@@ -60,11 +57,12 @@ struct BookSearchView: View {
     /// 口座選択を許可するかどうか
     let allowPassbookChange: Bool
     
-    // MARK: - SwiftData Query / State
-    
-    /// 全ての登録済み書籍を取得
-    @Query private var allUserBooks: [UserBook]
-    
+    // MARK: - Repository Streams / State
+
+    /// 全ての登録済み書籍（リポジトリストリーム）
+    @State private var loadedUserBooks: [BookDTO]?
+    private var allUserBooks: [BookDTO] { loadedUserBooks ?? repos.books.latestSnapshot }
+
     /// すべての口座（リポジトリストリーム）
     @State private var allPassbooks: [PassbookDTO] = []
     
@@ -786,8 +784,17 @@ struct BookSearchView: View {
                 allPassbooks = value
             }
         }
+        .task {
+            for await value in repos.books.observeBooks() {
+                loadedUserBooks = value
+                // 初回yield前の空リストから作ったキャッシュのままだと、既に登録済みの本を
+                // 「未登録」と判定して重複登録できてしまう。yield のたびに再構築して窓を塞ぐ
+                // （レビュー S4-15）
+                updateRegisteredISBNsCache()
+            }
+        }
     }
-    
+
     // MARK: - Actions
     
     /// 新しい検索（キーワード / ISBN）の開始時に検索状態を一括リセットする。
@@ -1008,11 +1015,10 @@ struct BookSearchView: View {
         overridePrice: Int? = nil,
         overrideCurrency: AppCurrency? = nil
     ) {
-        guard let targetDTO = selectedPassbook,
-              let targetPassbook = PassbookModelLookup.fetch(id: targetDTO.id, context: context) else { return }
+        guard let targetDTO = selectedPassbook else { return }
         // 二重タップ等での同一書籍の重複登録を防ぐ（ボタンの disabled だけに頼らず保存直前に再チェック）
         guard !isBookRegistered(result) else { return }
-        let newBook = result.toUserBook(passbook: targetPassbook)
+        var newBook = result.toBookDTO(passbookId: targetDTO.id)
 
         // 手入力パス（通貨指定あり）では金額・通貨を上書きする。
         // overridePrice が nil のまま登録された場合は「金額不明」として保存する。
@@ -1022,11 +1028,16 @@ struct BookSearchView: View {
             newBook.currencyCode = overrideCurrency.code
         }
 
-        context.insert(newBook)
-        
-        do {
-            try context.save()
-            
+        // 保存成功時のみキャッシュ更新・トーストを行う（現行の do/catch と同じ意味論）。
+        // 失敗は現行同様に静かに飲む（リポジトリ内でOSLog記録・rollback済み。設計メモ 4.5節）
+        let bookToSave = newBook
+        Task {
+            do {
+                try await repos.books.addBook(bookToSave, coverImageData: nil)
+            } catch {
+                return
+            }
+
             // キャッシュを更新
             if !result.isbn.isEmpty {
                 registeredISBNs.insert(result.isbn)
@@ -1036,25 +1047,19 @@ struct BookSearchView: View {
             if showUnregisteredOnly {
                 filteredResults.removeAll { isBookRegistered($0) }
             }
-            
+
             // トースト通知を表示（画面は閉じない）
             toastAmount = overridePrice ?? result.itemPrice ?? 0
             toastCurrency = overrideCurrency ?? (AppCurrency(code: result.sourceCurrencyCode) ?? .jpy)
             withAnimation {
                 showToast = true
             }
-            
+
             // 2秒後にトーストを非表示
-            Task {
-                try? await Task.sleep(for: .seconds(2))
-                withAnimation {
-                    showToast = false
-                }
+            try? await Task.sleep(for: .seconds(2))
+            withAnimation {
+                showToast = false
             }
-        } catch {
-            #if DEBUG
-            print("Error saving book: \(error)")
-            #endif
         }
     }
     

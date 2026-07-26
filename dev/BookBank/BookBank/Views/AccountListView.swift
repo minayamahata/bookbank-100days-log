@@ -19,7 +19,9 @@ struct AccountListView: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.dismiss) private var dismiss
     @State private var passbooks: [PassbookDTO] = []
-    @Query private var allBooks: [UserBook]
+    /// すべての書籍（リポジトリストリーム）。用途は合計・件数のみで順序に依存しない
+    @State private var loadedBooks: [BookDTO]?
+    private var allBooks: [BookDTO] { loadedBooks ?? repos.books.latestSnapshot }
     private var unlimitedManager: UnlimitedManager { UnlimitedManager.shared }
     
     @State private var passbookToEdit: PassbookDTO?
@@ -53,13 +55,13 @@ struct AccountListView: View {
     // 特定の口座の合計金額（表示通貨）
     private func amountForPassbook(_ passbook: PassbookDTO) -> Int {
         allBooks
-            .filter { $0.passbook?.uuid == passbook.id }
+            .filter { $0.passbookId == passbook.id }
             .totalDisplayAmount(in: currencyManager.displayCurrency, exchangeRates: exchangeRates)
     }
-    
+
     // 特定の口座の冊数
     private func bookCountForPassbook(_ passbook: PassbookDTO) -> Int {
-        allBooks.filter { $0.passbook?.uuid == passbook.id }.count
+        allBooks.filter { $0.passbookId == passbook.id }.count
     }
     
     // 円グラフ用のデータ
@@ -241,6 +243,11 @@ struct AccountListView: View {
         .task {
             for await value in repos.passbooks.observePassbooks() {
                 passbooks = value
+            }
+        }
+        .task {
+            for await value in repos.books.observeBooks() {
+                loadedBooks = value
             }
         }
     }

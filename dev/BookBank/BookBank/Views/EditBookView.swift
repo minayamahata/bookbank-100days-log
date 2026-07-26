@@ -9,38 +9,42 @@ struct EditBookView: View {
     
     // MARK: - Environment
     
-    @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
     @Environment(LanguageManager.self) private var languageManager
     @Environment(CurrencyManager.self) private var currencyManager
     @Environment(AppRepositories.self) private var repos
-    
+
     // MARK: - Properties
-    
-    @Bindable var book: UserBook
-    
+
+    /// 編集対象の本（値型のコピー。生の `@Model` は保持しない＝設計メモ 8.4節）
+    @State private var book: BookDTO
+
+    init(book: BookDTO) {
+        _book = State(initialValue: book)
+    }
+
     @State private var allPassbooks: [PassbookDTO] = []
-    /// ストリーム到達済みか。未到達時は book.passbook（@Model）からテーマ色を解決する（レビュー #3）
+    /// 口座ストリーム到達済みか
     @State private var hasLoadedPassbooks = false
-    
+
+    /// 口座一覧。ストリーム未到達の初回フレームは同期スナップショットで補う（色の1フレーム差を作らない）
+    private var resolvedPassbooks: [PassbookDTO] {
+        hasLoadedPassbooks ? allPassbooks : repos.passbooks.latestSnapshot
+    }
+
     private var customPassbooks: [PassbookDTO] {
-        allPassbooks.filter { $0.type == .custom && $0.isActive }
+        resolvedPassbooks.filter { $0.type == .custom && $0.isActive }
     }
 
     private var bookPassbookDTO: PassbookDTO? {
-        guard let model = book.passbook else { return nil }
-        if !hasLoadedPassbooks {
-            return ModelDTOMapping.passbookDTO(from: model)
-        }
-        let uuid = model.uuid
-        return customPassbooks.first(where: { $0.id == uuid })
-            ?? allPassbooks.first(where: { $0.id == uuid })
+        guard let passbookId = book.passbookId else { return nil }
+        return customPassbooks.first(where: { $0.id == passbookId })
+            ?? resolvedPassbooks.first(where: { $0.id == passbookId })
     }
-    
+
     private var themeColor: Color {
         if let passbook = bookPassbookDTO {
-            let list = hasLoadedPassbooks ? customPassbooks : []
-            return PassbookColor.color(for: passbook, in: list)
+            return PassbookColor.color(for: passbook, in: customPassbooks)
         }
         return .blue
     }
@@ -85,7 +89,7 @@ struct EditBookView: View {
         let authorChanged = author.trimmingCharacters(in: .whitespaces) != (book.author ?? "")
         let priceChanged = priceText != (book.price.map { book.storedCurrency.inputString(fromMinor: $0) } ?? "")
         let dateChanged = !Calendar.current.isDate(registeredAt, inSameDayAs: book.registeredAt)
-        let passbookChanged = selectedPassbookID != book.passbook?.uuid
+        let passbookChanged = selectedPassbookID != book.passbookId
         return titleChanged || authorChanged || priceChanged || imageChanged || dateChanged || passbookChanged
     }
     
@@ -323,8 +327,7 @@ struct EditBookView: View {
                     get: { book.memo ?? "" },
                     set: { _ in }
                 )) { newMemo in
-                    book.memo = newMemo.isEmpty ? nil : newMemo
-                    try? context.save()
+                    saveMemo(newMemo)
                 }
             }
             .onAppear {
@@ -332,8 +335,10 @@ struct EditBookView: View {
                 author = book.author ?? ""
                 priceText = book.price.map { book.storedCurrency.inputString(fromMinor: $0) } ?? ""
                 registeredAt = book.registeredAt
-                selectedPassbookID = book.passbook?.uuid
-                if let coverImage = book.coverUIImage {
+                selectedPassbookID = book.passbookId
+                if selectedImage == nil, !imageChanged,
+                   let coverImage = LocalCoverDataCache.shared.image(for: book.id) {
+                    // 通常はストリーム受領時にキャッシュ済みのため同期で取れる（初回フレーム差なし）
                     selectedImage = coverImage
                 }
             }
@@ -342,6 +347,13 @@ struct EditBookView: View {
                     allPassbooks = value
                     hasLoadedPassbooks = true
                 }
+            }
+            .task(id: book.id) {
+                // キャッシュミス（LRU退避）時のみ非同期フォールバック
+                guard selectedImage == nil, !imageChanged, book.hasCoverImage else { return }
+                guard let data = await repos.books.loadCoverImage(bookId: book.id), !data.isEmpty else { return }
+                guard selectedImage == nil, !imageChanged else { return }
+                selectedImage = LocalCoverDataCache.shared.storeAndDecode(data, for: book.id)
             }
         }
     }
@@ -451,7 +463,7 @@ struct EditBookView: View {
                 }
             } else {
                 // API登録（楽天表紙URLあり）: 表示のみ
-                if let coverImage = selectedImage ?? book.coverUIImage {
+                if let coverImage = selectedImage {
                     Image(uiImage: coverImage)
                         .resizable()
                         .aspectRatio(contentMode: .fit)
@@ -553,47 +565,85 @@ struct EditBookView: View {
         return resized.jpegData(compressionQuality: 0.8)
     }
     
+    /// メモは編集シートを閉じた時点で即保存する（現行どおり・`updatedAt` は更新しない＝前提12）
+    private func saveMemo(_ newMemo: String) {
+        let previous = book
+        var updated = book
+        updated.memo = newMemo.isEmpty ? nil : newMemo
+        book = updated
+        Task {
+            do {
+                try await repos.books.updateBook(updated)
+            } catch {
+                // 楽観更新のロールバック（鮮度ガードつき・設計メモ 4.5節）。
+                // 待つ間に別操作が新しい値を入れていたら踏み潰さない。エラーUIは新設しない（前提13）
+                if let value = OptimisticUpdate.rollbackValue(
+                    current: book,
+                    optimistic: updated,
+                    previous: previous
+                ) {
+                    book = value
+                }
+            }
+        }
+    }
+
     private func saveChanges() {
+        var updated = book
         if isManual {
-            book.title = title.trimmingCharacters(in: .whitespaces)
-            book.author = author.isEmpty ? nil : author.trimmingCharacters(in: .whitespaces)
-            if let price = book.storedCurrency.minorUnits(fromInput: priceText) {
-                book.price = price
-                book.priceAtRegistration = price
+            updated.title = title.trimmingCharacters(in: .whitespaces)
+            updated.author = author.isEmpty ? nil : author.trimmingCharacters(in: .whitespaces)
+            if let price = updated.storedCurrency.minorUnits(fromInput: priceText) {
+                updated.price = price
+                updated.priceAtRegistration = price
             }
         }
+
+        let cover: CoverImageUpdate
         if imageChanged {
-            book.coverImageData = selectedImage.flatMap { compressedImageData(from: $0) }
-            if book.coverImageData != nil, BookCoverImageURL.isRakutenPlaceholder(book.imageURL) {
-                book.imageURL = nil
+            let newCoverData = selectedImage.flatMap { compressedImageData(from: $0) }
+            cover = .replace(newCoverData)
+            updated.hasCoverImage = (newCoverData?.isEmpty == false)
+            if updated.hasCoverImage, BookCoverImageURL.isRakutenPlaceholder(updated.imageURL) {
+                updated.imageURL = nil
             }
+        } else {
+            cover = .unchanged
         }
-        
+
         // 登録日は未来日を許可しない（DatePicker でも制限しているが、旧データ含め保存時にも保証する）
-        book.registeredAt = min(registeredAt, Date())
+        updated.registeredAt = min(registeredAt, Date())
         if let id = selectedPassbookID {
-            book.passbook = PassbookModelLookup.fetch(id: id, context: context)
+            updated.passbookId = id
         }
-        book.updatedAt = Date()
-        
-        do {
-            try context.save()
+        updated.updatedAt = Date()
+
+        let toSave = updated
+        Task {
+            do {
+                // 表紙と書誌を1トランザクションで書く（レビュー S4-12）
+                try await repos.books.updateBook(toSave, cover: cover)
+            } catch RepositoryError.bookNotFound {
+                // 編集中に本が消えている＝書き戻す先が無い。シートを閉じるのが現行と同じ見え
+                // （「閉じてよいか」のUX判断はリポジトリではなくここが持つ・設計メモ 4.5節）
+                dismiss()
+                return
+            } catch {
+                // それ以外の失敗ではシートを閉じない（旧実装の do/catch と同じ・レビュー S4-17）
+                return
+            }
             dismiss()
-        } catch {
-            #if DEBUG
-            print("Error saving book: \(error)")
-            #endif
         }
     }
 }
 
 // MARK: - Preview
 
+// ※ 2つの #Preview が同一内容になっている件（source 差分が見えない）は
+//   設計メモ 8.3節-5(a) のとおりステップ6で是正する。ここでは DTO 化のみ行う。
 #Preview("手動登録の本") {
-    let descriptor = FetchDescriptor<UserBook>()
-    let book = (try? PreviewSupport.modelContainer.mainContext.fetch(descriptor))?.first
     Group {
-        if let book {
+        if let book = PreviewSupport.firstBook() {
             EditBookView(book: book)
         } else {
             Text("No preview book")
@@ -603,10 +653,8 @@ struct EditBookView: View {
 }
 
 #Preview("API取得の本") {
-    let descriptor = FetchDescriptor<UserBook>()
-    let book = (try? PreviewSupport.modelContainer.mainContext.fetch(descriptor))?.first
     Group {
-        if let book {
+        if let book = PreviewSupport.firstBook() {
             EditBookView(book: book)
         } else {
             Text("No preview book")

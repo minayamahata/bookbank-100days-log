@@ -6,14 +6,26 @@ import SwiftData
 final class SwiftDataPassbookRepository: PassbookRepository {
     private let context: ModelContext
     private let pulse: RepositoryChangePulse
+    /// 所属本の削除を `BookRepository` の削除セマンティクスへ委譲するための参照（設計メモ 4.4節）
+    private let books: SwiftDataBookRepository
     private let logger = Logger(
         subsystem: Bundle.main.bundleIdentifier ?? "BookBank",
         category: "PassbookRepository"
     )
 
-    init(context: ModelContext, pulse: RepositoryChangePulse) {
+    /// 直近に fetch した口座一覧の同期スナップショット。
+    ///
+    /// `.task` でのストリーム購読は最初の body 評価より後に走るため、口座色を解決する画面は
+    /// 初回フレームだけ色が出ない（ステップ3で `@Model` フォールバックにより回避していた挙動）。
+    /// ステップ4で `@Model` を View から外すにあたり、その役目をこのスナップショットへ移す。
+    /// - Important: `LocalCoverDataCache` と同じく **R4（SwiftData期）限定の暫定配置**であり、
+    ///   R6のスナップショットリスナー実装では同期読みできないため解体が要る（設計メモ 4.6節）。
+    private(set) var latestSnapshot: [PassbookDTO] = []
+
+    init(context: ModelContext, pulse: RepositoryChangePulse, books: SwiftDataBookRepository) {
         self.context = context
         self.pulse = pulse
+        self.books = books
     }
 
     func observePassbooks() -> AsyncStream<[PassbookDTO]> {
@@ -49,13 +61,14 @@ final class SwiftDataPassbookRepository: PassbookRepository {
 
     func deletePassbook(id: String) async throws {
         guard let model = try find(id: id) else { return }
-        // 所属本を明示削除してから口座を削除（設計メモ 4.4節）
-        let books = model.userBooks
-        for book in books {
-            context.delete(book)
-        }
+        // 所属本を明示削除してから口座を削除（設計メモ 4.4節）。
+        // 削除手順は `deleteBook` と同一のものを再利用し、所属リストの bookIds も掃除する
+        // （ステップ3時点の非対称の解消・設計メモ 4.4節の申し送り）。
+        let deletedBookIds = try books.deleteBooks(model.userBooks)
         context.delete(model)
         try saveAndNotify()
+        // 表紙キャッシュは永続化成功後にのみ捨てる（レビュー S4-1）
+        books.invalidateCoverCache(ids: deletedBookIds)
     }
 
     // MARK: - Private
@@ -65,7 +78,9 @@ final class SwiftDataPassbookRepository: PassbookRepository {
             sortBy: [SortDescriptor(\.sortOrder, order: .forward)]
         )
         let models = (try? context.fetch(descriptor)) ?? []
-        return models.map(ModelDTOMapping.passbookDTO(from:))
+        let dtos = models.map(ModelDTOMapping.passbookDTO(from:))
+        latestSnapshot = dtos
+        return dtos
     }
 
     private func find(id: String) throws -> Passbook? {

@@ -31,9 +31,10 @@ final class AppRepositories {
     convenience init(container: ModelContainer) {
         let pulse = RepositoryChangePulse()
         let context = container.mainContext
+        let books = SwiftDataBookRepository(context: context, pulse: pulse)
         self.init(
-            passbooks: SwiftDataPassbookRepository(context: context, pulse: pulse),
-            books: SwiftDataBookRepository(context: context, pulse: pulse),
+            passbooks: SwiftDataPassbookRepository(context: context, pulse: pulse, books: books),
+            books: books,
             readingLists: SwiftDataReadingListRepository(context: context, pulse: pulse),
             monthlyMemos: SwiftDataMonthlyMemoRepository(context: context, pulse: pulse),
             pulse: pulse

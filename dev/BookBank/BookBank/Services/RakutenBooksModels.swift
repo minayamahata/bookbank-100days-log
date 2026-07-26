@@ -278,12 +278,17 @@ struct RakutenBookSearchItemDetail: Codable {
     let size: String?
 }
 
-// MARK: - UserBookへの変換
+// MARK: - BookDTOへの変換
 
 extension RakutenBook {
-    /// RakutenBookからUserBookを生成
-    func toUserBook(passbook: Passbook, coverImageData: Data? = nil) -> UserBook {
-        UserBook(
+    /// RakutenBookから登録用の `BookDTO` を生成（R4ステップ4: 旧 `toUserBook` の置き換え）
+    ///
+    /// 日時・uuid・`priceAtRegistration` は旧 `UserBook.init` と同じ規則で採番する
+    /// （登録日時＝生成時刻、登録時価格＝定価のコピー）。
+    func toBookDTO(passbookId: String?) -> BookDTO {
+        let now = Date()
+        return BookDTO(
+            id: UUID().uuidString,
             title: title,
             author: author.isEmpty ? nil : author,
             isbn: isbn.isEmpty ? nil : isbn,
@@ -292,15 +297,21 @@ extension RakutenBook {
             seriesName: seriesName,
             price: itemPrice,
             imageURL: BookCoverImageURL.normalized(largeImageUrl ?? mediumImageUrl),
-            coverImageData: coverImageData,
             bookFormat: displayFormat,
             pageCount: extractPageCount(),
             source: .api,
-            passbook: passbook,
-            currencyCode: AppCurrency(code: sourceCurrencyCode)?.code ?? AppCurrency.jpy.code
+            memo: nil,
+            isFavorite: false,
+            priceAtRegistration: itemPrice,
+            currencyCode: AppCurrency(code: sourceCurrencyCode)?.code ?? AppCurrency.jpy.code,
+            registeredAt: now,
+            createdAt: now,
+            updatedAt: now,
+            passbookId: passbookId,
+            hasCoverImage: false
         )
     }
-    
+
     /// itemCaptionからページ数を抽出（例：「320ページ」から320を抽出）
     private func extractPageCount() -> Int? {
         let pattern = "(\\d+)ページ"

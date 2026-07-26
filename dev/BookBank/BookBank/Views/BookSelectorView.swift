@@ -23,35 +23,37 @@ struct BookSelectorView: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(AppRepositories.self) private var repos
     
-    // MARK: - SwiftData Query / State
-    
-    /// すべての本を取得（登録日順）
-    @Query(sort: \UserBook.registeredAt, order: .reverse) private var allBooks: [UserBook]
-    
+    // MARK: - Repository Streams / State
+
+    /// すべての本（リポジトリストリーム・登録日降順）。
+    /// 初回yield前は同期スナップショットで補い、空状態UIが1フレーム瞬くのを防ぐ
+    @State private var loadedBooks: [BookDTO]?
+    private var allBooks: [BookDTO] { loadedBooks ?? repos.books.latestSnapshot }
+
     /// すべての口座（リポジトリストリーム）
     @State private var passbooks: [PassbookDTO] = []
-    
+
     // MARK: - State
-    
-    /// 選択された本のID
-    @State private var selectedBookIDs: Set<PersistentIdentifier> = []
-    
+
+    /// 選択された本のID（uuid・設計メモ 5.4節）
+    @State private var selectedBookIDs: Set<String> = []
+
     /// 現在選択中の口座インデックス
     @State private var selectedPassbookIndex: Int = 0
-    
+
     /// 既にリストに含まれている本のID
-    private var existingBookIDs: Set<PersistentIdentifier> {
-        Set(readingList.books.map { $0.persistentModelID })
+    private var existingBookIDs: Set<String> {
+        Set(readingList.books.map { $0.uuid })
     }
-    
+
     /// アクティブな口座のみ
     private var activePassbooks: [PassbookDTO] {
         passbooks.filter { $0.type == .custom && $0.isActive }
     }
-    
+
     /// 指定した口座の本を取得
-    private func books(for passbook: PassbookDTO) -> [UserBook] {
-        allBooks.filter { $0.passbook?.uuid == passbook.id }
+    private func books(for passbook: PassbookDTO) -> [BookDTO] {
+        allBooks.filter { $0.passbookId == passbook.id }
     }
     
     // MARK: - Body
@@ -96,6 +98,11 @@ struct BookSelectorView: View {
             .task {
                 for await value in repos.passbooks.observePassbooks() {
                     passbooks = value
+                }
+            }
+            .task {
+                for await value in repos.books.observeBooks() {
+                    loadedBooks = value
                 }
             }
         }
@@ -226,41 +233,43 @@ struct BookSelectorView: View {
     }
     
     /// 選択可能な本の行
-    private func selectableBookRow(book: UserBook, themeColor: Color) -> some View {
-        let isAlreadyInList = existingBookIDs.contains(book.persistentModelID)
-        let isSelected = selectedBookIDs.contains(book.persistentModelID)
-        
+    private func selectableBookRow(book: BookDTO, themeColor: Color) -> some View {
+        let isAlreadyInList = existingBookIDs.contains(book.id)
+        let isSelected = selectedBookIDs.contains(book.id)
+
         return Button(action: {
             if isAlreadyInList { return }
-            
+
             if isSelected {
-                selectedBookIDs.remove(book.persistentModelID)
+                selectedBookIDs.remove(book.id)
             } else {
-                selectedBookIDs.insert(book.persistentModelID)
+                selectedBookIDs.insert(book.id)
             }
         }) {
             HStack(spacing: 12) {
                 // 本の表紙
-                if let coverImage = book.coverUIImage {
-                    Image(uiImage: coverImage)
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(width: 47, height: 70)
-                        .clipShape(RoundedRectangle(cornerRadius: 2))
-                } else if let imageURL = book.coverImageURL,
-                   let url = URL(string: imageURL) {
-                    CachedAsyncImage(url: url, width: 47, height: 70)
-                        .clipShape(RoundedRectangle(cornerRadius: 2))
-                } else {
-                    Rectangle()
-                        .fill(Color.gray.opacity(0.2))
-                        .frame(width: 47, height: 70)
-                        .clipShape(RoundedRectangle(cornerRadius: 2))
-                        .overlay {
-                            Image(systemName: "book.closed")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
+                LocalCoverImage(book: book) { coverImage in
+                    if let coverImage {
+                        Image(uiImage: coverImage)
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                            .frame(width: 47, height: 70)
+                            .clipShape(RoundedRectangle(cornerRadius: 2))
+                    } else if let imageURL = book.coverImageURL,
+                       let url = URL(string: imageURL) {
+                        CachedAsyncImage(url: url, width: 47, height: 70)
+                            .clipShape(RoundedRectangle(cornerRadius: 2))
+                    } else {
+                        Rectangle()
+                            .fill(Color.gray.opacity(0.2))
+                            .frame(width: 47, height: 70)
+                            .clipShape(RoundedRectangle(cornerRadius: 2))
+                            .overlay {
+                                Image(systemName: "book.closed")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                    }
                 }
                 
                 // 本の情報
@@ -327,17 +336,20 @@ struct BookSelectorView: View {
     // MARK: - Actions
     
     private func addSelectedBooks() {
-        let booksToAdd = allBooks.filter { selectedBookIDs.contains($0.persistentModelID) }
+        // ReadingList.books（SwiftDataリレーション）への追記はステップ5まで @Model が要る。
+        // 表示順（allBooks の正準ソート順）を保ったまま uuid → @Model を解決する。
+        let idsToAdd = allBooks.map(\.id).filter { selectedBookIDs.contains($0) }
+        let booksToAdd = BookModelLookup.fetch(ids: idsToAdd, context: context)
         let currentOrdered = readingList.orderedBooks
-        
+
         for book in booksToAdd {
-            if !readingList.books.contains(where: { $0.persistentModelID == book.persistentModelID }) {
+            if !readingList.books.contains(where: { $0.uuid == book.uuid }) {
                 readingList.books.append(book)
             }
         }
-        
+
         let newOrder = currentOrdered + booksToAdd.filter { newBook in
-            !currentOrdered.contains(where: { $0.persistentModelID == newBook.persistentModelID })
+            !currentOrdered.contains(where: { $0.uuid == newBook.uuid })
         }
         readingList.saveBookOrder(newOrder)
         readingList.updatedAt = Date()

@@ -10,8 +10,8 @@ import SwiftData
 
 /// 本棚グリッド用の本の表紙ビュー
 struct BookCoverView: View {
-    let book: UserBook
-    
+    let book: BookDTO
+
     /// メモがあるかどうか
     private var hasMemo: Bool {
         if let memo = book.memo, !memo.isEmpty {
@@ -19,28 +19,30 @@ struct BookCoverView: View {
         }
         return false
     }
-    
+
     var body: some View {
         GeometryReader { geometry in
             ZStack(alignment: .bottomTrailing) {
                 // 本の表紙
-                if let coverImage = book.coverUIImage {
-                    Image(uiImage: coverImage)
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(width: geometry.size.width, height: geometry.size.width * 1.5)
-                        .clipped()
-                } else if let imageURL = book.coverImageURL,
-                   let url = URL(string: imageURL) {
-                    CachedAsyncImage(
-                        url: url,
-                        width: geometry.size.width,
-                        height: geometry.size.width * 1.5
-                    )
-                } else {
-                    placeholderView(width: geometry.size.width)
+                LocalCoverImage(book: book) { coverImage in
+                    if let coverImage {
+                        Image(uiImage: coverImage)
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                            .frame(width: geometry.size.width, height: geometry.size.width * 1.5)
+                            .clipped()
+                    } else if let imageURL = book.coverImageURL,
+                       let url = URL(string: imageURL) {
+                        CachedAsyncImage(
+                            url: url,
+                            width: geometry.size.width,
+                            height: geometry.size.width * 1.5
+                        )
+                    } else {
+                        placeholderView(width: geometry.size.width)
+                    }
                 }
-                
+
                 // アイコンバッジ（お気に入り・メモ）
                 if book.isFavorite || hasMemo {
                     HStack(spacing: 2) {
@@ -95,10 +97,8 @@ struct BookCoverView: View {
 }
 
 #Preview {
-    let descriptor = FetchDescriptor<UserBook>()
-    let book = (try? PreviewSupport.modelContainer.mainContext.fetch(descriptor))?.first
     Group {
-        if let book {
+        if let book = PreviewSupport.firstBook() {
             BookCoverView(book: book)
                 .frame(width: 100)
         } else {

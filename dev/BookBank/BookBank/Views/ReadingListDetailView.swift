@@ -500,7 +500,7 @@ struct ReadingListDetailView: View {
     // MARK: - Book Row
     
     private func bookRow(book: UserBook) -> some View {
-        NavigationLink(destination: UserBookDetailView(book: book)) {
+        NavigationLink(destination: UserBookDetailView(book: detailDTO(for: book))) {
             HStack(alignment: .center, spacing: 12) {
                 // 本の表紙
                 if let coverImage = book.coverUIImage {
@@ -543,7 +543,7 @@ struct ReadingListDetailView: View {
                 
                 // 金額
                 if book.priceAtRegistration != nil {
-                    BookPriceText(book: book, font: .subheadline, fontWeight: .medium)
+                    BookPriceText(book: ModelDTOMapping.bookDTO(from: book), font: .subheadline, fontWeight: .medium)
                         .foregroundColor(themeColor)
                 }
             }
@@ -568,7 +568,7 @@ struct ReadingListDetailView: View {
     // MARK: - Book Cover
     
     private func bookCover(book: UserBook) -> some View {
-        NavigationLink(destination: UserBookDetailView(book: book)) {
+        NavigationLink(destination: UserBookDetailView(book: detailDTO(for: book))) {
             GeometryReader { geometry in
                 ZStack(alignment: .topTrailing) {
                     // 本の表紙
@@ -612,7 +612,20 @@ struct ReadingListDetailView: View {
     }
     
     // MARK: - Actions
-    
+
+    /// 書籍詳細へ渡すDTO（ステップ5までのハイブリッド境界）。
+    ///
+    /// この画面は `observeBooks()` を購読していないため `LocalCoverDataCache` が未プライムで、
+    /// 遷移先の `LocalCoverImage` が同期ヒットできず表紙が1フレーム出ない。
+    /// 当該idの表紙だけをここで同期投入して経路を塞ぐ（レビュー S4-14）。
+    /// ステップ5で `ReadingListDTO.books` に置き換わればこの関数ごと不要になる。
+    private func detailDTO(for book: UserBook) -> BookDTO {
+        if let data = book.coverImageData, !data.isEmpty {
+            LocalCoverDataCache.shared.setDataIfAbsent(data, for: book.uuid)
+        }
+        return ModelDTOMapping.bookDTO(from: book)
+    }
+
     private func removeBookFromList(_ book: UserBook) {
         readingList.books.removeAll { $0.persistentModelID == book.persistentModelID }
         readingList.saveBookOrder(readingList.books)
@@ -1535,7 +1548,7 @@ struct SharePreviewSheet: View {
             
             // 金額
             if book.priceAtRegistration != nil {
-                BookPriceText(book: book, font: .subheadline, fontWeight: .medium)
+                BookPriceText(book: ModelDTOMapping.bookDTO(from: book), font: .subheadline, fontWeight: .medium)
                     .foregroundColor(themeColor)
             }
         }

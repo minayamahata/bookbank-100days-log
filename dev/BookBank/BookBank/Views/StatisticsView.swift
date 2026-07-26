@@ -34,9 +34,10 @@ struct StatisticsView: View {
     /// 表示対象の口座（nilの場合は総合口座）
     let passbook: PassbookDTO?
     
-    // MARK: - SwiftData Query / State
-    
-    @Query private var allUserBooks: [UserBook]
+    // MARK: - Repository Streams / State
+
+    @State private var loadedUserBooks: [BookDTO]?
+    private var allUserBooks: [BookDTO] { loadedUserBooks ?? repos.books.latestSnapshot }
     @State private var allPassbooks: [PassbookDTO] = []
     
     // MARK: - State
@@ -76,9 +77,9 @@ struct StatisticsView: View {
     }
     
     /// 対象口座の書籍（口座指定がない場合は全書籍）
-    private var targetBooks: [UserBook] {
+    private var targetBooks: [BookDTO] {
         if let passbook = passbook {
-            return allUserBooks.filter { $0.passbook?.uuid == passbook.id }
+            return allUserBooks.filter { $0.passbookId == passbook.id }
         }
         return allUserBooks
     }
@@ -237,6 +238,11 @@ struct StatisticsView: View {
                 allPassbooks = value
             }
         }
+        .task {
+            for await value in repos.books.observeBooks() {
+                loadedUserBooks = value
+            }
+        }
     }
 
     /// 選択中の年が availableYears から外れた場合（その年の本が全削除された等）に、
@@ -275,7 +281,7 @@ struct StatisticsView: View {
 struct YearlyChartContent: View {
     let year: Int
     let passbook: PassbookDTO?
-    let targetBooks: [UserBook]
+    let targetBooks: [BookDTO]
     let themeColor: Color
     let displayCurrency: AppCurrency
     let exchangeRates: ExchangeRateService
@@ -284,7 +290,7 @@ struct YearlyChartContent: View {
     // MARK: - Year-specific Computed Properties
     
     /// 指定年の書籍
-    private var booksInYear: [UserBook] {
+    private var booksInYear: [BookDTO] {
         let calendar = Calendar.current
         return targetBooks.filter { book in
             calendar.component(.year, from: book.registeredAt) == year

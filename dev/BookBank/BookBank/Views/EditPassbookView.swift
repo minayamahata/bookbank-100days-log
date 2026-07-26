@@ -40,11 +40,12 @@ struct EditPassbookView: View {
     @State private var originalColorIndex: Int = 0
     @State private var originalCustomColorHex: String? = nil
     
-    // この口座の本の数を取得（UserBook は Step4 まで @Query）
-    @Query private var allBooks: [UserBook]
-    
-    private var passbookBooks: [UserBook] {
-        allBooks.filter { $0.passbook?.uuid == passbook.id }
+    /// すべての書籍（リポジトリストリーム）
+    @State private var loadedBooks: [BookDTO]?
+    private var allBooks: [BookDTO] { loadedBooks ?? repos.books.latestSnapshot }
+
+    private var passbookBooks: [BookDTO] {
+        allBooks.filter { $0.passbookId == passbook.id }
     }
     
     private var bookCount: Int {
@@ -392,9 +393,14 @@ struct EditPassbookView: View {
                     }
                 }
             }
+            .task {
+                for await value in repos.books.observeBooks() {
+                    loadedBooks = value
+                }
+            }
         }
     }
-    
+
     private func prepareExport(type: ExportType) {
         let formatting = ExportFormattingContext(
             displayCurrency: currencyManager.displayCurrency,

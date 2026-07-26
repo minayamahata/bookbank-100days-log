@@ -49,7 +49,7 @@ struct ExportFormattingContext {
 @MainActor
 func generatePassbookMarkdown(
     passbook: PassbookDTO,
-    books: [UserBook],
+    books: [BookDTO],
     exportType: ExportType,
     formatting: ExportFormattingContext
 ) -> String {

@@ -56,6 +56,14 @@ enum PreviewSupport {
         let passbooks = (try? modelContainer.mainContext.fetch(descriptor)) ?? []
         return passbooks.first { $0.name == name }.map(ModelDTOMapping.passbookDTO(from:))
     }
+
+    /// プレビュー用の書籍DTO（R4ステップ4: 各 `#Preview` の `@Model` fetch を置き換える）
+    @MainActor
+    static func firstBook() -> BookDTO? {
+        let descriptor = FetchDescriptor<UserBook>()
+        let books = (try? modelContainer.mainContext.fetch(descriptor)) ?? []
+        return books.first.map(ModelDTOMapping.bookDTO(from:))
+    }
 }
 
 extension View {

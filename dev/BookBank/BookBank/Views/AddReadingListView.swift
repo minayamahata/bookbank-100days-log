@@ -15,9 +15,15 @@ struct AddReadingListView: View {
     
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
+    @Environment(AppRepositories.self) private var repos
+    // ReadingList はステップ5で切替（ここでは UserBook のみリポジトリ経由へ）
     @Query private var existingLists: [ReadingList]
-    @Query private var allBooks: [UserBook]
-    
+    /// すべての書籍（リポジトリストリーム）。用途は `.isEmpty` のみで順序に依存しない
+    @State private var loadedBooks: [BookDTO]?
+    private var allBooks: [BookDTO] { loadedBooks ?? repos.books.latestSnapshot }
+    /// デフォルトタイトルを初回yieldでのみ適用するためのフラグ（レビュー S4-7）
+    @State private var hasResolvedDefaultTitle = false
+
     @State private var title: String = ""
     @State private var showError: Bool = false
     @State private var createdList: ReadingList?
@@ -122,11 +128,20 @@ struct AddReadingListView: View {
                 Spacer()
             }
         }
-        .onAppear {
-            guard !allBooks.isEmpty else { return }
-            title = defaultTitle
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                isFocused = true
+        .task {
+            for await value in repos.books.observeBooks() {
+                loadedBooks = value
+                // デフォルトタイトルの決定は初回yield時に1回だけ行う（ステップ3 #1 と同形・レビュー S4-7）。
+                // `.onAppear` に置くとストリーム未到達の初回フレームでは本が0件に見え、
+                // タイトルもフォーカスも設定されないまま終わる
+                if !hasResolvedDefaultTitle {
+                    hasResolvedDefaultTitle = true
+                    guard !value.isEmpty else { continue }
+                    title = defaultTitle
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        isFocused = true
+                    }
+                }
             }
         }
         .alert("common.error", isPresented: $showError) {

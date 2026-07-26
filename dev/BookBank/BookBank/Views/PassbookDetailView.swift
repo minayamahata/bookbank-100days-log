@@ -41,7 +41,7 @@ struct PassbookDetailView: View {
     @State private var contentTopInset: CGFloat = 0
     @State private var safeAreaTopInset: CGFloat = 0
     @State private var locksRowNavigation = false
-    @State private var selectedBook: UserBook?
+    @State private var selectedBook: BookDTO?
 
     /// 総合口座サマリーカードの背景画像インデックス（タップで順送り・端末に保存）
     @AppStorage("overallSummaryBackgroundIndex") private var overallBackgroundIndex = 0
@@ -79,19 +79,21 @@ struct PassbookDetailView: View {
         max(safeAreaTopInset - 0, 4)
     }
     
-    // MARK: - SwiftData Query
-    
+    // MARK: - Repository Streams
+
     /// すべての口座（リポジトリのストリーム購読・sortOrder順）
     @State private var allPassbooks: [PassbookDTO] = []
-    
-    /// この口座に紐づく書籍を取得
-    @Query private var allUserBooks: [UserBook]
-    
+
+    /// すべての書籍（リポジトリのストリーム購読）。
+    /// 正準ソートは registeredAt 降順＋createdAt 降順で、旧 `@Query` の指定と完全一致する（C-4 維持）
+    @State private var loadedUserBooks: [BookDTO]?
+    private var allUserBooks: [BookDTO] { loadedUserBooks ?? repos.books.latestSnapshot }
+
     /// この口座に紐づく書籍のみをフィルタリング
-    private var userBooks: [UserBook] {
+    private var userBooks: [BookDTO] {
         if let passbook {
             return allUserBooks.filter { book in
-                book.passbook?.uuid == passbook.id
+                book.passbookId == passbook.id
             }
         }
         return allUserBooks
@@ -180,12 +182,8 @@ struct PassbookDetailView: View {
     
     init(passbook: PassbookDTO?) {
         self.passbook = passbook
-        // registeredAt の降順でソート（新しい本が上に表示される）
-        // 第2キー createdAt で、registeredAt が同秒のときの並びを安定化
-        _allUserBooks = Query(sort: [
-            SortDescriptor(\UserBook.registeredAt, order: .reverse),
-            SortDescriptor(\UserBook.createdAt, order: .reverse)
-        ])
+        // 並びは `BookRepository` の正準ソート（registeredAt 降順＋createdAt 降順）が担う。
+        // 旧 @Query の sort 指定と同一のため、C-4（同秒登録時の並び安定）は維持される。
     }
     
     // MARK: - Body
@@ -279,6 +277,11 @@ struct PassbookDetailView: View {
         .task {
             for await value in repos.passbooks.observePassbooks() {
                 allPassbooks = value
+            }
+        }
+        .task {
+            for await value in repos.books.observeBooks() {
+                loadedUserBooks = value
             }
         }
         .id(passbook?.id ?? "overall")
@@ -651,9 +654,9 @@ struct PassbookDetailView: View {
     // MARK: - List Content
 
     @ViewBuilder
-    private func passbookBookCover(for book: UserBook) -> some View {
-        Group {
-            if let coverImage = book.coverUIImage {
+    private func passbookBookCover(for book: BookDTO) -> some View {
+        LocalCoverImage(book: book) { coverImage in
+            if let coverImage {
                 Image(uiImage: coverImage)
                     .resizable()
                     .aspectRatio(contentMode: .fill)
@@ -676,10 +679,10 @@ struct PassbookDetailView: View {
         }
         .frame(width: 47, height: 70)
         .clipShape(RoundedRectangle(cornerRadius: 2))
-        .id(book.persistentModelID)
+        .id(book.id)
     }
 
-    private func passbookDepositRow(for book: UserBook, index: Int) -> some View {
+    private func passbookDepositRow(for book: BookDTO, index: Int) -> some View {
         HStack(alignment: .top, spacing: 12) {
             passbookBookCover(for: book)
 
@@ -731,14 +734,27 @@ struct PassbookDetailView: View {
         .overlay(listRowGlassBorder())
     }
     
+    /// 書籍ストリームの初回値を受け取ったか（レビュー S4-2・`MainTabView.emptyStateView` と同パターン）
+    private var hasLoadedUserBooks: Bool {
+        loadedUserBooks != nil || !repos.books.latestSnapshot.isEmpty
+    }
+
     private var listContent: some View {
         LazyVStack(spacing: 6) {
             if userBooks.isEmpty {
-                Text("passbook.recent_books_prompt")
-                    .font(.body)
-                    .foregroundColor(.secondary)
-                    .frame(maxWidth: .infinity)
-                    .padding()
+                if hasLoadedUserBooks {
+                    Text("passbook.recent_books_prompt")
+                        .font(.body)
+                        .foregroundColor(.secondary)
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                } else {
+                    // 未受信の1フレーム: 空状態を出さず、同じ場所を占有してレイアウトを保つ
+                    Color.clear
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 0)
+                        .padding()
+                }
             } else {
                 ForEach(Array(userBooks.enumerated()), id: \.element.id) { index, book in
                     Button {

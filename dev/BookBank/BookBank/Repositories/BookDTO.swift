@@ -1,7 +1,7 @@
 import Foundation
 
 /// 書籍のView向けDTO（設計メモ 3.3節）。`coverImageData` は含めない（前提4）。
-struct BookDTO: Identifiable, Equatable, Sendable {
+struct BookDTO: Identifiable, Equatable, Hashable, Sendable {
     let id: String
     var title: String
     var author: String?

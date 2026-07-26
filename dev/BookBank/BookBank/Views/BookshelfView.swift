@@ -28,10 +28,12 @@ struct BookshelfView: View {
     
     /// すべての口座（リポジトリストリーム）
     @State private var allPassbooks: [PassbookDTO] = []
-    
-    /// この口座に紐づく書籍を取得
-    @Query private var allUserBooks: [UserBook]
-    
+
+    /// すべての書籍（リポジトリストリーム・registeredAt 降順＋createdAt 降順の正準ソート）。
+    /// 初回yield前は同期スナップショットで補い、空状態UIが1フレーム瞬くのを防ぐ（設計メモ 5.1節）
+    @State private var loadedUserBooks: [BookDTO]?
+    private var allUserBooks: [BookDTO] { loadedUserBooks ?? repos.books.latestSnapshot }
+
     // MARK: - State
     
     /// お気に入りフィルター
@@ -68,17 +70,17 @@ struct BookshelfView: View {
     }
     
     /// 口座に紐づく書籍（総合口座の場合は全書籍）
-    private var passbookBooks: [UserBook] {
+    private var passbookBooks: [BookDTO] {
         if let passbook {
             return allUserBooks.filter { book in
-                book.passbook?.uuid == passbook.id
+                book.passbookId == passbook.id
             }
         }
         return allUserBooks
     }
-    
+
     /// フィルター適用後の書籍
-    private var userBooks: [UserBook] {
+    private var userBooks: [BookDTO] {
         var books = passbookBooks
         
         // お気に入りフィルター
@@ -214,8 +216,6 @@ struct BookshelfView: View {
         _showWithMemoOnly = State(initialValue: false)
         _showCalendarView = State(initialValue: startsWithCalendarView)
         _monthlyMemoTarget = State(initialValue: nil)
-        // registeredAt の降順でソート（新しい本が上に表示される）
-        _allUserBooks = Query(sort: \UserBook.registeredAt, order: .reverse)
     }
     
     // MARK: - Body
@@ -258,6 +258,11 @@ struct BookshelfView: View {
         .task {
             for await value in repos.passbooks.observePassbooks() {
                 allPassbooks = value
+            }
+        }
+        .task {
+            for await value in repos.books.observeBooks() {
+                loadedUserBooks = value
             }
         }
         .background {
@@ -544,12 +549,19 @@ struct BookshelfView: View {
     
     // MARK: - Grid Content
     
+    /// 書籍ストリームの初回値を受け取ったか。
+    /// コールドスタートで `latestSnapshot` もまだ空の1フレームに空状態が瞬くのを防ぐ
+    /// （`MainTabView.emptyStateView` と同じパターン・設計メモ 5.1節／レビュー S4-2）
+    private var hasLoadedUserBooks: Bool {
+        loadedUserBooks != nil || !repos.books.latestSnapshot.isEmpty
+    }
+
     private var gridContent: some View {
         Group {
             if userBooks.isEmpty {
                 if isShelfSearchActive {
                     searchEmptyState
-                } else {
+                } else if hasLoadedUserBooks {
                     VStack(spacing: 8) {
                         Text("bookshelf.register_prompt")
                             .font(.body)
@@ -557,6 +569,13 @@ struct BookshelfView: View {
                     }
                     .frame(maxWidth: .infinity)
                     .padding()
+                } else {
+                    // 未受信の1フレーム: 空状態を出さず、レイアウトが潰れないよう同じ場所を占有する
+                    // （ステップ3レビュー6章のレイアウト1フレーム潰れの再発防止）
+                    Color.clear
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 0)
+                        .padding()
                 }
             } else {
                 LazyVGrid(columns: columns, spacing: 10) {
