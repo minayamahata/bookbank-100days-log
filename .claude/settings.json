@@ -3,7 +3,10 @@
     "allow": [
       "Bash(xcodebuild -project BookBank.xcodeproj -scheme BookBank -destination 'platform=iOS Simulator,name=iPhone 17' test)",
       "Bash(sed -n '/let toSave = updated/,/^    }/p' Views/EditBookView.swift)",
-      "Bash(sed -n '/private func deleteBook/,/^    }/p' Views/UserBookDetailView.swift)"
+      "Bash(sed -n '/private func deleteBook/,/^    }/p' Views/UserBookDetailView.swift)",
+      "Bash(sed -n '/func deletePassbook/,/^    }/p' Repositories/SwiftDataPassbookRepository.swift)",
+      "Bash(sed -n '/func deleteBooks/,/return ids/p' Repositories/SwiftDataBookRepository.swift)",
+      "Bash(sed -n '/^enum RepositoryError/,/^}/p' Repositories/RepositoryProtocols.swift)"
     ]
   }
 }
