@@ -160,10 +160,12 @@ struct AddReadingListView: View {
                 finishCreation()
             }
         }) {
-            if let draft = draftList {
-                BookSelectorView(listTitle: draft.title, existingBookIds: []) { picked in
-                    pendingBooks = picked
-                }
+            // 表示内容を `draftList` の Optional 束縛で包まないこと。
+            // 包むと、提示のきっかけと `draftList` の反映がずれた瞬間に中身が空になり、
+            // 全画面が真っ白なまま残る（再レイアウトが起きるまで復帰しない）。
+            // ヘッダーに要るのはタイトルだけなので、常に値のある `title` を直接渡す
+            BookSelectorView(listTitle: title, existingBookIds: []) { picked in
+                pendingBooks = picked
             }
         }
     }
