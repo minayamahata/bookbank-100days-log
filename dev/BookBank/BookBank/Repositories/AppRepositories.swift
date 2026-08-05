@@ -35,7 +35,7 @@ final class AppRepositories {
         self.init(
             passbooks: SwiftDataPassbookRepository(context: context, pulse: pulse, books: books),
             books: books,
-            readingLists: SwiftDataReadingListRepository(context: context, pulse: pulse),
+            readingLists: SwiftDataReadingListRepository(context: context, pulse: pulse, books: books),
             monthlyMemos: SwiftDataMonthlyMemoRepository(context: context, pulse: pulse),
             pulse: pulse
         )

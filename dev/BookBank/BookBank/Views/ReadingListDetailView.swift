@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-import SwiftData
 import UniformTypeIdentifiers
 
 /// 読了リスト詳細画面
@@ -14,14 +13,22 @@ struct ReadingListDetailView: View {
     
     // MARK: - Properties
     
-    /// 表示対象のリスト
-    @Bindable var readingList: ReadingList
+    /// 遷移時に受け取ったリスト（初期値）。以後は id でストリームから解決し直す
+    let initialList: ReadingListDTO
+
+    /// 現在値。値型のコピーなので、表示中に元レコードが削除されても読み取りは安全（設計メモ 8.4節）
+    @State private var readingList: ReadingListDTO
+
+    init(list: ReadingListDTO) {
+        self.initialList = list
+        _readingList = State(initialValue: list)
+    }
     
     // MARK: - Environment
     
-    @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(AppRepositories.self) private var repos
     @Environment(CurrencyManager.self) private var currencyManager
     @Environment(ExchangeRateService.self) private var exchangeRates
     @Environment(LanguageManager.self) private var languageManager
@@ -35,7 +42,7 @@ struct ReadingListDetailView: View {
     
     @State private var showBookSelector = false
     @State private var showEditSheet = false
-    @State private var bookToRemove: UserBook?
+    @State private var bookToRemove: BookDTO?
     @State private var showRemoveAlert = false
     @State private var isReorderMode = false
     @State private var showMoreSheet = false
@@ -102,11 +109,25 @@ struct ReadingListDetailView: View {
             }
         }
         .navigationBarTitleDisplayMode(.inline)
+        .task(id: initialList.id) {
+            // SwiftUI が同一identityのViewを別のリストで再利用した場合に @State が
+            // 前のリストのまま残らないよう、購読前に必ず引数の値へ合わせる
+            if readingList.id != initialList.id { readingList = initialList }
+            for await lists in repos.readingLists.observeReadingLists() {
+                if let updated = lists.first(where: { $0.id == initialList.id }) {
+                    readingList = updated
+                }
+            }
+        }
         .sheet(isPresented: $showBookSelector) {
-            BookSelectorView(readingList: readingList)
+            BookSelectorView(
+                listTitle: readingList.title,
+                existingBookIds: Set(readingList.books.map(\.id)),
+                onAdd: addBooks
+            )
         }
         .sheet(isPresented: $showEditSheet) {
-            EditReadingListView(readingList: readingList)
+            EditReadingListView(list: readingList)
         }
         .sheet(isPresented: $showMoreSheet) {
             MoreActionsSheet(
@@ -185,7 +206,7 @@ struct ReadingListDetailView: View {
         }
         .tint(.primary)
         .fullScreenCover(isPresented: $isReorderMode) {
-            ReorderBooksView(readingList: readingList)
+            ReorderBooksView(list: readingList)
         }
         .sheet(isPresented: $showExportSheet) {
             ExportSheetView(
@@ -280,7 +301,7 @@ struct ReadingListDetailView: View {
                 .padding(.top, readingList.books.isEmpty ? 0 : 34)
             
             // 説明文
-            if let description = readingList.listDescription, !description.isEmpty {
+            if let description = readingList.description, !description.isEmpty {
                 Text(description)
                     .font(.subheadline)
                     .foregroundColor(.secondary)
@@ -290,7 +311,7 @@ struct ReadingListDetailView: View {
             HStack(alignment: .lastTextBaseline, spacing: 12) {
                 Spacer()
                 
-                BooksCountText(count: readingList.bookCount, font: .footnote)
+                BooksCountText(count: readingList.books.count, font: .footnote)
                     .foregroundColor(.secondary)
                 
                 DisplayCurrencyPriceText(
@@ -403,7 +424,7 @@ struct ReadingListDetailView: View {
     
     /// グリッドの高さを計算
     private var thumbnailGridHeight: CGFloat {
-        let books = Array(readingList.orderedBooks.prefix(10))
+        let books = Array(readingList.books.prefix(10))
         let totalRows = books.count > 5 ? 2 : 1
         let estimatedCellWidth: CGFloat = 60
         let cellHeight = estimatedCellWidth * 1.5
@@ -412,7 +433,7 @@ struct ReadingListDetailView: View {
     }
     
     private func thumbnailGridContent(width: CGFloat) -> some View {
-        let books = Array(readingList.orderedBooks.prefix(10))
+        let books = Array(readingList.books.prefix(10))
         let topRowBooks = Array(books.prefix(5))
         let bottomRowBooks = books.count > 5 ? Array(books.dropFirst(5)) : []
         let spacing: CGFloat = 4
@@ -424,20 +445,7 @@ struct ReadingListDetailView: View {
             // 上段（1〜5冊目）
             HStack(spacing: spacing) {
                 ForEach(topRowBooks) { book in
-                    if let coverImage = book.coverUIImage {
-                        Image(uiImage: coverImage)
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                            .frame(width: cellWidth, height: cellHeight)
-                            .clipShape(RoundedRectangle(cornerRadius: 2))
-                    } else if let imageURL = book.coverImageURL {
-                        CachedAsyncImage(
-                            url: URL(string: imageURL),
-                            width: cellWidth,
-                            height: cellHeight
-                        )
-                        .clipShape(RoundedRectangle(cornerRadius: 2))
-                    }
+                    thumbnailCell(book: book, width: cellWidth, height: cellHeight)
                 }
             }
             
@@ -445,23 +453,29 @@ struct ReadingListDetailView: View {
             if !bottomRowBooks.isEmpty {
                 HStack(spacing: spacing) {
                     ForEach(bottomRowBooks) { book in
-                        if let coverImage = book.coverUIImage {
-                            Image(uiImage: coverImage)
-                                .resizable()
-                                .aspectRatio(contentMode: .fill)
-                                .frame(width: cellWidth, height: cellHeight)
-                                .clipShape(RoundedRectangle(cornerRadius: 2))
-                        } else if let imageURL = book.coverImageURL {
-                            CachedAsyncImage(
-                                url: URL(string: imageURL),
-                                width: cellWidth,
-                                height: cellHeight
-                            )
-                            .clipShape(RoundedRectangle(cornerRadius: 2))
-                        }
+                        thumbnailCell(book: book, width: cellWidth, height: cellHeight)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+    }
+
+    private func thumbnailCell(book: BookDTO, width: CGFloat, height: CGFloat) -> some View {
+        LocalCoverImage(book: book) { coverImage in
+            if let coverImage {
+                Image(uiImage: coverImage)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: width, height: height)
+                    .clipShape(RoundedRectangle(cornerRadius: 2))
+            } else if let imageURL = book.coverImageURL {
+                CachedAsyncImage(
+                    url: URL(string: imageURL),
+                    width: width,
+                    height: height
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 2))
             }
         }
     }
@@ -486,7 +500,7 @@ struct ReadingListDetailView: View {
                 .padding(.vertical, 40)
             } else {
                 LazyVStack(spacing: 6) {
-                    ForEach(readingList.orderedBooks) { book in
+                    ForEach(readingList.books) { book in
                         bookRow(book: book)
                     }
                 }
@@ -499,29 +513,31 @@ struct ReadingListDetailView: View {
     
     // MARK: - Book Row
     
-    private func bookRow(book: UserBook) -> some View {
-        NavigationLink(destination: UserBookDetailView(book: detailDTO(for: book))) {
+    private func bookRow(book: BookDTO) -> some View {
+        NavigationLink(destination: UserBookDetailView(book: book)) {
             HStack(alignment: .center, spacing: 12) {
                 // 本の表紙
-                if let coverImage = book.coverUIImage {
-                    Image(uiImage: coverImage)
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(width: 47, height: 70)
-                        .clipShape(RoundedRectangle(cornerRadius: 2))
-                } else if let imageURL = book.coverImageURL,
-                   let url = URL(string: imageURL) {
-                    CachedAsyncImage(url: url, width: 47, height: 70)
-                        .clipShape(RoundedRectangle(cornerRadius: 2))
-                } else {
-                    RoundedRectangle(cornerRadius: 2)
-                        .fill(Color.gray.opacity(0.2))
-                        .frame(width: 47, height: 70)
-                        .overlay {
-                            Image(systemName: "book.closed")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
+                LocalCoverImage(book: book) { coverImage in
+                    if let coverImage {
+                        Image(uiImage: coverImage)
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                            .frame(width: 47, height: 70)
+                            .clipShape(RoundedRectangle(cornerRadius: 2))
+                    } else if let imageURL = book.coverImageURL,
+                       let url = URL(string: imageURL) {
+                        CachedAsyncImage(url: url, width: 47, height: 70)
+                            .clipShape(RoundedRectangle(cornerRadius: 2))
+                    } else {
+                        RoundedRectangle(cornerRadius: 2)
+                            .fill(Color.gray.opacity(0.2))
+                            .frame(width: 47, height: 70)
+                            .overlay {
+                                Image(systemName: "book.closed")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                    }
                 }
                 
                 // 本の情報
@@ -543,7 +559,7 @@ struct ReadingListDetailView: View {
                 
                 // 金額
                 if book.priceAtRegistration != nil {
-                    BookPriceText(book: ModelDTOMapping.bookDTO(from: book), font: .subheadline, fontWeight: .medium)
+                    BookPriceText(book: book, font: .subheadline, fontWeight: .medium)
                         .foregroundColor(themeColor)
                 }
             }
@@ -565,91 +581,60 @@ struct ReadingListDetailView: View {
         }
     }
     
-    // MARK: - Book Cover
-    
-    private func bookCover(book: UserBook) -> some View {
-        NavigationLink(destination: UserBookDetailView(book: detailDTO(for: book))) {
-            GeometryReader { geometry in
-                ZStack(alignment: .topTrailing) {
-                    // 本の表紙
-                    if let coverImage = book.coverUIImage {
-                        Image(uiImage: coverImage)
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                            .frame(width: geometry.size.width, height: geometry.size.width * 1.5)
-                            .clipped()
-                    } else if let imageURL = book.coverImageURL,
-                       let url = URL(string: imageURL) {
-                        CachedAsyncImage(
-                            url: url,
-                            width: geometry.size.width,
-                            height: geometry.size.width * 1.5
-                        )
-                    } else {
-                        Rectangle()
-                            .fill(Color.gray.opacity(0.2))
-                            .overlay {
-                                Image(systemName: "book.closed")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-                    }
-                }
-                .frame(width: geometry.size.width, height: geometry.size.width * 1.5)
-                .clipShape(RoundedRectangle(cornerRadius: 2))
-            }
-            .aspectRatio(2/3, contentMode: .fit)
-        }
-        .buttonStyle(.plain)
-        .contextMenu {
-            Button(role: .destructive) {
-                bookToRemove = book
-                showRemoveAlert = true
-            } label: {
-                Label("readinglist.remove.action", systemImage: "trash")
-            }
-        }
-    }
-    
     // MARK: - Actions
 
-    /// 書籍詳細へ渡すDTO（ステップ5までのハイブリッド境界）。
-    ///
-    /// この画面は `observeBooks()` を購読していないため `LocalCoverDataCache` が未プライムで、
-    /// 遷移先の `LocalCoverImage` が同期ヒットできず表紙が1フレーム出ない。
-    /// 当該idの表紙だけをここで同期投入して経路を塞ぐ（レビュー S4-14）。
-    /// ステップ5で `ReadingListDTO.books` に置き換わればこの関数ごと不要になる。
-    private func detailDTO(for book: UserBook) -> BookDTO {
-        if let data = book.coverImageData, !data.isEmpty {
-            LocalCoverDataCache.shared.setDataIfAbsent(data, for: book.uuid)
+    /// 本の追加。`BookSelectorView` から呼ばれ、失敗時は throw して向こうを閉じさせない
+    private func addBooks(_ newBooks: [BookDTO]) async throws {
+        let previous = readingList
+        let existing = Set(previous.books.map(\.id))
+        let merged = previous.books + newBooks.filter { !existing.contains($0.id) }
+        let updated = previous.replacingBooks(merged, updatedAt: Date())
+        readingList = updated
+        do {
+            try await repos.readingLists.updateReadingList(updated)
+        } catch {
+            rollback(optimistic: updated, previous: previous)
+            throw error
         }
-        return ModelDTOMapping.bookDTO(from: book)
     }
 
-    private func removeBookFromList(_ book: UserBook) {
-        readingList.books.removeAll { $0.persistentModelID == book.persistentModelID }
-        readingList.saveBookOrder(readingList.books)
-        readingList.updatedAt = Date()
-        
-        do {
-            try context.save()
-        } catch {
-            #if DEBUG
-            print("❌ Failed to remove book from list: \(error)")
-            #endif
+    private func removeBookFromList(_ book: BookDTO) {
+        let previous = readingList
+        let remaining = previous.books.filter { $0.id != book.id }
+        let updated = previous.replacingBooks(remaining, updatedAt: Date())
+        readingList = updated
+
+        Task {
+            do {
+                try await repos.readingLists.updateReadingList(updated)
+            } catch {
+                rollback(optimistic: updated, previous: previous)
+            }
+        }
+    }
+
+    /// 楽観更新の失敗時ロールバック（鮮度ガードつき・設計メモ 4.5節）。
+    /// 待っている間にストリームや別操作が新しい値を入れていたら踏み潰さない
+    private func rollback(optimistic: ReadingListDTO, previous: ReadingListDTO) {
+        if let value = OptimisticUpdate.rollbackValue(
+            current: readingList,
+            optimistic: optimistic,
+            previous: previous
+        ) {
+            readingList = value
         }
     }
     
     private func deleteReadingList() {
-        context.delete(readingList)
-        
-        do {
-            try context.save()
+        let id = readingList.id
+        Task {
+            do {
+                try await repos.readingLists.deleteReadingList(id: id)
+            } catch {
+                // 削除に失敗したら画面を閉じない（旧 do/catch と同じ意味論）
+                return
+            }
             dismiss()
-        } catch {
-            #if DEBUG
-            print("❌ Failed to delete reading list: \(error)")
-            #endif
         }
     }
     
@@ -662,11 +647,12 @@ struct ReadingListDetailView: View {
             in: displayCurrency,
             exchangeRates: exchangeRates
         )
+        let snapshot = readingList
 
         Task {
             do {
                 let url = try await ShareService.shared.shareReadingList(
-                    readingList,
+                    snapshot,
                     displayCurrency: displayCurrency,
                     totalValue: totalValue
                 )
@@ -704,9 +690,10 @@ struct ReadingListDetailView: View {
 
 /// リスト編集画面
 struct EditReadingListView: View {
-    @Bindable var readingList: ReadingList
-    @Environment(\.modelContext) private var context
+    let list: ReadingListDTO
+
     @Environment(\.dismiss) private var dismiss
+    @Environment(AppRepositories.self) private var repos
     @Environment(CurrencyManager.self) private var currencyManager
     @Environment(ExchangeRateService.self) private var exchangeRates
     @Environment(LanguageManager.self) private var languageManager
@@ -732,7 +719,7 @@ struct EditReadingListView: View {
 
     /// 表示通貨での合計金額
     private var displayTotalValue: Int {
-        readingList.books.totalDisplayAmount(in: currencyManager.displayCurrency, exchangeRates: exchangeRates)
+        list.books.totalDisplayAmount(in: currencyManager.displayCurrency, exchangeRates: exchangeRates)
     }
     
     var body: some View {
@@ -831,12 +818,12 @@ struct EditReadingListView: View {
                 }
             }
             .onAppear {
-                title = readingList.title
-                listDescription = String((readingList.listDescription ?? "").prefix(50))
-                selectedColorIndex = readingList.colorIndex ?? 0
-                originalTitle = readingList.title
-                originalDescription = String((readingList.listDescription ?? "").prefix(50))
-                originalColorIndex = readingList.colorIndex ?? 0
+                title = list.title
+                listDescription = String((list.description ?? "").prefix(50))
+                selectedColorIndex = list.colorIndex ?? 0
+                originalTitle = list.title
+                originalDescription = String((list.description ?? "").prefix(50))
+                originalColorIndex = list.colorIndex ?? 0
             }
             .alert("readinglist.delete.title", isPresented: $showDeleteAlert) {
                 Button("common.cancel", role: .cancel) {}
@@ -844,21 +831,21 @@ struct EditReadingListView: View {
                     deleteList()
                 }
             } message: {
-                Text(L10n.format("readinglist.delete.message", readingList.title))
+                Text(L10n.format("readinglist.delete.message", list.title))
             }
             .sheet(isPresented: $showExportSheet) {
                 ExportSheetView(
-                    title: readingList.title,
-                    bookCount: readingList.books.count,
+                    title: list.title,
+                    bookCount: list.books.count,
                     totalValue: displayTotalValue,
-                    sampleBooks: readingList.books.prefix(4).map { book in
+                    sampleBooks: list.books.prefix(4).map { book in
                         if let author = book.author, !author.isEmpty {
                             return "\(book.title) / \(author)"
                         } else {
                             return book.title
                         }
                     },
-                    sampleDetailedBook: readingList.books.first.map { book in
+                    sampleDetailedBook: list.books.first.map { book in
                         (
                             title: book.title,
                             author: book.author,
@@ -908,9 +895,9 @@ struct EditReadingListView: View {
             exchangeRates: exchangeRates,
             locale: languageManager.resolvedLocale
         )
-        let markdown = generateReadingListMarkdown(readingList: readingList, exportType: type, formatting: formatting)
+        let markdown = generateReadingListMarkdown(readingList: list, exportType: type, formatting: formatting)
         exportDocument = MarkdownDocument(text: markdown)
-        exportFileName = "\(readingList.title).md"
+        exportFileName = "\(list.title).md"
         showExporter = true
     }
     
@@ -919,30 +906,36 @@ struct EditReadingListView: View {
     }
     
     private func saveChanges() {
-        readingList.title = title
-        readingList.listDescription = listDescription.isEmpty ? nil : String(listDescription.prefix(50))
-        readingList.colorIndex = selectedColorIndex
-        readingList.updatedAt = Date()
-        
-        do {
-            try context.save()
+        var updated = list
+        updated.title = title
+        updated.description = listDescription.isEmpty ? nil : String(listDescription.prefix(50))
+        updated.colorIndex = selectedColorIndex
+        updated.updatedAt = Date()
+
+        Task {
+            do {
+                try await repos.readingLists.updateReadingList(updated)
+            } catch RepositoryError.readingListNotFound {
+                // 並行削除。見た目は旧実装（保存が空振りして閉じる）と同じにする（設計メモ 4.5節）
+                dismiss()
+                return
+            } catch {
+                // それ以外の失敗では閉じない
+                return
+            }
             dismiss()
-        } catch {
-            #if DEBUG
-            print("❌ Failed to save reading list: \(error)")
-            #endif
         }
     }
     
     private func deleteList() {
-        context.delete(readingList)
-        do {
-            try context.save()
+        let id = list.id
+        Task {
+            do {
+                try await repos.readingLists.deleteReadingList(id: id)
+            } catch {
+                return
+            }
             dismiss()
-        } catch {
-            #if DEBUG
-            print("❌ Failed to delete reading list: \(error)")
-            #endif
         }
     }
 }
@@ -950,23 +943,18 @@ struct EditReadingListView: View {
 // MARK: - Reorder Books View
 
 struct ReorderBooksView: View {
-    @Bindable var readingList: ReadingList
+    let list: ReadingListDTO
+
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.modelContext) private var context
+    @Environment(AppRepositories.self) private var repos
     
-    @State private var books: [UserBook] = []
-    @State private var originalBooks: [UserBook] = []
+    @State private var books: [BookDTO] = []
+    @State private var originalBooks: [BookDTO] = []
     @State private var showDiscardAlert = false
     
     /// 変更があるかどうか
     private var hasChanges: Bool {
-        guard books.count == originalBooks.count else { return true }
-        for (index, book) in books.enumerated() {
-            if book.id != originalBooks[index].id {
-                return true
-            }
-        }
-        return false
+        books.map(\.id) != originalBooks.map(\.id)
     }
     
     var body: some View {
@@ -989,21 +977,23 @@ struct ReorderBooksView: View {
                         .buttonStyle(.plain)
                         
                         // 本の表紙
-                        if let coverImage = book.coverUIImage {
-                            Image(uiImage: coverImage)
-                                .resizable()
-                                .aspectRatio(contentMode: .fill)
-                                .frame(width: 50, height: 75)
-                                .clipShape(RoundedRectangle(cornerRadius: 2))
-                        } else if let imageURL = book.coverImageURL,
-                           let url = URL(string: imageURL) {
-                            CachedAsyncImage(url: url, width: 50, height: 75)
-                                .clipShape(RoundedRectangle(cornerRadius: 2))
-                        } else {
-                            Rectangle()
-                                .fill(Color.gray.opacity(0.2))
-                                .frame(width: 50, height: 75)
-                                .clipShape(RoundedRectangle(cornerRadius: 2))
+                        LocalCoverImage(book: book) { coverImage in
+                            if let coverImage {
+                                Image(uiImage: coverImage)
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fill)
+                                    .frame(width: 50, height: 75)
+                                    .clipShape(RoundedRectangle(cornerRadius: 2))
+                            } else if let imageURL = book.coverImageURL,
+                               let url = URL(string: imageURL) {
+                                CachedAsyncImage(url: url, width: 50, height: 75)
+                                    .clipShape(RoundedRectangle(cornerRadius: 2))
+                            } else {
+                                Rectangle()
+                                    .fill(Color.gray.opacity(0.2))
+                                    .frame(width: 50, height: 75)
+                                    .clipShape(RoundedRectangle(cornerRadius: 2))
+                            }
                         }
                         
                         // 本の情報
@@ -1059,8 +1049,8 @@ struct ReorderBooksView: View {
             }
         }
         .onAppear {
-            books = readingList.orderedBooks
-            originalBooks = readingList.orderedBooks
+            books = list.books
+            originalBooks = list.books
         }
         .overlay {
             if showDiscardAlert {
@@ -1128,32 +1118,27 @@ struct ReorderBooksView: View {
     }
     
     private func saveChanges() {
-        readingList.books = books
-        readingList.saveBookOrder(books)
-        readingList.updatedAt = Date()
-        
-        do {
-            try context.save()
+        let updated = list.replacingBooks(books, updatedAt: Date())
+        Task {
+            do {
+                try await repos.readingLists.updateReadingList(updated)
+            } catch RepositoryError.readingListNotFound {
+                // 並行削除。並び替え先が消えているので閉じる
+                dismiss()
+                return
+            } catch {
+                return
+            }
             dismiss()
-        } catch {
-            #if DEBUG
-            print("❌ Failed to save reordered books: \(error)")
-            #endif
         }
     }
 }
 
 #Preview {
-    let config = ModelConfiguration(isStoredInMemoryOnly: true)
-    let container = try! ModelContainer(for: ReadingList.self, UserBook.self, Passbook.self, configurations: config)
-    
-    let list = ReadingList(title: "2024年ベスト", listDescription: "今年読んで良かった本たち")
-    container.mainContext.insert(list)
-    
-    return NavigationStack {
-        ReadingListDetailView(readingList: list)
+    NavigationStack {
+        ReadingListDetailView(list: PreviewSupport.sampleReadingList())
     }
-    .modelContainer(container)
+    .bookBankPreviewEnvironment()
 }
 
 // MARK: - More Actions Sheet
@@ -1259,7 +1244,7 @@ struct MoreActionsSheet: View {
 
 /// シェアプレビュー画面
 struct SharePreviewSheet: View {
-    let readingList: ReadingList
+    let readingList: ReadingListDTO
     let shareURL: URL
     
     @Environment(\.dismiss) private var dismiss
@@ -1403,7 +1388,7 @@ struct SharePreviewSheet: View {
                         .foregroundColor(.primary)
                     
                     HStack(alignment: .lastTextBaseline, spacing: 8) {
-                        BooksCountText(count: readingList.bookCount, font: .subheadline)
+                        BooksCountText(count: readingList.books.count, font: .subheadline)
                             .foregroundColor(.secondary)
                         
                         DisplayCurrencyPriceText(
@@ -1427,15 +1412,15 @@ struct SharePreviewSheet: View {
                 
                 // 本のリスト（最大4冊）
                 VStack(spacing: 6) {
-                    let displayBooks = Array(readingList.orderedBooks.prefix(4))
+                    let displayBooks = Array(readingList.books.prefix(4))
                     ForEach(displayBooks) { book in
                         bookRow(book: book)
                     }
                 }
                 
                 // 残りの冊数
-                if readingList.bookCount > 4 {
-                    Text(L10n.format("readinglist.more_books", Int64(readingList.bookCount - 4)))
+                if readingList.books.count > 4 {
+                    Text(L10n.format("readinglist.more_books", Int64(readingList.books.count - 4)))
                         .font(.footnote)
                         .foregroundColor(.secondary)
                         .frame(maxWidth: .infinity, alignment: .center)
@@ -1458,7 +1443,7 @@ struct SharePreviewSheet: View {
     // MARK: - Preview Thumbnail Grid
     
     private var previewThumbnailGrid: some View {
-        let books = Array(readingList.orderedBooks.prefix(10))
+        let books = Array(readingList.books.prefix(10))
         let hasSecondRow = books.count > 5
         let spacing: CGFloat = 4
         let rowSpacing: CGFloat = 8
@@ -1491,9 +1476,9 @@ struct SharePreviewSheet: View {
         .aspectRatio(hasSecondRow ? 5.0 / 3.2 : 5.0 / 1.5, contentMode: .fit)
     }
     
-    private func previewBookThumbnail(book: UserBook, width: CGFloat, height: CGFloat) -> some View {
-        Group {
-            if let coverImage = book.coverUIImage {
+    private func previewBookThumbnail(book: BookDTO, width: CGFloat, height: CGFloat) -> some View {
+        LocalCoverImage(book: book) { coverImage in
+            if let coverImage {
                 Image(uiImage: coverImage)
                     .resizable()
                     .aspectRatio(contentMode: .fill)
@@ -1510,23 +1495,25 @@ struct SharePreviewSheet: View {
         }
     }
     
-    private func bookRow(book: UserBook) -> some View {
+    private func bookRow(book: BookDTO) -> some View {
         HStack(spacing: 12) {
             // サムネイル
-            if let coverImage = book.coverUIImage {
-                Image(uiImage: coverImage)
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-                    .frame(width: 36, height: 54)
-                    .clipShape(RoundedRectangle(cornerRadius: 2))
-            } else if let imageURL = book.coverImageURL,
-               let url = URL(string: imageURL) {
-                CachedAsyncImage(url: url, width: 36, height: 54)
-                    .clipShape(RoundedRectangle(cornerRadius: 2))
-            } else {
-                RoundedRectangle(cornerRadius: 2)
-                    .fill(Color.gray.opacity(0.2))
-                    .frame(width: 36, height: 54)
+            LocalCoverImage(book: book) { coverImage in
+                if let coverImage {
+                    Image(uiImage: coverImage)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(width: 36, height: 54)
+                        .clipShape(RoundedRectangle(cornerRadius: 2))
+                } else if let imageURL = book.coverImageURL,
+                   let url = URL(string: imageURL) {
+                    CachedAsyncImage(url: url, width: 36, height: 54)
+                        .clipShape(RoundedRectangle(cornerRadius: 2))
+                } else {
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(Color.gray.opacity(0.2))
+                        .frame(width: 36, height: 54)
+                }
             }
             
             // 本の情報
@@ -1548,7 +1535,7 @@ struct SharePreviewSheet: View {
             
             // 金額
             if book.priceAtRegistration != nil {
-                BookPriceText(book: ModelDTOMapping.bookDTO(from: book), font: .subheadline, fontWeight: .medium)
+                BookPriceText(book: book, font: .subheadline, fontWeight: .medium)
                     .foregroundColor(themeColor)
             }
         }

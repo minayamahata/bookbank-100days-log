@@ -6,19 +6,25 @@
 //
 
 import SwiftUI
-import SwiftData
 
 /// 本選択画面（読了リストに本を追加するため）
 struct BookSelectorView: View {
     
     // MARK: - Properties
     
-    /// 追加先の読了リスト
-    @Bindable var readingList: ReadingList
+    /// 追加先のリスト名（ヘッダー表示のみに使う）
+    let listTitle: String
+
+    /// すでにリストに入っている本のid（選択不可・チェック済み表示）
+    let existingBookIds: Set<String>
+
+    /// 選択された本を**表示順（正準ソート順）**で渡す。永続化は呼び出し側の責務であり、
+    /// throw されたらこの画面は閉じない（旧 `context.save()` の do/catch と同じ意味論）。
+    /// リスト未作成の作成フロー（`AddReadingListView`）では選択を溜めるだけで保存しない
+    let onAdd: ([BookDTO]) async throws -> Void
     
     // MARK: - Environment
     
-    @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
     @Environment(AppRepositories.self) private var repos
@@ -40,11 +46,6 @@ struct BookSelectorView: View {
 
     /// 現在選択中の口座インデックス
     @State private var selectedPassbookIndex: Int = 0
-
-    /// 既にリストに含まれている本のID
-    private var existingBookIDs: Set<String> {
-        Set(readingList.books.map { $0.uuid })
-    }
 
     /// アクティブな口座のみ
     private var activePassbooks: [PassbookDTO] {
@@ -134,7 +135,7 @@ struct BookSelectorView: View {
                 Text("selector.destination")
                     .font(.caption2)
                     .foregroundColor(.secondary)
-                Text(readingList.title)
+                Text(listTitle)
                     .font(.subheadline)
                     .fontWeight(.medium)
                     .foregroundColor(.primary)
@@ -234,7 +235,7 @@ struct BookSelectorView: View {
     
     /// 選択可能な本の行
     private func selectableBookRow(book: BookDTO, themeColor: Color) -> some View {
-        let isAlreadyInList = existingBookIDs.contains(book.id)
+        let isAlreadyInList = existingBookIds.contains(book.id)
         let isSelected = selectedBookIDs.contains(book.id)
 
         return Button(action: {
@@ -336,31 +337,19 @@ struct BookSelectorView: View {
     // MARK: - Actions
     
     private func addSelectedBooks() {
-        // ReadingList.books（SwiftDataリレーション）への追記はステップ5まで @Model が要る。
-        // 表示順（allBooks の正準ソート順）を保ったまま uuid → @Model を解決する。
-        let idsToAdd = allBooks.map(\.id).filter { selectedBookIDs.contains($0) }
-        let booksToAdd = BookModelLookup.fetch(ids: idsToAdd, context: context)
-        let currentOrdered = readingList.orderedBooks
+        // 表示順（allBooks の正準ソート順）で渡す。並びの確定は呼び出し側の `bookIds` 書き込みが持つ
+        let picked = allBooks.filter { selectedBookIDs.contains($0.id) && !existingBookIds.contains($0.id) }
+        guard !picked.isEmpty else { return }
 
-        for book in booksToAdd {
-            if !readingList.books.contains(where: { $0.uuid == book.uuid }) {
-                readingList.books.append(book)
+        Task {
+            do {
+                try await onAdd(picked)
+                dismiss()
+            } catch {
+                #if DEBUG
+                print("❌ Failed to add books to reading list: \(error)")
+                #endif
             }
-        }
-
-        let newOrder = currentOrdered + booksToAdd.filter { newBook in
-            !currentOrdered.contains(where: { $0.uuid == newBook.uuid })
-        }
-        readingList.saveBookOrder(newOrder)
-        readingList.updatedAt = Date()
-        
-        do {
-            try context.save()
-            dismiss()
-        } catch {
-            #if DEBUG
-            print("❌ Failed to add books to reading list: \(error)")
-            #endif
         }
     }
     
@@ -370,13 +359,6 @@ struct BookSelectorView: View {
 }
 
 #Preview {
-    let config = ModelConfiguration(isStoredInMemoryOnly: true)
-    let container = try! ModelContainer(for: ReadingList.self, UserBook.self, Passbook.self, configurations: config)
-    
-    let list = ReadingList(title: "2024年ベスト")
-    container.mainContext.insert(list)
-    
-    return BookSelectorView(readingList: list)
-        .modelContainer(container)
-        .environment(PreviewSupport.repositories)
+    BookSelectorView(listTitle: "2024年ベスト", existingBookIds: []) { _ in }
+        .bookBankPreviewEnvironment()
 }

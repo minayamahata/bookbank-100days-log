@@ -64,6 +64,24 @@ enum PreviewSupport {
         let books = (try? modelContainer.mainContext.fetch(descriptor)) ?? []
         return books.first.map(ModelDTOMapping.bookDTO(from:))
     }
+
+    /// プレビュー用の読了リストDTO（R4ステップ5）
+    @MainActor
+    static func sampleReadingList() -> ReadingListDTO {
+        let books = [firstBook()].compactMap { $0 }
+        let now = Date()
+        return ReadingListDTO(
+            id: "preview-reading-list",
+            title: "2024年ベスト",
+            description: "今年読んで良かった本たち",
+            colorIndex: 10,
+            bookIds: books.map(\.id),
+            books: books,
+            createdAt: now,
+            updatedAt: now,
+            legacyShareId: "preview-share-id"
+        )
+    }
 }
 
 extension View {

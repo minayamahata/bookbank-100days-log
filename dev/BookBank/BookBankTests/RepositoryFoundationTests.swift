@@ -25,7 +25,7 @@ final class RepositoryFoundationTests: XCTestCase {
         repos = AppRepositories(
             passbooks: SwiftDataPassbookRepository(context: context, pulse: pulse, books: books),
             books: books,
-            readingLists: SwiftDataReadingListRepository(context: context, pulse: pulse),
+            readingLists: SwiftDataReadingListRepository(context: context, pulse: pulse, books: books),
             monthlyMemos: SwiftDataMonthlyMemoRepository(context: context, pulse: pulse),
             pulse: pulse
         )
@@ -90,6 +90,26 @@ final class RepositoryFoundationTests: XCTestCase {
             updatedAt: createdAt,
             passbookId: passbookId,
             hasCoverImage: false
+        )
+    }
+
+    private func makeListDTO(
+        id: String = UUID().uuidString,
+        title: String = "リスト",
+        colorIndex: Int? = 10,
+        bookIds: [String] = [],
+        updatedAt: Date = Date(timeIntervalSince1970: 1_700_000_500)
+    ) -> ReadingListDTO {
+        ReadingListDTO(
+            id: id,
+            title: title,
+            description: nil,
+            colorIndex: colorIndex,
+            bookIds: bookIds,
+            books: [],
+            createdAt: Date(timeIntervalSince1970: 1_700_000_400),
+            updatedAt: updatedAt,
+            legacyShareId: ""
         )
     }
 
@@ -512,9 +532,9 @@ final class RepositoryFoundationTests: XCTestCase {
         XCTAssertEqual(refreshed.first?.title, "マイグレーション後")
     }
 
-    /// `BookSelectorView` の追加順（＝ReadingList.bookIds の並び）は、渡した ids の順序で決まる。
-    /// ストア順ではなく入力順を返すことを固定する（R3で守った並び順の非破壊）
-    func testBookModelLookupPreservesRequestedOrder() async throws {
+    /// リストへの追加・並び替えは `bookIds` の順序がそのまま正になる。
+    /// ストア順に引きずられないことを固定する（R3で守った並び順の非破壊・旧 `BookModelLookup` の観点を継承）
+    func testUpdateReadingListPreservesRequestedBookOrder() async throws {
         let first = sampleBookDTO(id: "a", title: "A")
         let second = sampleBookDTO(id: "b", title: "B")
         let third = sampleBookDTO(id: "c", title: "C")
@@ -523,12 +543,16 @@ final class RepositoryFoundationTests: XCTestCase {
         try await repos.books.addBook(second, coverImageData: nil)
         try await repos.books.addBook(third, coverImageData: nil)
 
+        var list = makeListDTO(id: "list", bookIds: [])
+        try await repos.readingLists.addReadingList(list)
+
         // 逆順・未知IDを混ぜて要求する
-        let resolved = BookModelLookup.fetch(
-            ids: ["c", "unknown", "a", "b"],
-            context: container.mainContext
-        )
-        XCTAssertEqual(resolved.map(\.uuid), ["c", "a", "b"])
+        list.bookIds = ["c", "unknown", "a", "b"]
+        try await repos.readingLists.updateReadingList(list)
+
+        let observed = await firstValue(repos.readingLists.observeReadingLists())
+        let dto = try XCTUnwrap(observed.first)
+        XCTAssertEqual(dto.books.map(\.id), ["c", "a", "b"], "解決できない id は落とし、残りは要求順を保つ")
     }
 
     // MARK: - 表紙画像（レビュー S4-4）
@@ -808,5 +832,221 @@ final class RepositoryFoundationTests: XCTestCase {
         let books = await firstValue(repos.books.observeBooks())
         XCTAssertEqual(passbooks.map(\.id), ["keep"])
         XCTAssertEqual(books.map(\.passbookId), [keep.id])
+    }
+
+    // MARK: - R4ステップ5: ReadingList
+
+    /// 8.2節: 並び替え→再起動→維持。
+    /// `updateReadingList` で書いた並びがオンディスクに残り、コンテナ再生成（＝再起動相当）後も同じ順で読めること
+    func testReorderedBookOrderPersistsAcrossContainerReload() async throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let storeURL = dir.appendingPathComponent("reorder-test.store")
+        let schema = Schema([
+            Passbook.self, UserBook.self, Subscription.self, ReadingList.self, MonthlyMemo.self
+        ])
+
+        // 1回目の「起動」: 3冊を登録してリストへ入れ、逆順に並び替える
+        do {
+            let config = ModelConfiguration(schema: schema, url: storeURL)
+            let firstContainer = try ModelContainer(for: schema, configurations: [config])
+            let repos = AppRepositories(container: firstContainer)
+            for id in ["a", "b", "c"] {
+                try await repos.books.addBook(sampleBookDTO(id: id, title: id), coverImageData: nil)
+            }
+            try await repos.readingLists.addReadingList(
+                makeListDTO(id: "list", bookIds: ["a", "b", "c"])
+            )
+
+            let stored = await firstValue(repos.readingLists.observeReadingLists())
+            var list = try XCTUnwrap(stored.first)
+            list = list.replacingBooks(list.books.reversed(), updatedAt: Date())
+            try await repos.readingLists.updateReadingList(list)
+        }
+
+        // 2回目の「起動」（別コンテナ）で読み出し
+        let config = ModelConfiguration(schema: schema, url: storeURL)
+        let secondContainer = try ModelContainer(for: schema, configurations: [config])
+        let reopened = AppRepositories(container: secondContainer)
+        let observed = await firstValue(reopened.readingLists.observeReadingLists())
+        let dto = try XCTUnwrap(observed.first)
+        XCTAssertEqual(dto.bookIds, ["c", "b", "a"])
+        XCTAssertEqual(dto.books.map(\.id), ["c", "b", "a"])
+    }
+
+    /// 8.2節: タイトル変更を挟んでも並びが崩れない（R3で直した旧バグの再発防止）。
+    /// `EditReadingListView` は DTO スナップショットの全フィールドを書き戻すため、
+    /// メタ情報だけを編集したつもりでも `bookIds` を巻き戻していないことを固定する
+    func testTitleEditKeepsBookOrder() async throws {
+        for id in ["a", "b", "c"] {
+            try await repos.books.addBook(sampleBookDTO(id: id, title: id), coverImageData: nil)
+        }
+        try await repos.readingLists.addReadingList(makeListDTO(id: "list", bookIds: ["c", "a", "b"]))
+
+        let stored = await firstValue(repos.readingLists.observeReadingLists())
+        var list = try XCTUnwrap(stored.first)
+        // EditReadingListView.saveChanges と同じ形（タイトル・色・updatedAt のみ差し替え）
+        list.title = "改名後"
+        list.colorIndex = 3
+        list.updatedAt = Date()
+        try await repos.readingLists.updateReadingList(list)
+
+        let observed = await firstValue(repos.readingLists.observeReadingLists())
+        let dto = try XCTUnwrap(observed.first)
+        XCTAssertEqual(dto.title, "改名後")
+        XCTAssertEqual(dto.bookIds, ["c", "a", "b"], "タイトル変更で並びが崩れないこと")
+        XCTAssertEqual(dto.books.map(\.id), ["c", "a", "b"])
+    }
+
+    /// 8.2節: 共有URLの同一性。`legacyShareId` は旧 `ShareService` が使っていた
+    /// `"\(persistentModelID)"` と同一文字列であり（＝R4前後で同じURL）、
+    /// メタ編集・並び替えを挟んでも変わらない（前提6）
+    func testLegacyShareIdMatchesPersistentModelIDAndSurvivesEdits() async throws {
+        try await repos.books.addBook(sampleBookDTO(id: "a", title: "A"), coverImageData: nil)
+        try await repos.readingLists.addReadingList(makeListDTO(id: "list", bookIds: ["a"]))
+
+        // 旧実装が組み立てていた共有IDを @Model から直接算出する
+        let target = "list"
+        let descriptor = FetchDescriptor<ReadingList>(predicate: #Predicate { $0.uuid == target })
+        let model = try XCTUnwrap(try container.mainContext.fetch(descriptor).first)
+        let legacyIdFromModel = "\(model.persistentModelID)"
+
+        let stored = await firstValue(repos.readingLists.observeReadingLists())
+        var list = try XCTUnwrap(stored.first)
+        XCTAssertEqual(list.legacyShareId, legacyIdFromModel)
+        XCTAssertNotEqual(list.legacyShareId, list.id, "uuid ではなく persistentModelID を運ぶこと（前提6）")
+
+        // 編集を挟んでも共有IDは変わらない＝同じリストは同じURL
+        list.title = "改名後"
+        list.updatedAt = Date()
+        try await repos.readingLists.updateReadingList(list)
+
+        let reloaded = await firstValue(repos.readingLists.observeReadingLists())
+        let after = try XCTUnwrap(reloaded.first)
+        XCTAssertEqual(after.legacyShareId, legacyIdFromModel)
+    }
+
+    /// 8.3節-3: 作成フローのキャンセルでリストが残らない。
+    /// 旧実装は「空リストを作って delete」だったが、新実装は**確定するまで作らない**
+    func testConfirmedCreationOnlyProducesListWhenBooksArePicked() async throws {
+        let draft = makeListDTO(id: "draft")
+        let now = Date()
+
+        XCTAssertNil(
+            ReadingListDTO.confirmedCreation(draft: draft, pickedBooks: [], now: now),
+            "本が選ばれなければリストを作らない"
+        )
+        XCTAssertNil(ReadingListDTO.confirmedCreation(draft: nil, pickedBooks: [], now: now))
+
+        let picked = [sampleBookDTO(id: "b1"), sampleBookDTO(id: "b2")]
+        let created = try XCTUnwrap(
+            ReadingListDTO.confirmedCreation(draft: draft, pickedBooks: picked, now: now)
+        )
+        XCTAssertEqual(created.id, draft.id)
+        XCTAssertEqual(created.bookIds, ["b1", "b2"], "選択順がそのまま並び順になる")
+        XCTAssertEqual(created.updatedAt, now)
+        XCTAssertEqual(created.createdAt, draft.createdAt, "作成日時はタイトル確定時のまま")
+    }
+
+    /// キャンセル相当（`confirmedCreation` が nil）ではストアに何も残らない
+    func testCancelledCreationLeavesNoList() async throws {
+        let draft = makeListDTO(id: "draft")
+        if let list = ReadingListDTO.confirmedCreation(draft: draft, pickedBooks: [], now: Date()) {
+            try await repos.readingLists.addReadingList(list)
+        }
+
+        let observed = await firstValue(repos.readingLists.observeReadingLists())
+        XCTAssertTrue(observed.isEmpty)
+    }
+
+    /// 更新系の not-found は throw する（4.5節・本／口座と同じ契約）
+    func testUpdateReadingListThrowsWhenListMissing() async throws {
+        let ghost = makeListDTO(id: "ghost")
+
+        do {
+            try await repos.readingLists.updateReadingList(ghost)
+            XCTFail("リストが存在しないのに更新が成功として扱われた")
+        } catch RepositoryError.readingListNotFound(let id) {
+            XCTAssertEqual(id, "ghost")
+        }
+
+        let observed = await firstValue(repos.readingLists.observeReadingLists())
+        XCTAssertTrue(observed.isEmpty, "存在しないリストが作られていないこと")
+    }
+
+    /// 削除系の not-found は据え置き（冪等削除）
+    func testDeleteReadingListIsIdempotentForMissingId() async throws {
+        try await repos.readingLists.deleteReadingList(id: "never-existed")
+        let observed = await firstValue(repos.readingLists.observeReadingLists())
+        XCTAssertTrue(observed.isEmpty)
+    }
+
+    /// リストからの本の除去は `bookIds` からだけ消し、本そのものは残す
+    func testRemovingBookFromListKeepsTheBook() async throws {
+        try await repos.books.addBook(sampleBookDTO(id: "a", title: "A"), coverImageData: nil)
+        try await repos.books.addBook(sampleBookDTO(id: "b", title: "B"), coverImageData: nil)
+        try await repos.readingLists.addReadingList(makeListDTO(id: "list", bookIds: ["a", "b"]))
+
+        let stored = await firstValue(repos.readingLists.observeReadingLists())
+        let list = try XCTUnwrap(stored.first)
+        let remaining = list.books.filter { $0.id != "a" }
+        try await repos.readingLists.updateReadingList(
+            list.replacingBooks(remaining, updatedAt: Date())
+        )
+
+        let observed = await firstValue(repos.readingLists.observeReadingLists())
+        XCTAssertEqual(try XCTUnwrap(observed.first).bookIds, ["b"])
+        let books = await firstValue(repos.books.observeBooks())
+        XCTAssertEqual(Set(books.map(\.id)), ["a", "b"], "リストから外しただけで本は消えない")
+    }
+
+    /// `ReadingListDTO.books` の表紙もキャッシュへ同期投入される（`LocalCoverImage` の同期ヒット・4.6節）。
+    /// リスト系Viewは `observeBooks()` を購読しないため、ここが抜けると手動表紙が初回フレームで出ない
+    func testReadingListFetchPrimesLocalCoverCache() async throws {
+        try await repos.books.addBook(
+            sampleBookDTO(id: "with-cover"),
+            coverImageData: makeCoverData(0x66)
+        )
+        try await repos.readingLists.addReadingList(makeListDTO(id: "list", bookIds: ["with-cover"]))
+        // addBook 経由で入ったキャッシュを落とし、「リスト側の fetch だけ」で埋まることを見る
+        LocalCoverDataCache.shared.removeAll()
+        XCTAssertFalse(LocalCoverDataCache.shared.hasData(for: "with-cover"))
+
+        let observed = await firstValue(repos.readingLists.observeReadingLists())
+        XCTAssertEqual(try XCTUnwrap(observed.first).books.map(\.id), ["with-cover"])
+        XCTAssertTrue(LocalCoverDataCache.shared.hasData(for: "with-cover"))
+    }
+
+    /// リストの書き込みもチェンジパルスに乗る（ステップ4までは購読者ゼロで未検証だった経路）
+    func testReadingListWriteYieldsOnStream() async throws {
+        let stream = repos.readingLists.observeReadingLists()
+        var iterator = stream.makeAsyncIterator()
+
+        let initial = await iterator.next()
+        XCTAssertEqual(initial?.isEmpty, true)
+
+        try await repos.readingLists.addReadingList(makeListDTO(id: "list", title: "新規"))
+        let afterAdd = await iterator.next()
+        XCTAssertEqual(afterAdd?.map(\.title), ["新規"])
+
+        try await repos.readingLists.deleteReadingList(id: "list")
+        let afterDelete = await iterator.next()
+        XCTAssertEqual(afterDelete?.isEmpty, true)
+    }
+
+    /// `latestSnapshot` は `observe〜` の yield と同じ正準ソート（`updatedAt` 降順）で埋まる（4.6節の不変条件1）
+    func testReadingListLatestSnapshotMatchesStreamOrder() async throws {
+        try await repos.readingLists.addReadingList(
+            makeListDTO(id: "old", title: "古い", updatedAt: Date(timeIntervalSince1970: 10))
+        )
+        try await repos.readingLists.addReadingList(
+            makeListDTO(id: "new", title: "新しい", updatedAt: Date(timeIntervalSince1970: 20))
+        )
+
+        let observed = await firstValue(repos.readingLists.observeReadingLists())
+        XCTAssertEqual(observed.map(\.id), ["new", "old"])
+        XCTAssertEqual(repos.readingLists.latestSnapshot.map(\.id), observed.map(\.id))
     }
 }

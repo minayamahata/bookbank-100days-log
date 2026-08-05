@@ -181,7 +181,10 @@ final class SwiftDataBookRepository: BookRepository {
     /// `loadCoverImage` は `async` のため View から呼ぶと初回フレームに画像が出ない。
     /// DTO を組み立てるこのターンでキャッシュを満たしておくことで、View 側は `init` で
     /// 同期ヒットでき、現行（`UserBook.coverUIImage` の同期読み）と同じ見えになる。
-    private func primeLocalCoverCache(_ models: [UserBook]) {
+    ///
+    /// - Note: `SwiftDataReadingListRepository` も `ReadingListDTO.books` を組み立てる際に呼ぶ
+    ///   （リスト系Viewが `observeBooks()` を購読しないため・ステップ5）。
+    func primeLocalCoverCache(_ models: [UserBook]) {
         for model in models where !LocalCoverDataCache.shared.hasData(for: model.uuid) {
             guard let data = model.coverImageData, !data.isEmpty else { continue }
             LocalCoverDataCache.shared.setData(data, for: model.uuid)

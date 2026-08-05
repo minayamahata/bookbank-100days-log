@@ -22,6 +22,10 @@ enum RepositoryError: Error, Equatable {
     /// 「並行削除なら閉じてよい」というUX判断は View 側の catch が持つ（4.5節）。
     /// - Note: 削除系（`deleteBook`）の not-found→return は**冪等削除**として据え置く
     case bookNotFound(String)
+
+    /// 更新対象の読了リストが見つからない（ステップ5・2026-08-05）。
+    /// `bookNotFound` と同じ契約（更新系は throw・削除系の return は冪等削除の例外）。
+    case readingListNotFound(String)
 }
 
 /// 書誌の更新時に表紙をどう扱うか（設計メモ 3.1節への追補・ステップ4レビュー S4-12）。

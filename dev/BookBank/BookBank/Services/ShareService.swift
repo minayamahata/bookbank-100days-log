@@ -6,7 +6,6 @@
 //
 
 import Foundation
-import SwiftData
 
 // MARK: - API Configuration
 
@@ -85,12 +84,12 @@ class ShareService {
     
     /// 読了リストをシェアしてURLを取得
     /// - Parameters:
-    ///   - readingList: シェアする読了リスト
+    ///   - readingList: シェアする読了リスト（並び順解決済みの `books` を持つDTO）
     ///   - displayCurrency: 合計値の換算先（アプリの表示通貨）
     ///   - totalValue: 表示通貨に換算済みの合計（最小通貨単位）。呼び出し元で `totalDisplayAmount` により算出する
     /// - Returns: シェアページのURL
     func shareReadingList(
-        _ readingList: ReadingList,
+        _ readingList: ReadingListDTO,
         displayCurrency: AppCurrency,
         totalValue: Int
     ) async throws -> URL {
@@ -100,7 +99,7 @@ class ShareService {
         }
         
         // ReadingListをAPIリクエスト形式に変換
-        let bookItems = readingList.orderedBooks.map { book in
+        let bookItems = readingList.books.map { book in
             ShareBookItem(
                 title: book.title,
                 author: book.author ?? "",
@@ -110,8 +109,9 @@ class ShareService {
             )
         }
         
-        // persistentModelIDを文字列に変換
-        let readingListId = "\(readingList.persistentModelID)"
+        // 共有IDは `persistentModelID` の文字列表現のまま（設計メモ 前提6）。
+        // uuid へ切り替えると同じリストが別URLになるためR6まで維持する
+        let readingListId = readingList.legacyShareId
         
         // colorIndexをHEXカラー文字列に変換
         let bgColorHex = PassbookColor.hexString(for: readingList.colorIndex ?? 0)
@@ -119,7 +119,7 @@ class ShareService {
         let requestBody = ShareListRequest(
             readingListId: readingListId,
             title: readingList.title,
-            description: readingList.listDescription,
+            description: readingList.description,
             ownerName: nil,  // 将来的にユーザー名を設定可能に
             bgColor: bgColorHex,
             books: bookItems,

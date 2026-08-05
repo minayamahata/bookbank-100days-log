@@ -6,20 +6,27 @@
 //
 
 import SwiftUI
-import SwiftData
 
 /// 読了リスト一覧画面
 struct ReadingListView: View {
     var themeColor: Color = .accentColor
     var onNavigateToPassbook: (() -> Void)?
     
-    @Environment(\.modelContext) private var context
+    @Environment(AppRepositories.self) private var repos
     @Environment(CurrencyManager.self) private var currencyManager
     @Environment(ExchangeRateService.self) private var exchangeRates
-    @Query(sort: \ReadingList.updatedAt, order: .reverse) private var readingLists: [ReadingList]
+
+    /// 読了リスト（リポジトリストリーム・`updatedAt` 降順）。
+    /// 初回yield前は同期スナップショットで補い、空状態UIが1フレーム瞬くのを防ぐ（設計メモ 5.1節）
+    @State private var loadedLists: [ReadingListDTO]?
+    private var readingLists: [ReadingListDTO] { loadedLists ?? repos.readingLists.latestSnapshot }
+    /// 一度でも値が確定したか（未確定のうちは空状態UIを出さない＝レビュー S4-2 と同型）
+    private var hasResolvedLists: Bool {
+        loadedLists != nil || !repos.readingLists.latestSnapshot.isEmpty
+    }
     
     @State private var showAddList = false
-    @State private var listToDelete: ReadingList?
+    @State private var listToDelete: ReadingListDTO?
     @State private var showDeleteAlert = false
     
     // 1カラム
@@ -34,9 +41,11 @@ struct ReadingListView: View {
         ScrollView {
             if readingLists.isEmpty {
                 // 空状態
-                emptyStateView
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 20)
+                if hasResolvedLists {
+                    emptyStateView
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 20)
+                }
             } else {
                 // 1カラムカード一覧
                 LazyVGrid(columns: columns, spacing: 12) {
@@ -82,8 +91,13 @@ struct ReadingListView: View {
         )
         .navigationTitle("readinglist.title")
         .navigationBarTitleDisplayMode(.inline)
-        .navigationDestination(for: ReadingList.self) { list in
-            ReadingListDetailView(readingList: list)
+        .navigationDestination(for: ReadingListDTO.self) { list in
+            ReadingListDetailView(list: list)
+        }
+        .task {
+            for await value in repos.readingLists.observeReadingLists() {
+                loadedLists = value
+            }
         }
         .sheet(isPresented: $showAddList) {
             AddReadingListView(themeColor: themeColor, onNavigateToPassbook: onNavigateToPassbook)
@@ -118,7 +132,7 @@ struct ReadingListView: View {
     }
     
     /// カード形式のリストビュー
-    private func readingListCard(list: ReadingList) -> some View {
+    private func readingListCard(list: ReadingListDTO) -> some View {
         VStack(alignment: .leading, spacing: 16) {
             // 5カラム1行サムネイル（最大5冊、本の比率 2:3）
             GeometryReader { geometry in
@@ -135,7 +149,7 @@ struct ReadingListView: View {
                     .lineLimit(1)
                 
                 HStack(spacing: 4) {
-                    BooksCountText(count: list.bookCount, font: .caption)
+                    BooksCountText(count: list.books.count, font: .caption)
                         .foregroundColor(.secondary)
                     
                     if convertedTotalValue(for: list) > 0 {
@@ -164,13 +178,13 @@ struct ReadingListView: View {
         .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 
-    private func convertedTotalValue(for list: ReadingList) -> Int {
+    private func convertedTotalValue(for list: ReadingListDTO) -> Int {
         list.books.totalDisplayAmount(in: currencyManager.displayCurrency, exchangeRates: exchangeRates)
     }
     
     /// 5カラム×最大2行サムネイル（最大10冊、本の比率 2:3）
-    private func rowThumbnail(for list: ReadingList, width: CGFloat) -> some View {
-        let books = Array(list.orderedBooks.prefix(10))
+    private func rowThumbnail(for list: ReadingListDTO, width: CGFloat) -> some View {
+        let books = Array(list.books.prefix(10))
         let topRowBooks = Array(books.prefix(5))
         let bottomRowBooks = books.count > 5 ? Array(books.dropFirst(5)) : []
         let spacing: CGFloat = 4
@@ -181,43 +195,36 @@ struct ReadingListView: View {
         return VStack(spacing: rowSpacing) {
             HStack(spacing: spacing) {
                 ForEach(topRowBooks) { book in
-                    if let coverImage = book.coverUIImage {
-                        Image(uiImage: coverImage)
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                            .frame(width: cellWidth, height: cellHeight)
-                            .clipShape(RoundedRectangle(cornerRadius: 2))
-                    } else if let imageURL = book.coverImageURL {
-                        CachedAsyncImage(
-                            url: URL(string: imageURL),
-                            width: cellWidth,
-                            height: cellHeight
-                        )
-                        .clipShape(RoundedRectangle(cornerRadius: 2))
-                    }
+                    thumbnailCell(book: book, width: cellWidth, height: cellHeight)
                 }
             }
             
             if !bottomRowBooks.isEmpty {
                 HStack(spacing: spacing) {
                     ForEach(bottomRowBooks) { book in
-                        if let coverImage = book.coverUIImage {
-                            Image(uiImage: coverImage)
-                                .resizable()
-                                .aspectRatio(contentMode: .fill)
-                                .frame(width: cellWidth, height: cellHeight)
-                                .clipShape(RoundedRectangle(cornerRadius: 2))
-                        } else if let imageURL = book.coverImageURL {
-                            CachedAsyncImage(
-                                url: URL(string: imageURL),
-                                width: cellWidth,
-                                height: cellHeight
-                            )
-                            .clipShape(RoundedRectangle(cornerRadius: 2))
-                        }
+                        thumbnailCell(book: book, width: cellWidth, height: cellHeight)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+    }
+
+    private func thumbnailCell(book: BookDTO, width: CGFloat, height: CGFloat) -> some View {
+        LocalCoverImage(book: book) { coverImage in
+            if let coverImage {
+                Image(uiImage: coverImage)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: width, height: height)
+                    .clipShape(RoundedRectangle(cornerRadius: 2))
+            } else if let imageURL = book.coverImageURL {
+                CachedAsyncImage(
+                    url: URL(string: imageURL),
+                    width: width,
+                    height: height
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 2))
             }
         }
     }
@@ -235,14 +242,9 @@ struct ReadingListView: View {
     
     // MARK: - Private Methods
     
-    private func deleteList(_ list: ReadingList) {
-        context.delete(list)
-        do {
-            try context.save()
-        } catch {
-            #if DEBUG
-            print("❌ Failed to delete reading list: \(error)")
-            #endif
+    private func deleteList(_ list: ReadingListDTO) {
+        Task {
+            try? await repos.readingLists.deleteReadingList(id: list.id)
         }
     }
 }
@@ -251,8 +253,5 @@ struct ReadingListView: View {
     NavigationStack {
         ReadingListView()
     }
-    .environment(ThemeManager())
-    .environment(CurrencyManager())
-    .environment(ExchangeRateService.shared)
-    .modelContainer(for: [ReadingList.self, UserBook.self, Passbook.self])
+    .bookBankPreviewEnvironment()
 }

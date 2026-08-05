@@ -6,27 +6,32 @@
 //
 
 import SwiftUI
-import SwiftData
 
 /// 読了リスト作成画面（ステップ形式）
 struct AddReadingListView: View {
     var themeColor: Color = .accentColor
     var onNavigateToPassbook: (() -> Void)?
     
-    @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
     @Environment(AppRepositories.self) private var repos
-    // ReadingList はステップ5で切替（ここでは UserBook のみリポジトリ経由へ）
-    @Query private var existingLists: [ReadingList]
     /// すべての書籍（リポジトリストリーム）。用途は `.isEmpty` のみで順序に依存しない
     @State private var loadedBooks: [BookDTO]?
     private var allBooks: [BookDTO] { loadedBooks ?? repos.books.latestSnapshot }
+    /// 既存リスト（デフォルトタイトルの連番にのみ使う）。
+    /// 件数を数えるだけなので購読はせず、スナップショットを都度読む。
+    /// `observeReadingLists()` を購読すると全リスト＋所属書籍＋表紙キャッシュの
+    /// プライムが同期で走り、件数取得には過剰なコストになる
+    private var existingLists: [ReadingListDTO] { repos.readingLists.latestSnapshot }
     /// デフォルトタイトルを初回yieldでのみ適用するためのフラグ（レビュー S4-7）
     @State private var hasResolvedDefaultTitle = false
 
     @State private var title: String = ""
     @State private var showError: Bool = false
-    @State private var createdList: ReadingList?
+    /// 未保存の作成中リスト。**本が1冊以上選ばれるまで永続化しない**（設計メモ 8.3節-3）。
+    /// 旧実装は空リストを先に作ってキャンセル時に削除していた（rollback）
+    @State private var draftList: ReadingListDTO?
+    /// `BookSelectorView` で選ばれた本（表示順）
+    @State private var pendingBooks: [BookDTO] = []
     @State private var showBookSelector = false
     @State private var isCompleting = false
     @FocusState private var isFocused: Bool
@@ -108,7 +113,7 @@ struct AddReadingListView: View {
                             .padding(.horizontal, 32)
                         
                         Button(action: {
-                            createReadingList()
+                            startBookSelection()
                         }) {
                             Text("common.create")
                                 .font(.subheadline)
@@ -152,44 +157,68 @@ struct AddReadingListView: View {
         .fullScreenCover(isPresented: $showBookSelector, onDismiss: {
             isCompleting = true
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                if let list = createdList {
-                    if list.books.isEmpty {
-                        context.delete(list)
-                        try? context.save()
-                    }
-                }
-                dismiss()
+                finishCreation()
             }
         }) {
-            if let list = createdList {
-                BookSelectorView(readingList: list)
+            if let draft = draftList {
+                BookSelectorView(listTitle: draft.title, existingBookIds: []) { picked in
+                    pendingBooks = picked
+                }
             }
         }
     }
     
     // MARK: - Private Methods
     
-    private func createReadingList() {
+    /// リストは**まだ作らず**、本の選択へ進む
+    private func startBookSelection() {
         guard !title.isEmpty else { return }
         
-        let newList = ReadingList(title: title)
-        newList.colorIndex = 10
-        context.insert(newList)
+        let now = Date()
+        draftList = ReadingListDTO(
+            id: UUID().uuidString,
+            title: title,
+            description: nil,
+            colorIndex: 10,
+            bookIds: [],
+            books: [],
+            createdAt: now,
+            updatedAt: now,
+            legacyShareId: ""
+        )
+        pendingBooks = []
+        showBookSelector = true
+    }
+    
+    /// 本が選ばれていればこの時点で初めて作成する。
+    /// 選ばれていなければ何も作らない（旧実装の「空リストを作って delete」と最終状態が同じ）
+    private func finishCreation() {
+        guard let list = ReadingListDTO.confirmedCreation(
+            draft: draftList,
+            pickedBooks: pendingBooks,
+            now: Date()
+        ) else {
+            dismiss()
+            return
+        }
         
-        do {
-            try context.save()
-            createdList = newList
-            showBookSelector = true
-        } catch {
-            #if DEBUG
-            print("❌ Error creating reading list: \(error)")
-            #endif
-            showError = true
+        Task {
+            do {
+                try await repos.readingLists.addReadingList(list)
+            } catch {
+                #if DEBUG
+                print("❌ Error creating reading list: \(error)")
+                #endif
+                isCompleting = false
+                showError = true
+                return
+            }
+            dismiss()
         }
     }
 }
 
 #Preview {
     AddReadingListView()
-        .modelContainer(for: [ReadingList.self, UserBook.self, Passbook.self])
+        .bookBankPreviewEnvironment()
 }

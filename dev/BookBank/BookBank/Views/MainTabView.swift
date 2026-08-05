@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-import SwiftData
 
 @Observable
 class AppShellState {
@@ -69,7 +68,9 @@ struct MainTabView: View {
     @State private var passbooks: [PassbookDTO] = []
     /// ストリームの初回値を受け取ったか（初回bodyの空配列で空状態UIが瞬かないようにする＝設計メモ 5.1節）
     @State private var hasLoadedPassbooks = false
-    @Query(sort: \ReadingList.updatedAt) private var readingLists: [ReadingList]
+    /// 読了リスト。用途はリスト数の上限判定のみで、順序には依存しない
+    @State private var loadedReadingLists: [ReadingListDTO]?
+    private var readingLists: [ReadingListDTO] { loadedReadingLists ?? repos.readingLists.latestSnapshot }
     private var unlimitedManager: UnlimitedManager { UnlimitedManager.shared }
     /// 選択中の口座ID（uuid）。DTOのコピーではなくIDで保持し、名称・色の変更が
     /// ストリームの新値から常に反映されるようにする（@Model参照時代の自動反映と同じ見え方）
@@ -159,6 +160,11 @@ struct MainTabView: View {
                     hasLoadedPassbooks = true
                     // 口座削除後に選択状態が削除済み口座を参照し続けないようにする
                     validateSelectedPassbook()
+                }
+            }
+            .task {
+                for await value in repos.readingLists.observeReadingLists() {
+                    loadedReadingLists = value
                 }
             }
             .onAppear {

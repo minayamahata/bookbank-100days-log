@@ -121,13 +121,13 @@ func generatePassbookMarkdown(
 /// 読了リストのマークダウンを生成
 @MainActor
 func generateReadingListMarkdown(
-    readingList: ReadingList,
+    readingList: ReadingListDTO,
     exportType: ExportType,
     formatting: ExportFormattingContext
 ) -> String {
     var markdown = "\(String(localized: "export.readinglist_header"))\n\n"
     
-    // リスト情報
+    // リスト情報。`books` は `bookIds` で並び順解決済み（＝画面の表示順）
     let books = readingList.books
     let totalValue = books.totalDisplayAmount(in: formatting.displayCurrency, exchangeRates: formatting.exchangeRates)
     let totalText = MoneyDisplay.format(
@@ -137,7 +137,7 @@ func generateReadingListMarkdown(
     )
     markdown += L10n.format("export.section_header", readingList.title, Int64(books.count), totalText) + "\n\n"
     
-    if let description = readingList.listDescription, !description.isEmpty {
+    if let description = readingList.description, !description.isEmpty {
         markdown += "> \(description)\n\n"
     }
     
