@@ -1020,8 +1020,13 @@ final class RepositoryFoundationTests: XCTestCase {
         XCTAssertEqual(created.createdAt, draft.createdAt, "作成日時はタイトル確定時のまま")
     }
 
-    /// キャンセル相当（`confirmedCreation` が nil）ではストアに何も残らない
-    func testCancelledCreationLeavesNoList() async throws {
+    /// キャンセル相当では `confirmedCreation` が nil を返し、永続化する対象が生まれない。
+    ///
+    /// **担保範囲に注意（レビュー S5-7）**: 検証しているのは純関数の戻り値までで、
+    /// `AddReadingListView.finishCreation` の結線（nil なら `addReadingList` を呼ばない）は
+    /// テスト側のコードで模しているにすぎない。結線が壊れてもこのテストはグリーンのままなので、
+    /// そちらはコードレビューで担保する（8.2節の切り分け方針）
+    func testCancelledCreationProducesNoDTO() async throws {
         let draft = makeListDTO(id: "draft")
         if let list = ReadingListDTO.confirmedCreation(draft: draft, pickedBooks: [], now: Date()) {
             try await repos.readingLists.addReadingList(list)

@@ -339,7 +339,16 @@ struct BookSelectorView: View {
     private func addSelectedBooks() {
         // 表示順（allBooks の正準ソート順）で渡す。並びの確定は呼び出し側の `bookIds` 書き込みが持つ
         let picked = allBooks.filter { selectedBookIDs.contains($0.id) && !existingBookIds.contains($0.id) }
-        guard !picked.isEmpty else { return }
+        guard !picked.isEmpty else {
+            // 選択中の本が別経路で削除され `allBooks` から消えた場合にだけ通る。
+            // ここで黙って return すると「追加ボタンが効かない」画面になるため閉じる
+            // （旧実装も解決結果が空のまま save して dismiss していた・レビュー S5-10）
+            #if DEBUG
+            print("⚠️ No books left to add (selection resolved to empty)")
+            #endif
+            dismiss()
+            return
+        }
 
         Task {
             do {
