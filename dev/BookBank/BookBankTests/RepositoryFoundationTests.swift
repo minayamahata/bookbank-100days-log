@@ -900,6 +900,76 @@ final class RepositoryFoundationTests: XCTestCase {
         XCTAssertEqual(dto.books.map(\.id), ["c", "a", "b"])
     }
 
+    /// レビュー S5-1: `bookIds` が `books` を網羅していないリストを、メタ情報だけ編集して
+    /// 保存しても所属が消えないこと。
+    ///
+    /// 読み（`ReadingListOrdering`）は `bookIds` に無い `books` を末尾へ足す寛容さを持つ。
+    /// 書きが `bookIds` だけを見ると、その差分が保存1回で確定的に失われる（`bookIds` が
+    /// 空なら所属が丸ごと消える）。`testTitleEditKeepsBookOrder` は常に `bookIds` が
+    /// 全件を網羅しているためこの軸を通らない
+    func testTitleEditKeepsBooksWhenBookIdsDoNotCoverThem() async throws {
+        for id in ["a", "b", "c"] {
+            try await repos.books.addBook(sampleBookDTO(id: id, title: id), coverImageData: nil)
+        }
+        try await repos.readingLists.addReadingList(makeListDTO(id: "list", bookIds: ["a", "b", "c"]))
+
+        // R3移行後に不整合が入った状態を @Model へ直接作る（`bookIds` だけが空）
+        let target = "list"
+        let descriptor = FetchDescriptor<ReadingList>(predicate: #Predicate { $0.uuid == target })
+        let model = try XCTUnwrap(try container.mainContext.fetch(descriptor).first)
+        model.bookIds = []
+        try container.mainContext.save()
+
+        let stored = await firstValue(repos.readingLists.observeReadingLists())
+        var list = try XCTUnwrap(stored.first)
+        XCTAssertTrue(list.bookIds.isEmpty, "前提: bookIds は空")
+        XCTAssertEqual(list.books.count, 3, "読みは寛容なので books は3件見える")
+
+        // EditReadingListView.saveChanges と同じ形（タイトルだけ差し替え）
+        list.title = "改名後"
+        list.updatedAt = Date()
+        try await repos.readingLists.updateReadingList(list)
+
+        let observed = await firstValue(repos.readingLists.observeReadingLists())
+        let dto = try XCTUnwrap(observed.first)
+        XCTAssertEqual(dto.title, "改名後")
+        XCTAssertEqual(Set(dto.books.map(\.id)), ["a", "b", "c"], "bookIds に無い所属が刈られないこと")
+        XCTAssertEqual(
+            Set(dto.bookIds), ["a", "b", "c"],
+            "書き込みのたびに bookIds が books を網羅する状態へ正規化されること"
+        )
+    }
+
+    /// レビュー S5-1 の裏側: 網羅性の救済が**本の除去を無効化していない**こと。
+    /// 救済の相手を DTO の `books` ではなく永続化済みの `model.books` にすると、
+    /// 外したはずの本が毎回戻ってきて除去が永久に効かなくなる
+    func testRemovalStillWorksAfterMembershipFallback() async throws {
+        for id in ["a", "b"] {
+            try await repos.books.addBook(sampleBookDTO(id: id, title: id), coverImageData: nil)
+        }
+        try await repos.readingLists.addReadingList(makeListDTO(id: "list", bookIds: ["a", "b"]))
+
+        let stored = await firstValue(repos.readingLists.observeReadingLists())
+        let list = try XCTUnwrap(stored.first)
+        let remaining = list.books.filter { $0.id != "a" }
+        try await repos.readingLists.updateReadingList(
+            list.replacingBooks(remaining, updatedAt: Date())
+        )
+
+        var observed = await firstValue(repos.readingLists.observeReadingLists())
+        var dto = try XCTUnwrap(observed.first)
+        XCTAssertEqual(dto.books.map(\.id), ["b"], "除去した本が戻らないこと")
+
+        // 最後の1冊を外して空にできること（空の bookIds が「未設定」と解釈されない）
+        try await repos.readingLists.updateReadingList(
+            dto.replacingBooks([], updatedAt: Date())
+        )
+        observed = await firstValue(repos.readingLists.observeReadingLists())
+        dto = try XCTUnwrap(observed.first)
+        XCTAssertTrue(dto.books.isEmpty, "全部外せば空にできること")
+        XCTAssertTrue(dto.bookIds.isEmpty)
+    }
+
     /// 8.2節: 共有URLの同一性。`legacyShareId` は旧 `ShareService` が使っていた
     /// `"\(persistentModelID)"` と同一文字列であり（＝R4前後で同じURL）、
     /// メタ編集・並び替えを挟んでも変わらない（前提6）

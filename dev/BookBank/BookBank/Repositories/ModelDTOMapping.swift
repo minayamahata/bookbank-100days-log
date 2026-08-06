@@ -100,11 +100,15 @@ enum ModelDTOMapping {
         )
     }
 
+    /// `bookIds` は `dto.bookIds` ではなく**確定した所属（`books`）から書く**（レビュー S5-1）。
+    /// 呼び出し側（`SwiftDataReadingListRepository.resolveMembership`）が読み側と同じ寛容さで
+    /// 所属を確定しているため、ここで両者を一致させておけば「`bookIds` が `books` を網羅しない」
+    /// 状態は書き込みのたびに解消される。解決できなかった id（削除済みの本）も同時に落ちる
     static func apply(_ dto: ReadingListDTO, to model: ReadingList, books: [UserBook]) {
         model.title = dto.title
         model.listDescription = dto.description
         model.colorIndex = dto.colorIndex
-        model.bookIds = dto.bookIds
+        model.bookIds = books.map(\.uuid)
         model.books = books
         model.createdAt = dto.createdAt
         model.updatedAt = dto.updatedAt
