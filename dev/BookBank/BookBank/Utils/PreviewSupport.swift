@@ -33,7 +33,7 @@ enum PreviewSupport {
         context.insert(manga)
         context.insert(tech)
 
-        let book = UserBook(
+        let manual = UserBook(
             title: "サンプル書籍",
             author: "著者",
             price: 1500,
@@ -41,7 +41,22 @@ enum PreviewSupport {
             passbook: manga,
             currencyCode: AppCurrency.jpy.code
         )
-        context.insert(book)
+        context.insert(manual)
+
+        // `source` の差分をプレビューで見るために API 取得の本も置く（8.3節-5(a)）
+        let api = UserBook(
+            title: "APIで取得した本",
+            author: "海外の著者",
+            isbn: "9784000000000",
+            publisher: "サンプル出版",
+            publishedYear: 2024,
+            price: 3200,
+            imageURL: "https://example.invalid/cover.jpg",
+            source: .api,
+            passbook: tech,
+            currencyCode: AppCurrency.jpy.code
+        )
+        context.insert(api)
         try? context.save()
         return container
     }()
@@ -57,18 +72,21 @@ enum PreviewSupport {
         return passbooks.first { $0.name == name }.map(ModelDTOMapping.passbookDTO(from:))
     }
 
-    /// プレビュー用の書籍DTO（R4ステップ4: 各 `#Preview` の `@Model` fetch を置き換える）
+    /// プレビュー用の書籍DTO（R4ステップ4: 各 `#Preview` の `@Model` fetch を置き換える）。
+    ///
+    /// `source` で指定するのは、`EditBookView` のように手動登録／API取得で入力欄の出方が
+    /// 変わる画面が両方をプレビューできるようにするため（8.3節-5(a)）
     @MainActor
-    static func firstBook() -> BookDTO? {
+    static func book(source: BookSource) -> BookDTO? {
         let descriptor = FetchDescriptor<UserBook>()
         let books = (try? modelContainer.mainContext.fetch(descriptor)) ?? []
-        return books.first.map(ModelDTOMapping.bookDTO(from:))
+        return books.first { $0.source == source }.map(ModelDTOMapping.bookDTO(from:))
     }
 
     /// プレビュー用の読了リストDTO（R4ステップ5）
     @MainActor
     static func sampleReadingList() -> ReadingListDTO {
-        let books = [firstBook()].compactMap { $0 }
+        let books = [book(source: .manual), book(source: .api)].compactMap { $0 }
         let now = Date()
         return ReadingListDTO(
             id: "preview-reading-list",

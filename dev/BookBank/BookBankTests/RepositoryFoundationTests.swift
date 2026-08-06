@@ -25,7 +25,7 @@ final class RepositoryFoundationTests: XCTestCase {
         repos = AppRepositories(
             passbooks: SwiftDataPassbookRepository(context: context, pulse: pulse, books: books),
             books: books,
-            readingLists: SwiftDataReadingListRepository(context: context, pulse: pulse, books: books),
+            readingLists: SwiftDataReadingListRepository(context: context, pulse: pulse),
             monthlyMemos: SwiftDataMonthlyMemoRepository(context: context, pulse: pulse),
             pulse: pulse
         )
@@ -996,6 +996,88 @@ final class RepositoryFoundationTests: XCTestCase {
         let reloaded = await firstValue(repos.readingLists.observeReadingLists())
         let after = try XCTUnwrap(reloaded.first)
         XCTAssertEqual(after.legacyShareId, legacyIdFromModel)
+    }
+
+    /// 8.2節「共有URLの同一性」を再起動またぎで実測する（レビュー S5-4・2026-08-06）。
+    ///
+    /// **実測の結論: `legacyShareId` の文字列は再起動をまたいで変わる。** `"\(persistentModelID)"`
+    /// の description には `NSManagedObjectID` のポインタ値が含まれており、同じレコードでも
+    /// プロセスごとに別文字列になる（実測値は設計メモ 8.3節-25）。**旧 `ShareService` も
+    /// `"\(readingList.persistentModelID)"` という同一の式だったためR4の後退ではない**が、
+    /// 前提6が期待していた「R4リリース前後をまたいでも同一URL」は元から成立していない。
+    ///
+    /// したがってここで固定するのは、**永続識別子そのもの（`x-coredata://…/ReadingList/pN`）は
+    /// 再起動をまたいで不変**という事実に絞る。文字列の不安定さはこの内側のURIではなく
+    /// description の装飾部分に由来する、という切り分けを残すのが目的である。
+    /// 逆向き（文字列が変わること）はアサートしない——将来 SwiftData 側が安定化した場合に
+    /// 偽の失敗になるため
+    func testLegacyShareIdCarriesStablePersistentIdentityAcrossReload() async throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let storeURL = dir.appendingPathComponent("share-id-test.store")
+        let schema = Schema([
+            Passbook.self, UserBook.self, Subscription.self, ReadingList.self, MonthlyMemo.self
+        ])
+
+        // 1回目の「起動」: リストを作り、共有IDを記録する
+        let firstLaunchShareId: String
+        do {
+            let config = ModelConfiguration(schema: schema, url: storeURL)
+            let firstContainer = try ModelContainer(for: schema, configurations: [config])
+            let repos = AppRepositories(container: firstContainer)
+            try await repos.books.addBook(sampleBookDTO(id: "a", title: "A"), coverImageData: nil)
+            try await repos.readingLists.addReadingList(makeListDTO(id: "list", bookIds: ["a"]))
+
+            let stored = await firstValue(repos.readingLists.observeReadingLists())
+            let list = try XCTUnwrap(stored.first)
+            firstLaunchShareId = list.legacyShareId
+            XCTAssertFalse(firstLaunchShareId.isEmpty)
+            XCTAssertNotEqual(firstLaunchShareId, list.id, "uuid ではなく persistentModelID を運ぶこと")
+        }
+
+        // 2回目の「起動」（別コンテナで同じストアを開く）
+        let config = ModelConfiguration(schema: schema, url: storeURL)
+        let secondContainer = try ModelContainer(for: schema, configurations: [config])
+        let reopened = AppRepositories(container: secondContainer)
+        let observed = await firstValue(reopened.readingLists.observeReadingLists())
+        let dto = try XCTUnwrap(observed.first)
+
+        let firstURI = try XCTUnwrap(
+            Self.persistentIdentityURI(in: firstLaunchShareId),
+            "共有IDの形式が変わった（`x-coredata://…` を含まない）: \(firstLaunchShareId)"
+        )
+        let secondURI = try XCTUnwrap(
+            Self.persistentIdentityURI(in: dto.legacyShareId),
+            "共有IDの形式が変わった（`x-coredata://…` を含まない）: \(dto.legacyShareId)"
+        )
+        XCTAssertEqual(
+            secondURI, firstURI,
+            "永続識別子そのものは再起動をまたいで不変であること（共有IDの文字列は変わる・8.3節-25）"
+        )
+
+        // 再起動後の編集を挟んでも永続識別子は変わらない
+        var list = dto
+        list.title = "再起動後に改名"
+        list.updatedAt = Date()
+        try await reopened.readingLists.updateReadingList(list)
+        let afterEdit = await firstValue(reopened.readingLists.observeReadingLists())
+        let afterEditURI = Self.persistentIdentityURI(in: try XCTUnwrap(afterEdit.first).legacyShareId)
+        XCTAssertEqual(afterEditURI, firstURI)
+    }
+
+    /// `"\(persistentModelID)"` から `<x-coredata://…/ReadingList/p1>` の中身だけを取り出す。
+    ///
+    /// description の外側には `NSManagedObjectID` のポインタ値が入っており（例:
+    /// `managedObjectID(0xa311642dffa84ac1 <x-coredata://…>)`）、それが再起動をまたいで
+    /// 変わる原因である（8.3節-25）
+    private static func persistentIdentityURI(in shareId: String) -> String? {
+        guard let start = shareId.firstIndex(of: "<"),
+              let end = shareId.lastIndex(of: ">"),
+              start < end else { return nil }
+        let uri = shareId[shareId.index(after: start)..<end]
+        return uri.hasPrefix("x-coredata://") ? String(uri) : nil
     }
 
     /// 8.3節-3: 作成フローのキャンセルでリストが残らない。

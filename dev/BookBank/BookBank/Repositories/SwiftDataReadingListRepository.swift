@@ -6,8 +6,6 @@ import SwiftData
 final class SwiftDataReadingListRepository: ReadingListRepository {
     private let context: ModelContext
     private let pulse: RepositoryChangePulse
-    /// `ReadingListDTO.books` の表紙をキャッシュへ同期投入するために借りる（設計メモ 4.6節）
-    private let books: SwiftDataBookRepository
     private let logger = Logger(
         subsystem: Bundle.main.bundleIdentifier ?? "BookBank",
         category: "ReadingListRepository"
@@ -18,10 +16,9 @@ final class SwiftDataReadingListRepository: ReadingListRepository {
     /// **R6で解体が要る暫定配置**である点も同じ。
     private(set) var latestSnapshot: [ReadingListDTO] = []
 
-    init(context: ModelContext, pulse: RepositoryChangePulse, books: SwiftDataBookRepository) {
+    init(context: ModelContext, pulse: RepositoryChangePulse) {
         self.context = context
         self.pulse = pulse
-        self.books = books
     }
 
     func observeReadingLists() -> AsyncStream<[ReadingListDTO]> {
@@ -70,7 +67,7 @@ final class SwiftDataReadingListRepository: ReadingListRepository {
         let models = (try? context.fetch(descriptor)) ?? []
         // リスト系Viewは `observeBooks()` を購読しないため、ここで投入しないと
         // `LocalCoverImage` が同期ヒットできず手動表紙が初回フレームで出ない（設計メモ 4.6節）
-        books.primeLocalCoverCache(models.flatMap(\.books))
+        SwiftDataBookRepository.primeLocalCoverCache(models.flatMap(\.books))
         let dtos = models.map(ModelDTOMapping.readingListDTO(from:))
         latestSnapshot = dtos
         return dtos

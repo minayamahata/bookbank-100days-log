@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-import SwiftData
 
 struct UserBookDetailView: View {
     @Environment(\.dismiss) private var dismiss
@@ -557,7 +556,7 @@ struct DetailInfoRow: View {
 
 #Preview {
     Group {
-        if let book = PreviewSupport.firstBook() {
+        if let book = PreviewSupport.book(source: .manual) {
             NavigationStack {
                 UserBookDetailView(book: book)
             }

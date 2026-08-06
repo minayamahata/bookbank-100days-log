@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-import SwiftData
 
 /// 本棚画面
 struct BookshelfView: View {

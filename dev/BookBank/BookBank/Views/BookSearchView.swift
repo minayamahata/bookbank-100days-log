@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-import SwiftData
 
 /// 検索結果の並べ替えオプション
 enum SortOption: CaseIterable {

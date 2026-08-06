@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-import SwiftData
 
 /// 通帳画面
 /// 選択した口座の詳細と、登録されている書籍の一覧を表示

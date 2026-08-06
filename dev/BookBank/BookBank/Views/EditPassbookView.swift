@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-import SwiftData
 import UniformTypeIdentifiers
 
 /// 口座編集ビュー

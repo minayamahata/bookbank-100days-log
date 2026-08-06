@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-import SwiftData
 
 /// 本棚グリッド用の本の表紙ビュー
 struct BookCoverView: View {
@@ -98,7 +97,7 @@ struct BookCoverView: View {
 
 #Preview {
     Group {
-        if let book = PreviewSupport.firstBook() {
+        if let book = PreviewSupport.book(source: .manual) {
             BookCoverView(book: book)
                 .frame(width: 100)
         } else {

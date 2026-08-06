@@ -170,7 +170,7 @@ final class SwiftDataBookRepository: BookRepository {
         )
         descriptor.relationshipKeyPathsForPrefetching = [\.passbook]
         let models = (try? context.fetch(descriptor)) ?? []
-        primeLocalCoverCache(models)
+        Self.primeLocalCoverCache(models)
         let dtos = models.map(ModelDTOMapping.bookDTO(from:))
         latestSnapshot = dtos
         return dtos
@@ -184,7 +184,11 @@ final class SwiftDataBookRepository: BookRepository {
     ///
     /// - Note: `SwiftDataReadingListRepository` も `ReadingListDTO.books` を組み立てる際に呼ぶ
     ///   （リスト系Viewが `observeBooks()` を購読しないため・ステップ5）。
-    func primeLocalCoverCache(_ models: [UserBook]) {
+    ///   **`static` なのは意図的**——触るのは `LocalCoverDataCache.shared` だけでインスタンス状態
+    ///   （`context` / `pulse` / `latestSnapshot`）を使わないため、リスト側が本リポジトリを
+    ///   保持する必要がない。保持すると引数型が `[UserBook]`（`@Model`）である以上プロトコル化も
+    ///   できず、R6の解体対象が無駄に増える（レビュー S5-3・設計メモ 8.3節-22）
+    static func primeLocalCoverCache(_ models: [UserBook]) {
         for model in models where !LocalCoverDataCache.shared.hasData(for: model.uuid) {
             guard let data = model.coverImageData, !data.isEmpty else { continue }
             LocalCoverDataCache.shared.setData(data, for: model.uuid)

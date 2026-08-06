@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-import SwiftData
 import Charts
 
 /// 口座一覧ページ

@@ -1,5 +1,4 @@
 import SwiftUI
-import SwiftData
 import PhotosUI
 import AVFoundation
 
@@ -643,7 +642,7 @@ struct EditBookView: View {
 //   設計メモ 8.3節-5(a) のとおりステップ6で是正する。ここでは DTO 化のみ行う。
 #Preview("手動登録の本") {
     Group {
-        if let book = PreviewSupport.firstBook() {
+        if let book = PreviewSupport.book(source: .manual) {
             EditBookView(book: book)
         } else {
             Text("No preview book")
@@ -654,7 +653,7 @@ struct EditBookView: View {
 
 #Preview("API取得の本") {
     Group {
-        if let book = PreviewSupport.firstBook() {
+        if let book = PreviewSupport.book(source: .api) {
             EditBookView(book: book)
         } else {
             Text("No preview book")
