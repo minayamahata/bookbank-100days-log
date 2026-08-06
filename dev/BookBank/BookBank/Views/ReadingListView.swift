@@ -26,8 +26,10 @@ struct ReadingListView: View {
     }
     
     @State private var showAddList = false
+    /// 削除確認の対象。**提示の有無もこの値だけで決まる**（`showDeleteAlert` のような
+    /// 別フラグを併走させると、提示と値の反映がずれた瞬間に中身が空のアラートが出る＝
+    /// 設計メモ 8.3節-18 と同型。V-2 はこれの `fullScreenCover` 版だった）
     @State private var listToDelete: ReadingListDTO?
-    @State private var showDeleteAlert = false
     
     // 1カラム
     private let columns = [
@@ -57,7 +59,6 @@ struct ReadingListView: View {
                         .contextMenu {
                             Button(role: .destructive) {
                                 listToDelete = list
-                                showDeleteAlert = true
                             } label: {
                                 Label("common.delete", systemImage: "trash")
                             }
@@ -102,17 +103,20 @@ struct ReadingListView: View {
         .sheet(isPresented: $showAddList) {
             AddReadingListView(themeColor: themeColor, onNavigateToPassbook: onNavigateToPassbook)
         }
-        .alert("readinglist.delete.title", isPresented: $showDeleteAlert) {
+        .alert(
+            "readinglist.delete.title",
+            isPresented: Binding(
+                get: { listToDelete != nil },
+                set: { if !$0 { listToDelete = nil } }
+            ),
+            presenting: listToDelete
+        ) { list in
             Button("common.cancel", role: .cancel) {}
             Button("common.delete", role: .destructive) {
-                if let list = listToDelete {
-                    deleteList(list)
-                }
+                deleteList(list)
             }
-        } message: {
-            if let list = listToDelete {
-                Text(L10n.format("readinglist.delete.message", list.title))
-            }
+        } message: { list in
+            Text(L10n.format("readinglist.delete.message", list.title))
         }
         .tint(.primary)
     }
