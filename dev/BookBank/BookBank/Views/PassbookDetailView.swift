@@ -80,8 +80,13 @@ struct PassbookDetailView: View {
     
     // MARK: - Repository Streams
 
-    /// すべての口座（リポジトリのストリーム購読・sortOrder順）
-    @State private var allPassbooks: [PassbookDTO] = []
+    /// すべての口座（リポジトリのストリーム購読・sortOrder順）。
+    ///
+    /// 下の `allUserBooks` と同じく `latestSnapshot` で初回フレームを埋める（4.6節）。
+    /// 素の `@State = []` にすると、初回フレームだけ `customPassbooks` が空になり
+    /// `accountInfoSection` の高さ計測が短い値で確定してしまう（V-1・8.3節-12）
+    @State private var loadedPassbooks: [PassbookDTO]?
+    private var allPassbooks: [PassbookDTO] { loadedPassbooks ?? repos.passbooks.latestSnapshot }
 
     /// すべての書籍（リポジトリのストリーム購読）。
     /// 正準ソートは registeredAt 降順＋createdAt 降順で、旧 `@Query` の指定と完全一致する（C-4 維持）
@@ -275,7 +280,7 @@ struct PassbookDetailView: View {
         }
         .task {
             for await value in repos.passbooks.observePassbooks() {
-                allPassbooks = value
+                loadedPassbooks = value
             }
         }
         .task {
