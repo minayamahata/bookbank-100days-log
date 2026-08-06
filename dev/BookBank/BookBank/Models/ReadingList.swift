@@ -69,11 +69,6 @@ final class ReadingList {
 // MARK: - Computed Properties
 
 extension ReadingList {
-    /// 本の並び順を保存（UserBook.uuid の配列として保持）
-    func saveBookOrder(_ orderedBooks: [UserBook]) {
-        bookIds = orderedBooks.map { $0.uuid }
-    }
-    
     /// リスト内の書籍数
     var bookCount: Int {
         books.count
