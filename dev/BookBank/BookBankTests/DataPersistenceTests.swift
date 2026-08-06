@@ -128,8 +128,9 @@ final class DataPersistenceTests: XCTestCase {
         
         XCTAssertEqual(passbooks.count, 1)
         XCTAssertEqual(passbooks.first?.name, "総合口座")
+        // 検証対象は永続化される `type` そのもの。そこから総合口座かを導く判定は
+        // `PassbookDTO.isOverall` 側に移設済み（R4ステップ6で `Passbook.isOverall` を削除・8.3節-26）
         XCTAssertEqual(passbooks.first?.type, .overall)
-        XCTAssertTrue(passbooks.first?.isOverall ?? false)
     }
     
     // MARK: - Relationship Tests

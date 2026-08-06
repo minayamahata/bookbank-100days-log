@@ -1,6 +1,5 @@
 import Foundation
 import SwiftData
-import UIKit
 
 /// ユーザーが登録した書籍モデル
 /// 書籍マスター情報とユーザー固有情報を統合
@@ -143,16 +142,6 @@ enum BookSource: String, Codable, CaseIterable {
 // MARK: - Computed Properties
 
 extension UserBook {
-    /// 表示用の著者名（未設定の場合は空文字）
-    var displayAuthor: String {
-        author ?? ""
-    }
-
-    /// 表示に使える表紙URL（楽天の noimage プレースホルダーは除外）
-    var coverImageURL: String? {
-        BookCoverImageURL.normalized(imageURL)
-    }
-
     /// 表示用の価格文字列（レガシー・換算表示は FormattedPriceText を使用）
     var displayPrice: String? {
         guard let price = priceAtRegistration else { return nil }
@@ -163,39 +152,5 @@ extension UserBook {
     var hasISBN13: Bool {
         guard let isbn = isbn else { return false }
         return isbn.count == 13
-    }
-    
-    /// 表紙画像があるかどうか（URL or ローカルデータ）
-    var hasCoverImage: Bool {
-        if let data = coverImageData, !data.isEmpty { return true }
-        return coverImageURL != nil
-    }
-    
-    /// ローカル保存の表紙画像をUIImageとして取得
-    var coverUIImage: UIImage? {
-        guard let data = coverImageData else { return nil }
-        return UIImage(data: data)
-    }
-
-    /// 保存されている通貨（未設定は JPY）
-    var storedCurrency: AppCurrency {
-        AppCurrency(code: currencyCode) ?? .jpy
-    }
-
-    /// 表示通貨に換算した金額
-    @MainActor
-    func displayAmount(in target: AppCurrency, exchangeRates: ExchangeRateService) -> Int? {
-        guard let amount = priceAtRegistration else { return nil }
-        return exchangeRates.convert(amount, from: storedCurrency, to: target)
-    }
-}
-
-extension Collection where Element == UserBook {
-    /// 表示通貨での合計
-    @MainActor
-    func totalDisplayAmount(in target: AppCurrency, exchangeRates: ExchangeRateService) -> Int {
-        reduce(0) { partial, book in
-            partial + (book.displayAmount(in: target, exchangeRates: exchangeRates) ?? 0)
-        }
     }
 }

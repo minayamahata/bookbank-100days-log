@@ -87,11 +87,6 @@ enum PassbookType: String, Codable, CaseIterable {
 // MARK: - Computed Properties
 
 extension Passbook {
-    /// 総合口座かどうか
-    var isOverall: Bool {
-        type == .overall
-    }
-
     /// 登録書籍数
     var bookCount: Int {
         userBooks.count

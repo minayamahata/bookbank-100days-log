@@ -138,9 +138,10 @@ struct ReadingListOrderMigrationTests {
         ReadingListOrderMigration.migrateIfNeeded(context: context)
 
         let migrated = try context.fetch(FetchDescriptor<ReadingList>()).first!
+        // 検証対象はマイグレーションが書くもの＝bookIds そのもの。
+        // これを解決した並びが同じであることは `ReadingListOrdering` 側のテストが担保する
+        // （R4ステップ6で `ReadingList.orderedBooks` を削除・8.3節-26）
         #expect(migrated.bookIds == [bookC.uuid, bookA.uuid, bookB.uuid])
-        // orderedBooks（新ロジック）も同じ順序を返す
-        #expect(migrated.orderedBooks.map(\.uuid) == [bookC.uuid, bookA.uuid, bookB.uuid])
         #expect(ReadingListOrderMigration.hasCompleted)
 
         UserDefaults.standard.removeObject(forKey: "didMigrateBookOrderToUUIDV1")

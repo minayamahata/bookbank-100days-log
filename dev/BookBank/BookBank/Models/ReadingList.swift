@@ -69,30 +69,6 @@ final class ReadingList {
 // MARK: - Computed Properties
 
 extension ReadingList {
-    /// bookIds（UserBook.uuid の配列）に基づいてソートされた本のリスト。
-    /// bookIds に記載のない本は末尾に追記する（現行のフォールバックを維持）。
-    var orderedBooks: [UserBook] {
-        guard !bookIds.isEmpty else { return books }
-        let uuidToBook = Dictionary(
-            books.map { ($0.uuid, $0) },
-            uniquingKeysWith: { first, _ in first }
-        )
-        var ordered: [UserBook] = []
-        var usedUUIDs = Set<String>()
-        for id in bookIds {
-            if let book = uuidToBook[id] {
-                ordered.append(book)
-                usedUUIDs.insert(id)
-            }
-        }
-        for book in books {
-            if !usedUUIDs.contains(book.uuid) {
-                ordered.append(book)
-            }
-        }
-        return ordered
-    }
-    
     /// 本の並び順を保存（UserBook.uuid の配列として保持）
     func saveBookOrder(_ orderedBooks: [UserBook]) {
         bookIds = orderedBooks.map { $0.uuid }
