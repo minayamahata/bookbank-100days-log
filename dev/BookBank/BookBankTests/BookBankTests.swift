@@ -431,4 +431,13 @@ struct BookBankTests {
         #expect(MemoTagParser.parse("タグのないメモ").isEmpty)
     }
 
+    @Test func memoTagHighlightKeepsTextIntact() {
+        // 着色以外は素の Text(memo) と同じでなければならない（前提13）。
+        // 文字の欠落・重複が起きていないことを、平文へ戻して確認する
+        for memo in ["#京都 で買った古本\n#奈良 も行きたい", "タグのないメモ", "#京都#奈良", "末尾がタグ #京都"] {
+            let attributed = MemoTagText.highlighted(memo, color: .blue)
+            #expect(String(attributed.characters) == memo)
+        }
+    }
+
 }

@@ -94,6 +94,14 @@ struct UserBookDetailView: View {
         return themeColor
     }
 
+    /// メモ内のタグの色。黒テーマ＋ダークモードではテーマ色が背景に沈むため白へ退避する
+    private var tagColor: Color {
+        if colorScheme == .dark && isBlackTheme {
+            return .white
+        }
+        return themeColor
+    }
+
     var body: some View {
         let _ = languageManager.currentLanguage
 
@@ -451,7 +459,7 @@ struct UserBookDetailView: View {
                         .frame(minHeight: 120)
 
                     if let memo = book.memo, !memo.isEmpty {
-                        Text(memo)
+                        Text(MemoTagText.highlighted(memo, color: tagColor))
                             .font(.subheadline)
                             .foregroundColor(.primary)
                             .multilineTextAlignment(.leading)
