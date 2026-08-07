@@ -365,11 +365,14 @@ struct BookBankTests {
         #expect(tagKeys("メモ\u{3000}#京都") == ["京都"], "全角スペースも境界として扱う")
     }
 
-    @Test func memoTagDoesNotChainWithoutSeparator() {
-        // `#京都#奈良` の2つ目は直前が文字なので開始記号にならない（境界条件の帰結）。
-        // 取りこぼしは空白1つで直せるため、誤検出を潰す側に倒した判断を固定する
-        #expect(tagKeys("#京都#奈良") == ["京都"])
+    @Test func memoTagAllowsConsecutiveTags() {
+        // 連続タグは日本語圏のSNSで標準的な書き方なので、タグの直後だけ境界を復活させる
+        #expect(tagKeys("#京都#奈良") == ["京都", "奈良"])
+        #expect(tagKeys("#京都#奈良#大阪") == ["京都", "奈良", "大阪"])
         #expect(tagKeys("#京都 #奈良") == ["京都", "奈良"])
+        // 緩和したのは「タグが成立した直後」だけで、誤検出の経路は塞がったまま
+        #expect(tagKeys("https://example.com/#section").isEmpty)
+        #expect(tagKeys("C#の本").isEmpty)
     }
 
     @Test func memoTagStopsAtNonBodyCharacters() {
@@ -390,7 +393,7 @@ struct BookBankTests {
 
     @Test func memoTagRejectsEmptyAndDigitsOnly() {
         #expect(tagKeys("# 単体").isEmpty)
-        #expect(tagKeys("##京都").isEmpty, "本体が空なら不成立")
+        #expect(tagKeys("##京都").isEmpty, "本体が空なら不成立。境界も復活しないので2つ目も開始記号にならない")
         #expect(tagKeys("#2026").isEmpty)
         #expect(tagKeys("#１").isEmpty, "全角数字も正規化後は数字のみ")
     }

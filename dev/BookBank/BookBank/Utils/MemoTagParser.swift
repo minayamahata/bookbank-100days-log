@@ -26,20 +26,24 @@ enum MemoTagParser {
 
     /// メモ本文からタグを出現順に抽出する。
     ///
-    /// `#` の直前が行頭・空白・改行のいずれかである場合だけタグの開始と見なす（設計メモ 3.2節）。
-    /// この条件が無いと URL の `https://example.com/#section` や `C#の本` を拾ってしまう。
-    /// 誤検出は既存のメモに黙ってゴミタグを生やすが、取りこぼしはユーザーが空白を
-    /// 1つ入れれば直せるため、静かに壊れるほうを潰す判断を採っている。
+    /// `#` は **行頭・空白・改行の直後**、または **直前のタグが終わった位置** にある場合だけ
+    /// タグの開始と見なす（設計メモ 3.2節）。この条件が無いと URL の
+    /// `https://example.com/#section` や `C#の本` を拾ってしまう。誤検出は既存のメモに黙って
+    /// ゴミタグを生やすが、取りこぼしはユーザーが空白を1つ入れれば直せるため、静かに壊れる
+    /// ほうを潰す判断を採っている。連続タグ（`#京都#奈良`）だけは日本語圏で標準的な
+    /// 書き方なので例外的に許す
     nonisolated static func parse(_ text: String) -> [MemoTag] {
         var tags: [MemoTag] = []
         var index = text.startIndex
         var previous: Character?
+        var followsTag = false
 
         while index < text.endIndex {
             let character = text[index]
-            let isAtBoundary = previous.map(\.isWhitespace) ?? true
+            let isAtBoundary = followsTag || (previous.map(\.isWhitespace) ?? true)
             guard isOpener(character), isAtBoundary else {
                 previous = character
+                followsTag = false
                 index = text.index(after: index)
                 continue
             }
@@ -52,13 +56,15 @@ enum MemoTagParser {
 
             let body = text[bodyStart..<bodyEnd]
             let key = normalize(String(body))
-            if isValidKey(key) {
+            let isTag = isValidKey(key)
+            if isTag {
                 tags.append(MemoTag(key: key, display: String(body), range: index..<bodyEnd))
             }
 
-            // 本体を読み切った位置から再開する。直前文字を本体の末尾に進めることで、
-            // `#京都#奈良` の2つ目のように境界を満たさない `#` が開始記号にならない
+            // 連続タグを許すのは**タグとして成立した直後**だけ。`##京都` のように
+            // 本体が空だった場合は境界が復活しないので、2つ目の `#` も開始記号にならない
             previous = bodyEnd > bodyStart ? text[text.index(before: bodyEnd)] : character
+            followsTag = isTag
             index = bodyEnd
         }
 
