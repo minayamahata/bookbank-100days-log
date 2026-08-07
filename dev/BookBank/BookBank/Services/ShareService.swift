@@ -109,9 +109,10 @@ class ShareService {
             )
         }
         
-        // 共有IDは `persistentModelID` の文字列表現のまま（設計メモ 前提6）。
-        // uuid へ切り替えると同じリストが別URLになるためR6まで維持する
-        let readingListId = readingList.legacyShareId
+        // 共有IDは uuid（R4申し送り 10.1・R4.5で `persistentModelID` から切り替え）。
+        // 旧実装の `persistentModelID` 文字列はプロセスごとに変わるため、再起動をまたぐ
+        // 再共有のたびに別URLが発行されていた。uuid は再起動をまたいでも同一
+        let readingListId = readingList.id
         
         // colorIndexをHEXカラー文字列に変換
         let bgColorHex = PassbookColor.hexString(for: readingList.colorIndex ?? 0)

@@ -1,9 +1,12 @@
 import Foundation
 
-/// 読了リストのView向けDTO（設計メモ 3.3節・前提5・前提6）
+/// 読了リストのView向けDTO（設計メモ 3.3節・前提5）
 ///
 /// `Hashable` は `NavigationLink(value:)` / `navigationDestination(for:)` に載せるための適合。
 /// 遷移先は `id` でストリームから解決し直すため、押下時のスナップショットは初期値としてのみ使う。
+///
+/// 共有URLのIDも `id`（uuid）を使う。R4までは `persistentModelID` 文字列を運ぶ
+/// `legacyShareId` を別に持っていたが、R4.5で廃止した（R4設計メモ 10.1）。
 struct ReadingListDTO: Identifiable, Equatable, Hashable, Sendable {
     let id: String
     var title: String
@@ -14,8 +17,6 @@ struct ReadingListDTO: Identifiable, Equatable, Hashable, Sendable {
     var books: [BookDTO]
     var createdAt: Date
     var updatedAt: Date
-    /// 共有URL同一性のための `persistentModelID` 文字列（前提6）
-    var legacyShareId: String
 }
 
 extension ReadingListDTO {

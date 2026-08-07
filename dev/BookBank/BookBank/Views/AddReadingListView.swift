@@ -185,8 +185,7 @@ struct AddReadingListView: View {
             bookIds: [],
             books: [],
             createdAt: now,
-            updatedAt: now,
-            legacyShareId: ""
+            updatedAt: now
         )
         pendingBooks = []
         showBookSelector = true

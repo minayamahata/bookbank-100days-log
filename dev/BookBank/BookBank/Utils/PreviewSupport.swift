@@ -96,8 +96,7 @@ enum PreviewSupport {
             bookIds: books.map(\.id),
             books: books,
             createdAt: now,
-            updatedAt: now,
-            legacyShareId: "preview-share-id"
+            updatedAt: now
         )
     }
 }

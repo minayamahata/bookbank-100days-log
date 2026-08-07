@@ -95,8 +95,7 @@ enum ModelDTOMapping {
             bookIds: model.bookIds,
             books: orderedModels.map { bookDTO(from: $0) },
             createdAt: model.createdAt,
-            updatedAt: model.updatedAt,
-            legacyShareId: "\(model.persistentModelID)"
+            updatedAt: model.updatedAt
         )
     }
 
