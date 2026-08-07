@@ -335,4 +335,97 @@ struct BookBankTests {
         #expect(BookCoverImageURL.normalized(real) == real)
     }
 
+    // MARK: - MemoTagParser（メモタグT1: 3.2節のパース仕様）
+
+    /// 抽出結果を正規化キーの配列で比べるための小道具
+    private func tagKeys(_ text: String) -> [String] {
+        MemoTagParser.parse(text).map(\.key)
+    }
+
+    @Test func memoTagExtractsTagsInOrder() {
+        #expect(tagKeys("#京都 で買った #古本") == ["京都", "古本"])
+        #expect(tagKeys("旅の記録\n#京都\n#奈良") == ["京都", "奈良"])
+    }
+
+    @Test func memoTagAcceptsFullwidthOpener() {
+        // 日本語IMEのかな入力では全角＃が出る。ここを受けないと日本語ユーザーが打てない
+        #expect(tagKeys("＃京都") == ["京都"])
+        #expect(tagKeys("メモ ＃京都 と #奈良") == ["京都", "奈良"])
+    }
+
+    @Test func memoTagRequiresBoundaryBeforeOpener() {
+        // 誤検出を潰すための厳しめの条件（3.2節）
+        #expect(tagKeys("https://example.com/#section").isEmpty)
+        #expect(tagKeys("C#の本を読んだ").isEmpty)
+        #expect(tagKeys("あ#京都").isEmpty)
+        // 行頭・空白・改行の直後は拾う
+        #expect(tagKeys("#京都") == ["京都"])
+        #expect(tagKeys("メモ #京都") == ["京都"])
+        #expect(tagKeys("メモ\n#京都") == ["京都"])
+        #expect(tagKeys("メモ\u{3000}#京都") == ["京都"], "全角スペースも境界として扱う")
+    }
+
+    @Test func memoTagDoesNotChainWithoutSeparator() {
+        // `#京都#奈良` の2つ目は直前が文字なので開始記号にならない（境界条件の帰結）。
+        // 取りこぼしは空白1つで直せるため、誤検出を潰す側に倒した判断を固定する
+        #expect(tagKeys("#京都#奈良") == ["京都"])
+        #expect(tagKeys("#京都 #奈良") == ["京都", "奈良"])
+    }
+
+    @Test func memoTagStopsAtNonBodyCharacters() {
+        #expect(tagKeys("#京都、また行きたい") == ["京都"])
+        #expect(tagKeys("#京都。") == ["京都"])
+        #expect(tagKeys("#kyoto!") == ["kyoto"])
+        #expect(tagKeys("#京都📚") == ["京都"], "絵文字は本体に含めない")
+        #expect(tagKeys("#sci-fi") == ["sci"], "ハイフンは終端（前提2・取りこぼしは受け入れる）")
+    }
+
+    @Test func memoTagAcceptsLettersMarksNumbersAndUnderscore() {
+        #expect(tagKeys("#ハードカバー") == ["ハードカバー"], "長音符は Lm なので本体に含む")
+        #expect(tagKeys("#소설") == ["소설"])
+        #expect(tagKeys("#科幻小説") == ["科幻小説"])
+        #expect(tagKeys("#sci_fi") == ["sci_fi"])
+        #expect(tagKeys("#1位") == ["1位"], "数字始まりでも文字を含めば有効（3.2節・許容で確定）")
+    }
+
+    @Test func memoTagRejectsEmptyAndDigitsOnly() {
+        #expect(tagKeys("# 単体").isEmpty)
+        #expect(tagKeys("##京都").isEmpty, "本体が空なら不成立")
+        #expect(tagKeys("#2026").isEmpty)
+        #expect(tagKeys("#１").isEmpty, "全角数字も正規化後は数字のみ")
+    }
+
+    @Test func memoTagRejectsOverlongTagWithoutTruncating() {
+        let thirty = String(repeating: "あ", count: 30)
+        let thirtyOne = String(repeating: "あ", count: 31)
+        #expect(tagKeys("#\(thirty)") == [thirty])
+        // 切り捨てて意図と違うタグを作らない（前提3）
+        #expect(tagKeys("#\(thirtyOne)").isEmpty)
+        #expect(tagKeys("#\(thirtyOne) #京都") == ["京都"], "不成立のタグの後ろは通常どおり読む")
+    }
+
+    @Test func memoTagNormalizesWithNFKCAndLowercase() {
+        #expect(tagKeys("#SF") == ["sf"])
+        #expect(tagKeys("＃ＳＦ") == ["sf"], "全角英字はNFKCで半角へ")
+        #expect(MemoTagParser.parse("#SF").first?.display == "SF", "表示は書かれたままの綴り")
+    }
+
+    @Test func memoTagDoesNotFoldKanaUnlikeShelfSearch() {
+        // 前提4の確定を固定する。検索は表記ゆれを吸収するのが目的、タグはユーザーが
+        // 書き分けたものを区別するのが目的なので、かな寄せは**しない**
+        #expect(tagKeys("#とうきょう #トウキョウ") == ["とうきょう", "トウキョウ"])
+        #expect(ShelfSearchMatcher.matches(fields: ["トウキョウ"], query: "とうきょう"))
+    }
+
+    @Test func memoTagRangeCoversOpenerAndBody() throws {
+        let text = "旅の記録 #京都 で買った"
+        let tag = try #require(MemoTagParser.parse(text).first)
+        #expect(String(text[tag.range]) == "#京都", "ハイライト範囲は # を含む")
+    }
+
+    @Test func memoTagReturnsNothingForTextWithoutTags() {
+        #expect(MemoTagParser.parse("").isEmpty)
+        #expect(MemoTagParser.parse("タグのないメモ").isEmpty)
+    }
+
 }
