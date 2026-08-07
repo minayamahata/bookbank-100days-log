@@ -9,8 +9,11 @@ import XCTest
 
 final class BookBankUITestsLaunchTests: XCTestCase {
 
+    /// Xcodeテンプレートの既定は `true`（UI構成ごとに `testLaunch` を繰り返す）だが、
+    /// 起動時のスプラッシュが5秒あるためスキーム全体のテストが15分近くかかっていた。
+    /// 起動スモークとしては1回で足りるので繰り返さない
     override class var runsForEachTargetApplicationUIConfiguration: Bool {
-        true
+        false
     }
 
     override func setUpWithError() throws {
