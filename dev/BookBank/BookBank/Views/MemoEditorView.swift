@@ -102,35 +102,38 @@ struct MemoEditorView: View {
 
     /// 左から つなぐ・太字・引用・ページ番号。書式はMarkdown記法を本文に埋め込む方式で、
     /// ボタンは記号を挿入するだけ（独自のリッチテキスト形式を持たない）。
+    /// アイコンではなく**テキストラベル**で出す——リンクの図像は外部リンク（https://）に
+    /// 見えるなど、図像では操作の意味が伝わらないため（2026-08-11 オーナー指示）。
     /// 「つなぐ」は書籍メモのみ——月メモは候補元が無い（`linkIndex == nil`・4.3節のスコープ）
     private var editorToolbar: some View {
-        HStack(spacing: 28) {
-            if linkIndex != nil {
-                toolbarButton("memo.toolbar.link", systemImage: "link", action: insertLinkBrackets)
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 12) {
+                if linkIndex != nil {
+                    toolbarButton("memo.toolbar.link", action: insertLinkBrackets)
+                }
+                toolbarButton("memo.toolbar.bold", action: wrapSelectionInBold)
+                toolbarButton("memo.toolbar.quote", action: insertQuotePrefix)
+                toolbarButton("memo.toolbar.page", action: insertPageMarker)
             }
-            toolbarButton("memo.toolbar.bold", systemImage: "bold", action: wrapSelectionInBold)
-            toolbarButton("memo.toolbar.quote", systemImage: "text.quote", action: insertQuotePrefix)
-            toolbarButton("memo.toolbar.page", systemImage: "textformat.123", action: insertPageMarker)
-            Spacer()
+            .padding(.horizontal, 20)
+            .padding(.vertical, 8)
         }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 10)
         .background(.bar)
     }
 
     private func toolbarButton(
         _ label: LocalizedStringKey,
-        systemImage: String,
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
-            Image(systemName: systemImage)
-                .font(.title3)
+            Text(label)
+                .font(.subheadline)
                 .foregroundColor(.primary)
-                .frame(minWidth: 32, minHeight: 32)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(Color(.secondarySystemFill), in: Capsule())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(Text(label))
     }
 
     /// いま選択している範囲。無選択（キャレットのみ）は空範囲、未フォーカスは末尾扱い
