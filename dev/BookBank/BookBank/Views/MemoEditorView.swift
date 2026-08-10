@@ -18,19 +18,19 @@ struct MemoEditorView: View {
     
     let title: LocalizedStringKey
     /// 入力サジェストの候補元。`nil` ならサジェストしない（月メモはT1のスコープ外＝設計メモ 4.3節）
-    let tagIndex: MemoTagIndex?
+    let linkIndex: MemoLinkIndex?
     let onSave: (String) -> Void
     
     init(
         memo: Binding<String>,
         title: LocalizedStringKey = "book.memo",
-        tagIndex: MemoTagIndex? = nil,
+        linkIndex: MemoLinkIndex? = nil,
         onSave: @escaping (String) -> Void
     ) {
         self._memo = memo
         self._editedText = State(initialValue: memo.wrappedValue)
         self.title = title
-        self.tagIndex = tagIndex
+        self.linkIndex = linkIndex
         self.onSave = onSave
     }
     
@@ -53,7 +53,7 @@ struct MemoEditorView: View {
             }
             .padding(.horizontal, 20)
             .safeAreaInset(edge: .bottom) {
-                tagSuggestionRow
+                linkSuggestionRow
             }
             .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
@@ -94,20 +94,20 @@ struct MemoEditorView: View {
         }
     }
     
-    // MARK: - タグの入力サジェスト（設計メモ 4.1節）
+    // MARK: - つながりの入力サジェスト（設計メモ 4.1節）
 
-    /// `#` を打った瞬間から既存タグを候補に出す。表記ゆれの発生自体を抑えるのが狙いで、
-    /// 候補が無いときは行そのものを出さない（タグを使わない人の編集画面は現状のまま）
+    /// `[[` を打った瞬間から既存のつながりを候補に出す。表記ゆれの発生自体を抑えるのが狙いで、
+    /// 候補が無いときは行そのものを出さない（つながりを使わない人の編集画面は現状のまま）
     @ViewBuilder
-    private var tagSuggestionRow: some View {
-        if !tagSuggestions.isEmpty {
+    private var linkSuggestionRow: some View {
+        if !linkSuggestions.isEmpty {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
-                    ForEach(tagSuggestions, id: \.key) { tag in
+                    ForEach(linkSuggestions, id: \.key) { link in
                         Button {
-                            complete(with: tag)
+                            complete(with: link)
                         } label: {
-                            Text(verbatim: "#\(tag.display)")
+                            Text(verbatim: link.display)
                                 .font(.subheadline)
                                 .foregroundColor(.primary)
                                 .padding(.horizontal, 12)
@@ -124,17 +124,17 @@ struct MemoEditorView: View {
         }
     }
 
-    private var tagSuggestions: [MemoTagIndex.Tag] {
-        guard let tagIndex, let draft = currentDraftTag else { return [] }
-        let alreadyWritten = Set(MemoTagParser.parse(editedText).map(\.key))
+    private var linkSuggestions: [MemoLinkIndex.Link] {
+        guard let linkIndex, let draft = currentDraftLink else { return [] }
+        let alreadyWritten = Set(MemoLinkParser.parse(editedText).map(\.key))
         return Array(
-            tagIndex.suggestions(matching: draft.partialKey, excluding: alreadyWritten).prefix(8)
+            linkIndex.suggestions(matching: draft.partialKey, excluding: alreadyWritten).prefix(8)
         )
     }
 
-    private var currentDraftTag: MemoDraftTag? {
+    private var currentDraftLink: MemoDraftLink? {
         guard let caret = caretIndex else { return nil }
-        return MemoTagParser.draftTag(in: editedText, before: caret)
+        return MemoLinkParser.draftLink(in: editedText, before: caret)
     }
 
     /// キャレット位置。範囲を選択している間はサジェストを出さない
@@ -148,10 +148,11 @@ struct MemoEditorView: View {
         }
     }
 
-    /// 入力途中のタグを候補で置き換える。末尾の空白は、続けて書いた語がタグに飲まれないため
-    private func complete(with tag: MemoTagIndex.Tag) {
-        guard let draft = currentDraftTag else { return }
-        let insertion = "#\(tag.display) "
+    /// 入力途中のつながりを候補で置き換える（キャレット直後の `]]` も範囲に含まれるので、
+    /// ツールバー挿入直後の `[[]]` も丸ごと差し替わる）。末尾の空白は続きを書きやすくするため
+    private func complete(with link: MemoLinkIndex.Link) {
+        guard let draft = currentDraftLink else { return }
+        let insertion = "[[\(link.display)]] "
         // 置き換えで既存の String.Index は無効になるため、先に開始位置を数で取る
         let offset = editedText.distance(from: editedText.startIndex, to: draft.range.lowerBound)
         editedText.replaceSubrange(draft.range, with: insertion)

@@ -94,8 +94,8 @@ struct UserBookDetailView: View {
         return themeColor
     }
 
-    /// メモ内のタグの色。黒テーマ＋ダークモードではテーマ色が背景に沈むため白へ退避する
-    private var tagColor: Color {
+    /// メモ内のつながりの色。黒テーマ＋ダークモードではテーマ色が背景に沈むため白へ退避する
+    private var linkColor: Color {
         if colorScheme == .dark && isBlackTheme {
             return .white
         }
@@ -178,7 +178,7 @@ struct UserBookDetailView: View {
                     get: { book.memo ?? "" },
                     set: { _ in }
                 ),
-                tagIndex: MemoTagIndex.build(from: repos.books.latestSnapshot)
+                    linkIndex: MemoLinkIndex.build(from: repos.books.latestSnapshot)
             ) { newMemo in
                 saveMemo(newMemo)
             }
@@ -462,7 +462,7 @@ struct UserBookDetailView: View {
                         .frame(minHeight: 120)
 
                     if let memo = book.memo, !memo.isEmpty {
-                        Text(MemoTagText.highlighted(memo, color: tagColor))
+                        Text(MemoLinkText.highlighted(memo, color: linkColor))
                             .font(.subheadline)
                             .foregroundColor(.primary)
                             .multilineTextAlignment(.leading)

@@ -335,115 +335,110 @@ struct BookBankTests {
         #expect(BookCoverImageURL.normalized(real) == real)
     }
 
-    // MARK: - MemoTagParser（メモタグT1: 3.2節のパース仕様）
+    // MARK: - MemoLinkParser（メモつながりT1: 3.2節のパース仕様）
 
     /// 抽出結果を正規化キーの配列で比べるための小道具
-    private func tagKeys(_ text: String) -> [String] {
-        MemoTagParser.parse(text).map(\.key)
+    private func linkKeys(_ text: String) -> [String] {
+        MemoLinkParser.parse(text).map(\.key)
     }
 
-    @Test func memoTagExtractsTagsInOrder() {
-        #expect(tagKeys("#京都 で買った #古本") == ["京都", "古本"])
-        #expect(tagKeys("旅の記録\n#京都\n#奈良") == ["京都", "奈良"])
+    @Test func memoLinkExtractsLinksInOrder() {
+        #expect(linkKeys("[[京都]] で買った [[古本]]") == ["京都", "古本"])
+        #expect(linkKeys("旅の記録\n[[京都]]\n[[奈良]]") == ["京都", "奈良"])
+        #expect(linkKeys("[[京都]][[奈良]]") == ["京都", "奈良"], "連続もそのまま読める")
     }
 
-    @Test func memoTagAcceptsFullwidthOpener() {
-        // 日本語IMEのかな入力では全角＃が出る。ここを受けないと日本語ユーザーが打てない
-        #expect(tagKeys("＃京都") == ["京都"])
-        #expect(tagKeys("メモ ＃京都 と #奈良") == ["京都", "奈良"])
+    @Test func memoLinkAcceptsFullwidthAndMixedBrackets() {
+        // 日本語IMEでは全角括弧が出る。開始と終了で全角半角が混ざっていてもよい（前提9）
+        #expect(linkKeys("［［京都］］") == ["京都"])
+        #expect(linkKeys("[［京都]］") == ["京都"])
+        #expect(linkKeys("［[京都］]") == ["京都"])
+        #expect(linkKeys("[[京都］］") == ["京都"])
     }
 
-    @Test func memoTagRequiresBoundaryBeforeOpener() {
-        // 誤検出を潰すための厳しめの条件（3.2節）
-        #expect(tagKeys("https://example.com/#section").isEmpty)
-        #expect(tagKeys("C#の本を読んだ").isEmpty)
-        #expect(tagKeys("あ#京都").isEmpty)
-        // 行頭・空白・改行の直後は拾う
-        #expect(tagKeys("#京都") == ["京都"])
-        #expect(tagKeys("メモ #京都") == ["京都"])
-        #expect(tagKeys("メモ\n#京都") == ["京都"])
-        #expect(tagKeys("メモ\u{3000}#京都") == ["京都"], "全角スペースも境界として扱う")
+    @Test func memoLinkAllowsArbitraryContent() {
+        // 中身は任意の文字列。#記法の文字種制限（L*/M*/N*/_）は [[ ]] には無い
+        #expect(linkKeys("[[SF小説 ベスト10]]") == ["sf小説 ベスト10"], "空白・数字混在も可")
+        #expect(linkKeys("[[貸出: 田中さん]]") == ["貸出: 田中さん"], "句読点・記号も可")
+        #expect(linkKeys("[[sci-fi]]") == ["sci-fi"], "#で終端だったハイフンも可")
+        #expect(linkKeys("[[📚積読]]") == ["📚積読"], "絵文字も可")
+        #expect(linkKeys("[[2026]]") == ["2026"], "数字のみも可（#の誤検出対策は [[ ]] には当たらない）")
     }
 
-    @Test func memoTagAllowsConsecutiveTags() {
-        // 連続タグは日本語圏のSNSで標準的な書き方なので、タグの直後だけ境界を復活させる
-        #expect(tagKeys("#京都#奈良") == ["京都", "奈良"])
-        #expect(tagKeys("#京都#奈良#大阪") == ["京都", "奈良", "大阪"])
-        #expect(tagKeys("#京都 #奈良") == ["京都", "奈良"])
-        // 緩和したのは「タグが成立した直後」だけで、誤検出の経路は塞がったまま
-        #expect(tagKeys("https://example.com/#section").isEmpty)
-        #expect(tagKeys("C#の本").isEmpty)
+    @Test func memoLinkTrimsSurroundingWhitespace() {
+        // 中身に空白を許した帰結として、前後の空白は同一視のためトリムする
+        #expect(linkKeys("[[ 京都 ]]") == ["京都"])
+        #expect(MemoLinkParser.parse("[[ 京都 ]]").first?.display == "京都", "表示もトリム後")
     }
 
-    @Test func memoTagStopsAtNonBodyCharacters() {
-        #expect(tagKeys("#京都、また行きたい") == ["京都"])
-        #expect(tagKeys("#京都。") == ["京都"])
-        #expect(tagKeys("#kyoto!") == ["kyoto"])
-        #expect(tagKeys("#京都📚") == ["京都"], "絵文字は本体に含めない")
-        #expect(tagKeys("#sci-fi") == ["sci"], "ハイフンは終端（前提2・取りこぼしは受け入れる）")
+    @Test func memoLinkRejectsEmptyAndWhitespaceOnly() {
+        #expect(linkKeys("[[]]").isEmpty)
+        #expect(linkKeys("[[ ]]").isEmpty)
+        #expect(linkKeys("[[\u{3000}]]").isEmpty, "全角スペースのみも空と同じ")
+        #expect(linkKeys("[[]] [[京都]]") == ["京都"], "不成立の後ろは通常どおり読む")
     }
 
-    @Test func memoTagAcceptsLettersMarksNumbersAndUnderscore() {
-        #expect(tagKeys("#ハードカバー") == ["ハードカバー"], "長音符は Lm なので本体に含む")
-        #expect(tagKeys("#소설") == ["소설"])
-        #expect(tagKeys("#科幻小説") == ["科幻小説"])
-        #expect(tagKeys("#sci_fi") == ["sci_fi"])
-        #expect(tagKeys("#1位") == ["1位"], "数字始まりでも文字を含めば有効（3.2節・許容で確定）")
+    @Test func memoLinkRejectsContentSpanningLines() {
+        // 行をまたぐと表示も崩れるため不成立（3.2節）
+        #expect(linkKeys("[[京都\n奈良]]").isEmpty)
+        #expect(linkKeys("[[京都\n[[奈良]]") == ["奈良"], "閉じ忘れの [[ が後続行の ]] と結合しない")
     }
 
-    @Test func memoTagRejectsEmptyAndDigitsOnly() {
-        #expect(tagKeys("# 単体").isEmpty)
-        #expect(tagKeys("##京都").isEmpty, "本体が空なら不成立。境界も復活しないので2つ目も開始記号にならない")
-        #expect(tagKeys("#2026").isEmpty)
-        #expect(tagKeys("#１").isEmpty, "全角数字も正規化後は数字のみ")
-        // 「数字のみ」は十進数字に限る。数値を持つ漢字を数字扱いすると正当なタグが消える
-        #expect(tagKeys("#京") == ["京"])
-        #expect(tagKeys("#十") == ["十"])
-        #expect(tagKeys("#一") == ["一"])
-    }
-
-    @Test func memoTagRejectsOverlongTagWithoutTruncating() {
+    @Test func memoLinkRejectsOverlongLabelWithoutTruncating() {
         let thirty = String(repeating: "あ", count: 30)
         let thirtyOne = String(repeating: "あ", count: 31)
-        #expect(tagKeys("#\(thirty)") == [thirty])
-        // 切り捨てて意図と違うタグを作らない（前提3）
-        #expect(tagKeys("#\(thirtyOne)").isEmpty)
-        #expect(tagKeys("#\(thirtyOne) #京都") == ["京都"], "不成立のタグの後ろは通常どおり読む")
+        #expect(linkKeys("[[\(thirty)]]") == [thirty])
+        // 切り捨てて意図と違うラベルを作らない（前提3）
+        #expect(linkKeys("[[\(thirtyOne)]]").isEmpty)
+        #expect(linkKeys("[[\(thirtyOne)]] [[京都]]") == ["京都"])
     }
 
-    @Test func memoTagNormalizesWithNFKCAndLowercase() {
-        #expect(tagKeys("#SF") == ["sf"])
-        #expect(tagKeys("＃ＳＦ") == ["sf"], "全角英字はNFKCで半角へ")
-        #expect(MemoTagParser.parse("#SF").first?.display == "SF", "表示は書かれたままの綴り")
+    @Test func memoLinkClosesAtFirstCloserWithoutNesting() {
+        // 入れ子はなく、最初の ]] で閉じる（3.2節）
+        #expect(linkKeys("[[a [[b]]") == ["a [[b"])
+        #expect(linkKeys("[[a]]b]]") == ["a"], "余った ]] はただの文字")
     }
 
-    @Test func memoTagDoesNotFoldKanaUnlikeShelfSearch() {
-        // 前提4の確定を固定する。検索は表記ゆれを吸収するのが目的、タグはユーザーが
+    @Test func memoLinkUnclosedIsInvalid() {
+        #expect(linkKeys("[[京都").isEmpty)
+        #expect(linkKeys("京都]]").isEmpty)
+        #expect(linkKeys("[京都]").isEmpty, "括弧1重はつながりではない")
+    }
+
+    @Test func memoLinkNormalizesWithNFKCAndLowercase() {
+        #expect(linkKeys("[[SF]]") == ["sf"])
+        #expect(linkKeys("［［ＳＦ］］") == ["sf"], "全角英字はNFKCで半角へ")
+        #expect(MemoLinkParser.parse("[[SF]]").first?.display == "SF", "表示は書かれたままの綴り")
+    }
+
+    @Test func memoLinkDoesNotFoldKanaUnlikeShelfSearch() {
+        // 前提4の確定を固定する。検索は表記ゆれを吸収するのが目的、つながりはユーザーが
         // 書き分けたものを区別するのが目的なので、かな寄せは**しない**
-        #expect(tagKeys("#とうきょう #トウキョウ") == ["とうきょう", "トウキョウ"])
+        #expect(linkKeys("[[とうきょう]] [[トウキョウ]]") == ["とうきょう", "トウキョウ"])
         #expect(ShelfSearchMatcher.matches(fields: ["トウキョウ"], query: "とうきょう"))
     }
 
-    @Test func memoTagRangeCoversOpenerAndBody() throws {
-        let text = "旅の記録 #京都 で買った"
-        let tag = try #require(MemoTagParser.parse(text).first)
-        #expect(String(text[tag.range]) == "#京都", "ハイライト範囲は # を含む")
+    @Test func memoLinkRangeCoversBrackets() throws {
+        let text = "旅の記録 [[京都]] で買った"
+        let link = try #require(MemoLinkParser.parse(text).first)
+        #expect(String(text[link.range]) == "[[京都]]", "記号を隠すときに置き換える範囲は [[ ]] を含む")
     }
 
-    @Test func memoTagReturnsNothingForTextWithoutTags() {
-        #expect(MemoTagParser.parse("").isEmpty)
-        #expect(MemoTagParser.parse("タグのないメモ").isEmpty)
+    @Test func memoLinkReturnsNothingForTextWithoutLinks() {
+        #expect(MemoLinkParser.parse("").isEmpty)
+        #expect(MemoLinkParser.parse("つながりのないメモ").isEmpty)
+        #expect(MemoLinkParser.parse("#京都 は旧記法なので拾わない").isEmpty)
     }
 
-    // MARK: - MemoTagParser.draftTag / MemoTagIndex（入力サジェストの土台）
+    // MARK: - MemoLinkParser.draftLink / MemoLinkIndex（入力サジェストの土台）
 
-    /// キャレットを文字列末尾に置いて入力途中のタグを取る（実際の編集も多くはこの形）
-    private func draftAtEnd(_ text: String) -> MemoDraftTag? {
-        MemoTagParser.draftTag(in: text, before: text.endIndex)
+    /// キャレットを文字列末尾に置いて入力途中のつながりを取る（実際の編集も多くはこの形）
+    private func draftAtEnd(_ text: String) -> MemoDraftLink? {
+        MemoLinkParser.draftLink(in: text, before: text.endIndex)
     }
 
-    /// タグの集計に必要なのは `id` と `memo` だけなので、他は既定値で埋める
-    private func sampleTaggedBook(id: String, memo: String?) -> BookDTO {
+    /// 集計に必要なのは `id` と `memo` だけなので、他は既定値で埋める
+    private func sampleLinkedBook(id: String, memo: String?) -> BookDTO {
         let now = Date()
         return BookDTO(
             id: id,
@@ -458,84 +453,107 @@ struct BookBankTests {
         )
     }
 
-    @Test func memoDraftTagDetectsPartialInput() {
-        #expect(draftAtEnd("旅の記録 #京")?.partialKey == "京")
-        #expect(draftAtEnd("#kyo")?.partialKey == "kyo")
-        #expect(draftAtEnd("#KYO")?.partialKey == "kyo", "候補の突合は正規化キーで行う")
+    @Test func memoDraftLinkDetectsPartialInput() {
+        #expect(draftAtEnd("旅の記録 [[京")?.partialKey == "京")
+        #expect(draftAtEnd("[[KYO")?.partialKey == "kyo", "候補の突合は正規化キーで行う")
+        #expect(draftAtEnd("[[京都]] [[奈")?.partialKey == "奈", "閉じたつながりの後ろも入力途中と見なす")
     }
 
-    @Test func memoDraftTagDetectsBareOpener() {
-        // `#` を打った瞬間が、既存タグを全部出せる最も役に立つ瞬間
-        #expect(draftAtEnd("#")?.partialKey == "")
-        #expect(draftAtEnd("旅の記録 #")?.partialKey == "")
-        #expect(draftAtEnd("旅の記録 ＃")?.partialKey == "")
-        #expect(draftAtEnd("#京都#")?.partialKey == "", "連続タグの2つ目も入力途中と見なす")
+    @Test func memoDraftLinkDetectsBareOpener() {
+        // `[[` を打った瞬間が、既存のつながりを全部出せる最も役に立つ瞬間
+        #expect(draftAtEnd("[[")?.partialKey == "")
+        #expect(draftAtEnd("旅の記録 [[")?.partialKey == "")
+        #expect(draftAtEnd("［［")?.partialKey == "", "全角括弧の手打ちも受ける")
     }
 
-    @Test func memoDraftTagRejectsPositionsThatAreNotTags() {
-        #expect(draftAtEnd("https://example.com/#") == nil, "本文の境界規則をそのまま使う")
-        #expect(draftAtEnd("C#") == nil)
-        #expect(draftAtEnd("タグのないメモ") == nil)
-        #expect(draftAtEnd("#京都 のあと") == nil, "キャレットがタグの外にあれば対象外")
-        #expect(draftAtEnd("#\(String(repeating: "あ", count: 31))") == nil, "上限超過は候補も出さない")
+    @Test func memoDraftLinkCoversTrailingCloser() throws {
+        // ツールバーの「つなぐ」は [[]] を挿入してキャレットを括弧の中に置く（4.5節）。
+        // その状態で候補をタップしたら、後ろの ]] ごと丸ごと置き換わらなければならない
+        var text = "[[]]"
+        var caret = text.index(text.startIndex, offsetBy: 2)
+        var draft = try #require(MemoLinkParser.draftLink(in: text, before: caret))
+        #expect(draft.partialKey == "")
+        #expect(String(text[draft.range]) == "[[]]")
+
+        // 既存のつながりの中身を編集し直す形も同じ
+        text = "[[京都]] のメモ"
+        caret = text.index(text.startIndex, offsetBy: 3) // 「京」の直後
+        draft = try #require(MemoLinkParser.draftLink(in: text, before: caret))
+        #expect(draft.partialKey == "京")
+        #expect(String(text[draft.range]) == "[[京都]]")
     }
 
-    @Test func memoDraftTagRangeCoversWhatWillBeReplaced() throws {
-        let text = "旅の記録 #京"
+    @Test func memoDraftLinkRejectsPositionsThatAreNotLinks() {
+        #expect(draftAtEnd("つながりのないメモ") == nil)
+        #expect(draftAtEnd("[") == nil, "括弧1つでは開かない")
+        #expect(draftAtEnd("[[京都]] のあと") == nil, "キャレットの手前で閉じていれば対象外")
+        #expect(draftAtEnd("[[京都\n") == nil, "行をまたいだら開いていない扱い（改行不成立と同じ）")
+        #expect(draftAtEnd("[[\(String(repeating: "あ", count: 31))") == nil, "上限超過は候補も出さない")
+    }
+
+    @Test func memoDraftLinkRangeCoversWhatWillBeReplaced() throws {
+        let text = "旅の記録 [[京"
         let draft = try #require(draftAtEnd(text))
-        #expect(String(text[draft.range]) == "#京")
+        #expect(String(text[draft.range]) == "[[京")
     }
 
-    @Test func memoTagIndexAggregatesTagsByBookCount() {
+    @Test func memoLinkIndexAggregatesLinksByBookCount() {
         let books = [
-            sampleTaggedBook(id: "1", memo: "#京都 #古本"),
-            sampleTaggedBook(id: "2", memo: "#京都"),
-            sampleTaggedBook(id: "3", memo: "#奈良"),
-            sampleTaggedBook(id: "4", memo: nil)
+            sampleLinkedBook(id: "1", memo: "[[京都]] [[古本]]"),
+            sampleLinkedBook(id: "2", memo: "[[京都]]"),
+            sampleLinkedBook(id: "3", memo: "[[奈良]]"),
+            sampleLinkedBook(id: "4", memo: nil)
         ]
-        let index = MemoTagIndex.build(from: books)
+        let index = MemoLinkIndex.build(from: books)
 
-        #expect(index.tags.map(\.key) == ["京都", "古本", "奈良"], "使う本の多い順、同数なら綴り順")
-        #expect(index.tags.first?.bookCount == 2)
+        #expect(index.links.map(\.key) == ["京都", "古本", "奈良"], "使う本の多い順、同数なら綴り順")
+        #expect(index.links.first?.bookCount == 2)
     }
 
-    @Test func memoTagIndexCountsEachBookOnce() {
-        let index = MemoTagIndex.build(from: [sampleTaggedBook(id: "1", memo: "#京都 また #京都")])
-        #expect(index.tags.map(\.bookCount) == [1], "同じ本に2回書いても1冊")
+    @Test func memoLinkIndexCountsEachBookOnce() {
+        let index = MemoLinkIndex.build(from: [sampleLinkedBook(id: "1", memo: "[[京都]] また [[京都]]")])
+        #expect(index.links.map(\.bookCount) == [1], "同じ本に2回書いても1冊")
     }
 
-    @Test func memoTagIndexPicksMostWrittenSpelling() {
+    @Test func memoLinkIndexPicksMostWrittenSpelling() {
         let books = [
-            sampleTaggedBook(id: "1", memo: "#SF"),
-            sampleTaggedBook(id: "2", memo: "#SF"),
-            sampleTaggedBook(id: "3", memo: "#sf")
+            sampleLinkedBook(id: "1", memo: "[[SF]]"),
+            sampleLinkedBook(id: "2", memo: "[[SF]]"),
+            sampleLinkedBook(id: "3", memo: "[[sf]]")
         ]
-        let index = MemoTagIndex.build(from: books)
-        #expect(index.tags.map(\.key) == ["sf"], "大小文字は同じタグ")
-        #expect(index.tags.first?.display == "SF", "表示は最も多く書かれた綴り")
+        let index = MemoLinkIndex.build(from: books)
+        #expect(index.links.map(\.key) == ["sf"], "大小文字は同じつながり")
+        #expect(index.links.first?.display == "SF", "表示は最も多く書かれた綴り")
     }
 
-    @Test func memoTagIndexSuggestsByPrefixExcludingWrittenTags() {
+    @Test func memoLinkIndexSuggestsByPrefixExcludingWrittenLinks() {
         let books = [
-            sampleTaggedBook(id: "1", memo: "#京都 #京都駅"),
-            sampleTaggedBook(id: "2", memo: "#奈良")
+            sampleLinkedBook(id: "1", memo: "[[京都]] [[京都駅]]"),
+            sampleLinkedBook(id: "2", memo: "[[奈良]]")
         ]
-        let index = MemoTagIndex.build(from: books)
+        let index = MemoLinkIndex.build(from: books)
 
         #expect(index.suggestions(matching: "京", excluding: []).map(\.key) == ["京都", "京都駅"])
-        #expect(index.suggestions(matching: "", excluding: []).count == 3, "# だけなら全部出す")
+        #expect(index.suggestions(matching: "", excluding: []).count == 3, "[[ だけなら全部出す")
         #expect(
             index.suggestions(matching: "京", excluding: ["京都"]).map(\.key) == ["京都駅"],
-            "編集中のメモに既に書かれているタグは候補から外す"
+            "編集中のメモに既に書かれているつながりは候補から外す"
         )
     }
 
-    @Test func memoTagHighlightKeepsTextIntact() {
-        // 着色以外は素の Text(memo) と同じでなければならない（前提13）。
-        // 文字の欠落・重複が起きていないことを、平文へ戻して確認する
-        for memo in ["#京都 で買った古本\n#奈良 も行きたい", "タグのないメモ", "#京都#奈良", "末尾がタグ #京都"] {
-            let attributed = MemoTagText.highlighted(memo, color: .blue)
-            #expect(String(attributed.characters) == memo)
+    @Test func memoLinkHighlightHidesBracketsAndKeepsRestIntact() {
+        // 記号を隠すため表示文字列は原文と一致しない。不変条件は
+        // 「解釈対象の記号以外の文字は一切加工しない」（設計メモ 4.6節）
+        let cases: [(memo: String, rendered: String)] = [
+            ("[[京都]] で買った古本", "京都 で買った古本"),
+            ("つながりのないメモ", "つながりのないメモ"),
+            ("[[京都]][[奈良]]", "京都奈良"),
+            ("[[ 京都 ]]閉店", "京都閉店"),
+            ("閉じ忘れ [[京都", "閉じ忘れ [[京都")
+        ]
+        for (memo, rendered) in cases {
+            let attributed = MemoLinkText.highlighted(memo, color: .blue)
+            #expect(String(attributed.characters) == rendered)
         }
     }
 

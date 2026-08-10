@@ -327,7 +327,7 @@ struct EditBookView: View {
                         get: { book.memo ?? "" },
                         set: { _ in }
                     ),
-                    tagIndex: MemoTagIndex.build(from: repos.books.latestSnapshot)
+                    linkIndex: MemoLinkIndex.build(from: repos.books.latestSnapshot)
                 ) { newMemo in
                     saveMemo(newMemo)
                 }
