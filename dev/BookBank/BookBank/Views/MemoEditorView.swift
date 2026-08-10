@@ -53,7 +53,11 @@ struct MemoEditorView: View {
             }
             .padding(.horizontal, 20)
             .safeAreaInset(edge: .bottom) {
-                linkSuggestionRow
+                // ツールバーは常設、サジェストは候補があるときだけその上に出る（設計メモ 4.5節）
+                VStack(spacing: 0) {
+                    linkSuggestionRow
+                    editorToolbar
+                }
             }
             .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
@@ -94,6 +98,88 @@ struct MemoEditorView: View {
         }
     }
     
+    // MARK: - ツールバー（設計メモ 4.5節）
+
+    /// 左から つなぐ・太字・引用・ページ番号。書式はMarkdown記法を本文に埋め込む方式で、
+    /// ボタンは記号を挿入するだけ（独自のリッチテキスト形式を持たない）。
+    /// 「つなぐ」は書籍メモのみ——月メモは候補元が無い（`linkIndex == nil`・4.3節のスコープ）
+    private var editorToolbar: some View {
+        HStack(spacing: 28) {
+            if linkIndex != nil {
+                toolbarButton("memo.toolbar.link", systemImage: "link", action: insertLinkBrackets)
+            }
+            toolbarButton("memo.toolbar.bold", systemImage: "bold", action: wrapSelectionInBold)
+            toolbarButton("memo.toolbar.quote", systemImage: "text.quote", action: insertQuotePrefix)
+            toolbarButton("memo.toolbar.page", systemImage: "textformat.123", action: insertPageMarker)
+            Spacer()
+        }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 10)
+        .background(.bar)
+    }
+
+    private func toolbarButton(
+        _ label: LocalizedStringKey,
+        systemImage: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .font(.title3)
+                .foregroundColor(.primary)
+                .frame(minWidth: 32, minHeight: 32)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(Text(label))
+    }
+
+    /// いま選択している範囲。無選択（キャレットのみ）は空範囲、未フォーカスは末尾扱い
+    private var currentSelectionRange: Range<String.Index> {
+        if let selection, case .selection(let range) = selection.indices {
+            return range
+        }
+        return editedText.endIndex..<editedText.endIndex
+    }
+
+    /// 範囲を置き換え、置き換え開始から `caretOffset` 文字目へキャレットを移す
+    private func replaceRange(_ range: Range<String.Index>, with insertion: String, caretOffset: Int) {
+        let startOffset = editedText.distance(from: editedText.startIndex, to: range.lowerBound)
+        editedText.replaceSubrange(range, with: insertion)
+        let caret = editedText.index(editedText.startIndex, offsetBy: startOffset + caretOffset)
+        selection = TextSelection(insertionPoint: caret)
+    }
+
+    /// 選択中ならそれを `[[ ]]` で囲み、無選択なら空の括弧を挿す。
+    /// どちらもキャレットは `]]` の手前に置くので、サジェスト（下記）がそのまま出る
+    private func insertLinkBrackets() {
+        let range = currentSelectionRange
+        let selected = String(editedText[range])
+        replaceRange(range, with: "[[\(selected)]]", caretOffset: 2 + selected.count)
+    }
+
+    /// 選択中ならそれを `**` で囲んで直後へ、無選択なら `****` を挿してキャレットを中へ
+    private func wrapSelectionInBold() {
+        let range = currentSelectionRange
+        let selected = String(editedText[range])
+        let caretOffset = selected.isEmpty ? 2 : selected.count + 4
+        replaceRange(range, with: "**\(selected)**", caretOffset: caretOffset)
+    }
+
+    /// キャレット行の行頭に `> ` を入れる（表示側が解釈するのはこの形だけ＝設計メモ 4.6節）
+    private func insertQuotePrefix() {
+        let caret = currentSelectionRange.lowerBound
+        let lineStart = editedText[..<caret].lastIndex(where: \.isNewline)
+            .map { editedText.index(after: $0) } ?? editedText.startIndex
+        let caretDistance = editedText.distance(from: lineStart, to: caret)
+        replaceRange(lineStart..<lineStart, with: "> ", caretOffset: caretDistance + 2)
+    }
+
+    /// `p.` を挿してキャレットを直後へ（数字はユーザーが打つ）。文字の挿入だけの入力補助
+    private func insertPageMarker() {
+        let range = currentSelectionRange
+        replaceRange(range, with: "p.", caretOffset: 2)
+    }
+
     // MARK: - つながりの入力サジェスト（設計メモ 4.1節）
 
     /// `[[` を打った瞬間から既存のつながりを候補に出す。表記ゆれの発生自体を抑えるのが狙いで、
