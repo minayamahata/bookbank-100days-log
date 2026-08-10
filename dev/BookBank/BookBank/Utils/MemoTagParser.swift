@@ -20,6 +20,14 @@ struct MemoTag: Equatable, Hashable, Sendable {
     let range: Range<String.Index>
 }
 
+/// キャレット位置で入力途中になっているタグ。入力サジェストの対象を決めるのに使う。
+struct MemoDraftTag: Equatable, Sendable {
+    /// 置き換え対象の範囲（`#` を含む）
+    let range: Range<String.Index>
+    /// キャレットまでに書かれた本体の正規化キー。`#` を打っただけなら空文字
+    let partialKey: String
+}
+
 enum MemoTagParser {
     /// 正規化後の上限。超えたものは切り捨てずタグとして認識しない（設計メモ 前提3）
     static let maxKeyLength = 30
@@ -71,6 +79,31 @@ enum MemoTagParser {
         return tags
     }
 
+    /// キャレットの直前で入力途中になっているタグを返す（無ければ nil）。
+    ///
+    /// 境界や文字種の規則は `parse(_:)` の結果をそのまま使って判定する。入力途中のタグも
+    /// それ自体が成立したタグなので、**キャレットで終わるタグ**がそれである。唯一の例外は
+    /// `#` を打っただけの状態で、本体が空でタグとして成立しないため個別に拾う
+    /// （既存タグを全部出せる、サジェストとしては最も役に立つ瞬間なので落とせない）
+    nonisolated static func draftTag(in text: String, before caret: String.Index) -> MemoDraftTag? {
+        let tags = parse(text)
+
+        if let typing = tags.first(where: { $0.range.upperBound == caret }) {
+            return MemoDraftTag(range: typing.range, partialKey: typing.key)
+        }
+
+        guard caret > text.startIndex else { return nil }
+        let opener = text.index(before: caret)
+        guard isOpener(text[opener]) else { return nil }
+
+        let isAtBoundary = opener == text.startIndex
+            || text[text.index(before: opener)].isWhitespace
+            || tags.contains { $0.range.upperBound == opener }
+        guard isAtBoundary else { return nil }
+
+        return MemoDraftTag(range: opener..<caret, partialKey: "")
+    }
+
     /// タグの同一視キーを作る（NFKC＋小文字化）。
     ///
     /// ノードのキーワード抽出と同じ正規化であり（設計メモ 前提4）、**本棚内検索の
@@ -113,6 +146,14 @@ enum MemoTagParser {
     /// 空・数字のみ・上限超過を弾く（設計メモ 前提3）
     private nonisolated static func isValidKey(_ key: String) -> Bool {
         guard !key.isEmpty, key.count <= maxKeyLength else { return false }
-        return !key.allSatisfy(\.isNumber)
+        return !key.allSatisfy(isDecimalDigit)
+    }
+
+    /// 「数字のみ無効」の判定は**十進数字（`Nd`）に限る**。`Character.isNumber` は `京` や `十`
+    /// のように数値を持つ漢字も数字と見なすため、それだと `#京` のような正当なタグまで弾かれる
+    private nonisolated static func isDecimalDigit(_ character: Character) -> Bool {
+        guard let scalar = character.unicodeScalars.first else { return false }
+        return character.unicodeScalars.count == 1
+            && scalar.properties.generalCategory == .decimalNumber
     }
 }

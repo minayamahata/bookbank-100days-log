@@ -396,6 +396,10 @@ struct BookBankTests {
         #expect(tagKeys("##京都").isEmpty, "本体が空なら不成立。境界も復活しないので2つ目も開始記号にならない")
         #expect(tagKeys("#2026").isEmpty)
         #expect(tagKeys("#１").isEmpty, "全角数字も正規化後は数字のみ")
+        // 「数字のみ」は十進数字に限る。数値を持つ漢字を数字扱いすると正当なタグが消える
+        #expect(tagKeys("#京") == ["京"])
+        #expect(tagKeys("#十") == ["十"])
+        #expect(tagKeys("#一") == ["一"])
     }
 
     @Test func memoTagRejectsOverlongTagWithoutTruncating() {
@@ -429,6 +433,101 @@ struct BookBankTests {
     @Test func memoTagReturnsNothingForTextWithoutTags() {
         #expect(MemoTagParser.parse("").isEmpty)
         #expect(MemoTagParser.parse("タグのないメモ").isEmpty)
+    }
+
+    // MARK: - MemoTagParser.draftTag / MemoTagIndex（入力サジェストの土台）
+
+    /// キャレットを文字列末尾に置いて入力途中のタグを取る（実際の編集も多くはこの形）
+    private func draftAtEnd(_ text: String) -> MemoDraftTag? {
+        MemoTagParser.draftTag(in: text, before: text.endIndex)
+    }
+
+    /// タグの集計に必要なのは `id` と `memo` だけなので、他は既定値で埋める
+    private func sampleTaggedBook(id: String, memo: String?) -> BookDTO {
+        let now = Date()
+        return BookDTO(
+            id: id,
+            title: "本\(id)",
+            source: .manual,
+            memo: memo,
+            isFavorite: false,
+            registeredAt: now,
+            createdAt: now,
+            updatedAt: now,
+            hasCoverImage: false
+        )
+    }
+
+    @Test func memoDraftTagDetectsPartialInput() {
+        #expect(draftAtEnd("旅の記録 #京")?.partialKey == "京")
+        #expect(draftAtEnd("#kyo")?.partialKey == "kyo")
+        #expect(draftAtEnd("#KYO")?.partialKey == "kyo", "候補の突合は正規化キーで行う")
+    }
+
+    @Test func memoDraftTagDetectsBareOpener() {
+        // `#` を打った瞬間が、既存タグを全部出せる最も役に立つ瞬間
+        #expect(draftAtEnd("#")?.partialKey == "")
+        #expect(draftAtEnd("旅の記録 #")?.partialKey == "")
+        #expect(draftAtEnd("旅の記録 ＃")?.partialKey == "")
+        #expect(draftAtEnd("#京都#")?.partialKey == "", "連続タグの2つ目も入力途中と見なす")
+    }
+
+    @Test func memoDraftTagRejectsPositionsThatAreNotTags() {
+        #expect(draftAtEnd("https://example.com/#") == nil, "本文の境界規則をそのまま使う")
+        #expect(draftAtEnd("C#") == nil)
+        #expect(draftAtEnd("タグのないメモ") == nil)
+        #expect(draftAtEnd("#京都 のあと") == nil, "キャレットがタグの外にあれば対象外")
+        #expect(draftAtEnd("#\(String(repeating: "あ", count: 31))") == nil, "上限超過は候補も出さない")
+    }
+
+    @Test func memoDraftTagRangeCoversWhatWillBeReplaced() throws {
+        let text = "旅の記録 #京"
+        let draft = try #require(draftAtEnd(text))
+        #expect(String(text[draft.range]) == "#京")
+    }
+
+    @Test func memoTagIndexAggregatesTagsByBookCount() {
+        let books = [
+            sampleTaggedBook(id: "1", memo: "#京都 #古本"),
+            sampleTaggedBook(id: "2", memo: "#京都"),
+            sampleTaggedBook(id: "3", memo: "#奈良"),
+            sampleTaggedBook(id: "4", memo: nil)
+        ]
+        let index = MemoTagIndex.build(from: books)
+
+        #expect(index.tags.map(\.key) == ["京都", "古本", "奈良"], "使う本の多い順、同数なら綴り順")
+        #expect(index.tags.first?.bookCount == 2)
+    }
+
+    @Test func memoTagIndexCountsEachBookOnce() {
+        let index = MemoTagIndex.build(from: [sampleTaggedBook(id: "1", memo: "#京都 また #京都")])
+        #expect(index.tags.map(\.bookCount) == [1], "同じ本に2回書いても1冊")
+    }
+
+    @Test func memoTagIndexPicksMostWrittenSpelling() {
+        let books = [
+            sampleTaggedBook(id: "1", memo: "#SF"),
+            sampleTaggedBook(id: "2", memo: "#SF"),
+            sampleTaggedBook(id: "3", memo: "#sf")
+        ]
+        let index = MemoTagIndex.build(from: books)
+        #expect(index.tags.map(\.key) == ["sf"], "大小文字は同じタグ")
+        #expect(index.tags.first?.display == "SF", "表示は最も多く書かれた綴り")
+    }
+
+    @Test func memoTagIndexSuggestsByPrefixExcludingWrittenTags() {
+        let books = [
+            sampleTaggedBook(id: "1", memo: "#京都 #京都駅"),
+            sampleTaggedBook(id: "2", memo: "#奈良")
+        ]
+        let index = MemoTagIndex.build(from: books)
+
+        #expect(index.suggestions(matching: "京", excluding: []).map(\.key) == ["京都", "京都駅"])
+        #expect(index.suggestions(matching: "", excluding: []).count == 3, "# だけなら全部出す")
+        #expect(
+            index.suggestions(matching: "京", excluding: ["京都"]).map(\.key) == ["京都駅"],
+            "編集中のメモに既に書かれているタグは候補から外す"
+        )
     }
 
     @Test func memoTagHighlightKeepsTextIntact() {

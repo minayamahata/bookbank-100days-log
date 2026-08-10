@@ -173,10 +173,13 @@ struct UserBookDetailView: View {
             EditBookView(book: book)
         }
         .sheet(isPresented: $showMemoEditor) {
-            MemoEditorView(memo: Binding(
-                get: { book.memo ?? "" },
-                set: { _ in }
-            )) { newMemo in
+            MemoEditorView(
+                memo: Binding(
+                    get: { book.memo ?? "" },
+                    set: { _ in }
+                ),
+                tagIndex: MemoTagIndex.build(from: repos.books.latestSnapshot)
+            ) { newMemo in
                 saveMemo(newMemo)
             }
         }
