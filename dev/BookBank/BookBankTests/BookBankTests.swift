@@ -557,4 +557,54 @@ struct BookBankTests {
         }
     }
 
+    @Test func memoLinkTextRendersBoldPairHidingMarkers() throws {
+        let attributed = MemoLinkText.highlighted("**大事** なメモ", color: .blue)
+        #expect(String(attributed.characters) == "大事 なメモ")
+
+        let boldRuns = attributed.runs.filter { $0.inlinePresentationIntent == .stronglyEmphasized }
+        let boldRun = try #require(boldRuns.first)
+        #expect(boldRuns.count == 1)
+        #expect(String(attributed.characters[boldRun.range]) == "大事")
+    }
+
+    @Test func memoLinkTextLeavesUnpairedOrSpanningBoldMarkersAsLiterals() {
+        // ペアが同じ行で閉じているときだけ太字。閉じない ** はただの文字として出す
+        for memo in ["**閉じていない", "行を **またぐ\n太字** は解釈しない"] {
+            let attributed = MemoLinkText.highlighted(memo, color: .blue)
+            #expect(String(attributed.characters) == memo)
+            #expect(!attributed.runs.contains { $0.inlinePresentationIntent == .stronglyEmphasized })
+        }
+    }
+
+    @Test func memoLinkTextRendersQuoteLineWithBar() {
+        // 行頭の `> `（ツールバーが挿入する形）だけを引用と見なし、縦線＋二次色にする
+        let attributed = MemoLinkText.highlighted("> 引用したい一文\nふつうの行", color: .blue)
+        #expect(String(attributed.characters) == "│ 引用したい一文\nふつうの行")
+
+        // `>` 単独・空白なし・行の途中は解釈しない
+        for memo in [">空白なし", "文中の > は引用ではない"] {
+            #expect(String(MemoLinkText.highlighted(memo, color: .blue).characters) == memo)
+        }
+    }
+
+    @Test func memoLinkTextDoesNotInterpretOtherMarkdown() {
+        // 「ボタンで入れたものだけが装飾になる」（設計メモ 0.4節）。
+        // 見出し・箇条書き・斜体・リンクは素通し
+        for memo in ["# 見出し", "- 箇条書き", "*斜体* ではない", "[リンク](https://example.com)"] {
+            let attributed = MemoLinkText.highlighted(memo, color: .blue)
+            #expect(String(attributed.characters) == memo)
+        }
+    }
+
+    @Test func memoLinkTextCombinesQuoteBoldAndLink() {
+        let attributed = MemoLinkText.highlighted("> **強調** と [[京都]]", color: .blue)
+        #expect(String(attributed.characters) == "│ 強調 と 京都")
+    }
+
+    @Test func memoLinkTextDoesNotReadBoldMarkersInsideLinkLabel() {
+        // [[ ]] の中身は任意の文字列であり、装飾記号として数えない
+        let attributed = MemoLinkText.highlighted("[[a**b]] と **太字**", color: .blue)
+        #expect(String(attributed.characters) == "a**b と 太字")
+    }
+
 }
