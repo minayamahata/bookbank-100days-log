@@ -462,7 +462,7 @@ struct UserBookDetailView: View {
                         .frame(minHeight: 120)
 
                     if let memo = book.memo, !memo.isEmpty {
-                        Text(MemoLinkText.highlighted(memo, color: linkColor))
+                        MemoFormattedText(memo: memo, accentColor: linkColor)
                             .font(.subheadline)
                             .foregroundColor(.primary)
                             .multilineTextAlignment(.leading)

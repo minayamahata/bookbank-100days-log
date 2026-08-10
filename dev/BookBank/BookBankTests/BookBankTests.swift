@@ -576,15 +576,22 @@ struct BookBankTests {
         }
     }
 
-    @Test func memoLinkTextRendersQuoteLineWithBar() {
-        // 行頭の `> `（ツールバーが挿入する形）だけを引用と見なし、縦線＋二次色にする
-        let attributed = MemoLinkText.highlighted("> 引用したい一文\nふつうの行", color: .blue)
-        #expect(String(attributed.characters) == "│ 引用したい一文\nふつうの行")
-
+    @Test func memoTextBlocksWrapQuoteLinesIntoBlocks() {
+        // 行頭の `> `（ツールバーが挿入する形）だけを引用ブロックにする。
+        // 表示は記号や縦線ではなく囲み（薄いグレー背景）——記号は一般ユーザーに伝わらない
+        #expect(
+            MemoTextBlocks.parse("> 引用したい一文\nふつうの行")
+                == [.quote("引用したい一文"), .paragraph("ふつうの行")]
+        )
+        #expect(
+            MemoTextBlocks.parse("> 1行目\n> 2行目") == [.quote("1行目\n2行目")],
+            "連続する引用行はひとつの囲みにまとめる"
+        )
         // `>` 単独・空白なし・行の途中は解釈しない
-        for memo in [">空白なし", "文中の > は引用ではない"] {
-            #expect(String(MemoLinkText.highlighted(memo, color: .blue).characters) == memo)
-        }
+        #expect(
+            MemoTextBlocks.parse(">空白なし\n文中の > は引用ではない")
+                == [.paragraph(">空白なし\n文中の > は引用ではない")]
+        )
     }
 
     @Test func memoLinkTextDoesNotInterpretOtherMarkdown() {
@@ -596,9 +603,45 @@ struct BookBankTests {
         }
     }
 
-    @Test func memoLinkTextCombinesQuoteBoldAndLink() {
-        let attributed = MemoLinkText.highlighted("> **強調** と [[京都]]", color: .blue)
-        #expect(String(attributed.characters) == "│ 強調 と 京都")
+    @Test func memoQuoteBlockContentRendersBoldAndLink() {
+        // 引用の中身はブロック分割後にインライン装飾へ渡る
+        let blocks = MemoTextBlocks.parse("> **強調** と [[京都]]")
+        #expect(blocks == [.quote("**強調** と [[京都]]")])
+        let attributed = MemoLinkText.highlighted("**強調** と [[京都]]", color: .blue)
+        #expect(String(attributed.characters) == "強調 と 京都")
+    }
+
+    @Test func memoPageMarkerDetectsPageTokens() {
+        func tokens(_ text: String) -> [String] {
+            MemoPageMarker.ranges(in: text).map { String(text[$0]) }
+        }
+        #expect(tokens("p.123") == ["p.123"])
+        #expect(tokens("気になったのはp.42のくだり") == ["p.42"], "日本語は語間に空白が無いので英数字以外は境界")
+        #expect(tokens("P.7 参照") == ["P.7"])
+        #expect(tokens("(p.5)") == ["p.5"])
+        // 直前が英数字・数字なし・`.` なしは不成立
+        #expect(tokens("stop.123").isEmpty)
+        #expect(tokens("map.9").isEmpty)
+        #expect(tokens("p.").isEmpty)
+        #expect(tokens("p123").isEmpty)
+    }
+
+    @Test func memoLinkTextStylesPageNumbersWithoutHidingThem() throws {
+        // ページ番号は文字を隠さず、バッジ用の属性だけ付ける（設計メモ 4.6節）
+        let attributed = MemoLinkText.highlighted("p.123 を参照", color: .blue)
+        #expect(String(attributed.characters) == "p.123 を参照")
+
+        let pageRuns = attributed.runs[\.memoPageNumber].filter { $0.0 == true }
+        let pageRun = try #require(pageRuns.first)
+        #expect(pageRuns.count == 1)
+        #expect(String(attributed.characters[pageRun.1]) == "p.123")
+    }
+
+    @Test func memoLinkTextDoesNotStylePageNumbersInsideLinkLabels() {
+        // [[ ]] の中身は任意の文字列であり、ページ番号として解釈しない
+        let attributed = MemoLinkText.highlighted("[[p.5]]", color: .blue)
+        #expect(String(attributed.characters) == "p.5")
+        #expect(!attributed.runs[\.memoPageNumber].contains { $0.0 == true })
     }
 
     @Test func memoLinkTextDoesNotReadBoldMarkersInsideLinkLabel() {
