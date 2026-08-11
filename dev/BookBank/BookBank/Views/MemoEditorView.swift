@@ -14,6 +14,7 @@ struct MemoEditorView: View {
     @State private var editedText: String
     @State private var showCancelAlert = false
     @State private var selectedRange = NSRange(location: 0, length: 0)
+    @State private var prefersNumericKeyboard = false
     
     let title: LocalizedStringKey
     /// 入力サジェストの候補元。`nil` ならサジェストしない（月メモはT1のスコープ外＝設計メモ 4.3節）
@@ -52,6 +53,7 @@ struct MemoEditorView: View {
                 MemoEditorTextView(
                     text: $editedText,
                     selectedRange: $selectedRange,
+                    prefersNumericKeyboard: $prefersNumericKeyboard,
                     accentColor: accentColor
                 )
             }
@@ -197,10 +199,12 @@ struct MemoEditorView: View {
         )
     }
 
-    /// `p.` を挿してキャレットを直後へ（数字はユーザーが打つ）。文字の挿入だけの入力補助
+    /// `p.` を挿してキャレットを直後へ（数字はユーザーが打つ）。文字の挿入だけの入力補助。
+    /// 続けて数字を打つので、キーボードも数字が並んだものへ切り替える（2026-08-11 オーナー指示）
     private func insertPageMarker() {
         let range = currentSelectionRange
         replaceRange(range, with: "p.", caretOffset: 2)
+        prefersNumericKeyboard = true
     }
 
     // MARK: - つながりの入力サジェスト（設計メモ 4.1節）

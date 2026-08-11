@@ -16,6 +16,8 @@ import UIKit
 struct MemoEditorTextView: UIViewRepresentable {
     @Binding var text: String
     @Binding var selectedRange: NSRange
+    /// ページ番号の入力中だけ数字が並んだキーボードにする。キャレットが `p.数字` から離れたら自動で戻す
+    @Binding var prefersNumericKeyboard: Bool
     let accentColor: Color
 
     func makeCoordinator() -> Coordinator {
@@ -58,6 +60,16 @@ struct MemoEditorTextView: UIViewRepresentable {
         }
         context.coordinator.isApplyingRequestedState = false
 
+        // 数字キーボードは `.numbersAndPunctuation`。数字だけのテンキー（`.numberPad`）は
+        // 文字入力へ戻る手段が無く、ページ番号を打った位置から続きを書けなくなるため使わない
+        let keyboardType: UIKeyboardType = prefersNumericKeyboard ? .numbersAndPunctuation : .default
+        if textView.keyboardType != keyboardType {
+            textView.keyboardType = keyboardType
+            if textView.isFirstResponder {
+                textView.reloadInputViews()
+            }
+        }
+
         context.coordinator.applyStyling(to: textView, accent: UIColor(accentColor))
     }
 
@@ -75,6 +87,7 @@ struct MemoEditorTextView: UIViewRepresentable {
 
         func textViewDidChange(_ textView: UITextView) {
             parent.text = textView.text
+            releaseNumericKeyboardIfNeeded(textView)
             applyStyling(to: textView, accent: UIColor(parent.accentColor))
         }
 
@@ -83,6 +96,37 @@ struct MemoEditorTextView: UIViewRepresentable {
             if parent.selectedRange != textView.selectedRange {
                 parent.selectedRange = textView.selectedRange
             }
+            releaseNumericKeyboardIfNeeded(textView)
+        }
+
+        /// ページ番号から離れたら通常のキーボードへ戻す（数字キーボードのまま取り残さない）
+        private func releaseNumericKeyboardIfNeeded(_ textView: UITextView) {
+            guard parent.prefersNumericKeyboard else { return }
+            let selection = textView.selectedRange
+            guard selection.length == 0,
+                  caretFollowsPageMarker(in: textView.text ?? "", at: selection.location)
+            else {
+                parent.prefersNumericKeyboard = false
+                return
+            }
+        }
+
+        /// キャレットの直前が `p.` または `p.数字` か（数字を打ち進めている間は真のまま）
+        private func caretFollowsPageMarker(in text: String, at location: Int) -> Bool {
+            guard let caret = Range(NSRange(location: location, length: 0), in: text)?.lowerBound
+            else { return false }
+
+            var index = caret
+            while index > text.startIndex {
+                let previous = text[text.index(before: index)]
+                guard previous.isASCII, previous.isNumber else { break }
+                index = text.index(before: index)
+            }
+            guard index > text.startIndex, text[text.index(before: index)] == "." else { return false }
+            let dot = text.index(before: index)
+            guard dot > text.startIndex else { return false }
+            let letter = text[text.index(before: dot)]
+            return letter == "p" || letter == "P"
         }
 
         /// 見えない記号を1文字ずつ消させない。記号の上で削除したら、その装飾のまとまりごと消す。
