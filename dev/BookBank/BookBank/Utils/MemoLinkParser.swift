@@ -29,8 +29,9 @@ struct MemoDraftLink: Equatable, Sendable {
 }
 
 enum MemoLinkParser {
-    /// 正規化後の上限。超えたものは切り捨てずつながりとして認識しない（設計メモ 前提3）
-    static let maxKeyLength = 30
+    /// 正規化後の上限。超えたものは切り捨てずつながりとして認識しない（設計メモ 前提3）。
+    /// パーサ本体が `nonisolated` なので、この定数も画面から切り離しておく
+    nonisolated static let maxKeyLength = 30
 
     /// メモ本文からつながりを出現順に抽出する。
     ///

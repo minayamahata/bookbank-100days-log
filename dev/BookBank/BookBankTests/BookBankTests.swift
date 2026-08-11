@@ -558,10 +558,12 @@ struct BookBankTests {
     }
 
     @Test func memoLinkTextRendersBoldPairHidingMarkers() throws {
-        let attributed = MemoLinkText.highlighted("**大事** なメモ", color: .blue)
+        // 太字は標準の太字より一段太いフォントを当てる（設計メモ 4.6節）
+        let bold = Font.body.weight(MemoLinkText.boldWeight)
+        let attributed = MemoLinkText.highlighted("**大事** なメモ", color: .blue, boldFont: bold)
         #expect(String(attributed.characters) == "大事 なメモ")
 
-        let boldRuns = attributed.runs.filter { $0.inlinePresentationIntent == .stronglyEmphasized }
+        let boldRuns = attributed.runs.filter { $0.font == bold }
         let boldRun = try #require(boldRuns.first)
         #expect(boldRuns.count == 1)
         #expect(String(attributed.characters[boldRun.range]) == "大事")
@@ -569,10 +571,11 @@ struct BookBankTests {
 
     @Test func memoLinkTextLeavesUnpairedOrSpanningBoldMarkersAsLiterals() {
         // ペアが同じ行で閉じているときだけ太字。閉じない ** はただの文字として出す
+        let bold = Font.body.weight(MemoLinkText.boldWeight)
         for memo in ["**閉じていない", "行を **またぐ\n太字** は解釈しない"] {
-            let attributed = MemoLinkText.highlighted(memo, color: .blue)
+            let attributed = MemoLinkText.highlighted(memo, color: .blue, boldFont: bold)
             #expect(String(attributed.characters) == memo)
-            #expect(!attributed.runs.contains { $0.inlinePresentationIntent == .stronglyEmphasized })
+            #expect(!attributed.runs.contains { $0.font == bold })
         }
     }
 
@@ -592,6 +595,198 @@ struct BookBankTests {
             MemoTextBlocks.parse(">空白なし\n文中の > は引用ではない")
                 == [.paragraph(">空白なし\n文中の > は引用ではない")]
         )
+    }
+
+    @Test func memoQuoteBlockRangesMergeConsecutiveLines() {
+        // 編集画面は囲みを自前で描くため、まとまりの文字範囲が要る（設計メモ 4.6節）
+        let memo = "まえがき\n> 1行目\n> 2行目\nあとがき\n> 別のまとまり"
+        let ranges = MemoTextBlocks.quoteBlockRanges(in: memo)
+        let quoted = ranges.map { (memo as NSString).substring(with: $0) }
+
+        #expect(quoted == ["> 1行目\n> 2行目", "> 別のまとまり"])
+        #expect(
+            MemoTextBlocks.quoteBlockRanges(in: "引用のない本文").isEmpty,
+            "引用行が無ければ囲みは描かない"
+        )
+    }
+
+    @Test func memoQuotePageLineBelongsToThePrecedingQuote() {
+        // 引用には必ず出典ページがあるという前提で、囲みの直後の行に `p.42` だけを置く形にした。
+        // 表示は囲みの枠外・右下（設計メモ 4.6節）
+        #expect(
+            MemoTextBlocks.parse("> 引用したい一文\np.42\n続きの本文")
+                == [.quote("引用したい一文"), .quotePage("42"), .paragraph("続きの本文")]
+        )
+        #expect(
+            MemoTextBlocks.parse("> 引用\np.") == [.quote("引用"), .quotePage("")],
+            "数字が未入力の行も引用に属する（案内を出すため）"
+        )
+        #expect(
+            MemoTextBlocks.parse("p.42\n> 引用") == [.paragraph("p.42"), .quote("引用")],
+            "引用の直後でなければただの本文"
+        )
+        #expect(
+            MemoTextBlocks.parse("> 引用\np.42ページ")
+                == [.quote("引用"), .paragraph("p.42ページ")],
+            "ページ番号だけの行でなければただの本文"
+        )
+
+        let memo = "> 引用\np.\nあとがき"
+        let ranges = MemoTextBlocks.quotePageLineRanges(in: memo)
+        #expect(ranges.map { (memo as NSString).substring(with: $0) } == ["p."])
+    }
+
+    /// 「引用」ボタンの差分。無選択の経路でページ行を足し忘れて実機で案内が出なかったので、
+    /// 両方の経路をここで固定する
+    @Test func memoQuoteButtonAddsThePageLineOnEveryPath() {
+        func quoting(_ text: String, from: Int, to: Int) -> String {
+            let lower = text.index(text.startIndex, offsetBy: from)
+            let upper = text.index(text.startIndex, offsetBy: to)
+            let result = MemoQuoteInsertion.make(in: text, selecting: lower..<upper)
+            var applied = text
+            applied.replaceSubrange(result.replaced, with: result.text)
+            return applied
+        }
+
+        // 無選択（キャレットだけ）——行まるごとが引用になり、直後にページ行ができる
+        #expect(quoting("引用したい一文", from: 3, to: 3) == "> 引用したい一文\np.")
+        #expect(quoting("まえの行\n引用\nあとの行", from: 5, to: 5) == "まえの行\n> 引用\np.\nあとの行")
+        // 行の一部を選択——その部分だけを切り出して引用にし、ページ行を挟む
+        #expect(quoting("まえ引用あと", from: 2, to: 4) == "まえ\n> 引用\np.\nあと")
+        // 複数行の選択——ひとつの囲みにまとめ、ページ行はまとまりの後ろに1つだけ
+        #expect(quoting("1行目\n2行目", from: 0, to: 7) == "> 1行目\n> 2行目\np.")
+        // すでにページ行がある引用には足さない（重複させない）
+        #expect(quoting("> 引用\np.42\n本文", from: 8, to: 8) == "> 引用\n> p.42\np.\n本文")
+        #expect(quoting("引用\np.42", from: 1, to: 1) == "> 引用\np.42")
+
+        // キャレットは引用した文字の末尾＝ページ行の手前に残る
+        let single = "引用したい一文"
+        let caret = single.index(single.startIndex, offsetBy: 3)
+        let result = MemoQuoteInsertion.make(in: single, selecting: caret..<caret)
+        #expect(result.caretOffset == 5, "行頭に足した `> ` のぶんだけ後ろへ動く")
+    }
+
+    /// 案内の行は文字が幅ゼロなので、触った位置によっては `p` の手前にキャレットが入る。
+    /// そのまま数字を打つと「21p.」の順になり、ページの行として成立しなくなった（実機で発覚）
+    @Test func memoQuotePageKeepsTheCaretAfterTheMarker() {
+        let text = "> 引用\np."          // `p.` は 5〜6 文字目
+        #expect(MemoQuotePage.caretLocation(snapping: 5, in: text) == 7, "行頭に触っても数字の位置へ")
+        #expect(MemoQuotePage.caretLocation(snapping: 6, in: text) == 7, "`p` と `.` のあいだも同じ")
+        #expect(MemoQuotePage.caretLocation(snapping: 7, in: text) == 7, "すでに数字の位置なら動かさない")
+        #expect(MemoQuotePage.caretLocation(snapping: 2, in: text) == 2, "引用の中は触らない")
+
+        let filled = "> 引用\np.21"
+        #expect(
+            MemoQuotePage.caretLocation(snapping: 5, in: filled) == 7,
+            "入力済みの行でも数字より前には入れない（`3p.21` のように壊れる）"
+        )
+        #expect(MemoQuotePage.caretLocation(snapping: 9, in: filled) == 9, "数字のあいだは自由に動ける")
+        #expect(
+            MemoQuotePage.caretLocation(snapping: 1, in: "p.42\n本文") == 1,
+            "引用に属さない `p.42` はただの本文なので触らない"
+        )
+    }
+
+    /// ツールバーの「書式クリア」。装飾は全部外す——ページ番号は数字ごと落とす
+    /// （2026-08-11 オーナー指示。数字を残すと装飾が消えないため）
+    @Test func memoPlainTextStripsEveryDecoration() {
+        #expect(MemoPlainText.stripped(from: "**太い**ところ") == "太いところ")
+        #expect(MemoPlainText.stripped(from: "[[つながり]] のメモ") == "つながり のメモ")
+        #expect(
+            MemoPlainText.stripped(from: "> 引用の一文\np.42\n本文") == "引用の一文\n本文",
+            "ページ番号だけの行は行ごと落とす（空行を残さない）"
+        )
+        #expect(MemoPlainText.stripped(from: "本文\np.42") == "本文", "末尾の行なら手前の改行ごと")
+        #expect(
+            MemoPlainText.stripped(from: "ここ p.42 から") == "ここ  から",
+            "文中のページ番号はその部分だけ（前後の空白はユーザーの文字なので触らない）"
+        )
+        #expect(
+            MemoPlainText.stripped(from: "> 引用\np.\n本文") == "引用\n本文",
+            "数字が入っていないページ行も落とす"
+        )
+        #expect(
+            MemoPlainText.stripped(from: "> **太字**と[[つながり]]\n> 2行目")
+                == "太字とつながり\n2行目",
+            "入れ子も一度で外れる"
+        )
+        // ペアになっていない記号・不成立のつながりは触らない（本文の文字として残す）
+        #expect(MemoPlainText.stripped(from: "**片方だけ") == "**片方だけ")
+        #expect(MemoPlainText.stripped(from: "[[閉じていない") == "[[閉じていない")
+        #expect(MemoPlainText.stripped(from: "装飾のないメモ") == "装飾のないメモ")
+    }
+
+    @Test func memoQuotePageDropsTheLineWhenNoPageWasEntered() {
+        // ページの入力は任意。書かなかった `p.` を残すとメモ本文と書き出しに滲み出る
+        #expect(
+            MemoQuotePage.removingEmptyPageLines(from: "> 引用\np.\nあとがき") == "> 引用\nあとがき"
+        )
+        #expect(
+            MemoQuotePage.removingEmptyPageLines(from: "> 引用\np.42") == "> 引用\np.42",
+            "入力されたページは残す"
+        )
+        #expect(
+            MemoQuotePage.removingEmptyPageLines(from: "p.\n本文") == "p.\n本文",
+            "引用の直後でない `p.` はユーザーが書いた文字なので触らない"
+        )
+    }
+
+    /// 編集画面は引用に出典ページの行を用意し続ける（2026-08-11 オーナー指示）——
+    /// 一度消すと入力する場所そのものが無くなるため
+    @Test func memoQuotePageIsRestoredWheneverItIsMissing() {
+        #expect(
+            MemoQuotePage.ensuringPageLines(in: "> 引用\nあとがき") == "> 引用\np.\nあとがき",
+            "消された（あるいは最初から無い）引用にも案内を出す"
+        )
+        #expect(
+            MemoQuotePage.ensuringPageLines(in: "> 引用") == "> 引用\np.",
+            "引用が本文の末尾にある場合も足す"
+        )
+        #expect(
+            MemoQuotePage.ensuringPageLines(in: "> 一行目\n> 二行目") == "> 一行目\n> 二行目\np.",
+            "続く引用はひとつのまとまりなので、行ごとには足さない"
+        )
+        #expect(
+            MemoQuotePage.ensuringPageLines(in: "> 引用\np.42") == "> 引用\np.42", "あるものは触らない"
+        )
+        #expect(
+            MemoQuotePage.ensuringPageLines(in: "> 前\np.\n本文\n> 後") == "> 前\np.\n本文\n> 後\np.",
+            "足りない引用にだけ足す"
+        )
+        #expect(MemoQuotePage.ensuringPageLines(in: "引用ではない本文") == "引用ではない本文")
+
+        // キャレットをずらす量の計算に使うので、挿す位置（引用の行末＝改行の手前）も固定する
+        #expect(MemoQuotePage.pageLineInsertions(in: "> 引用\nあとがき") == [4])
+    }
+
+    /// ページ行が本文の末尾にあると、キャレットが `p.` の後ろへ押し戻されるうえ、
+    /// テンキーには改行キーも文字へ戻る鍵も無いので先へ進めない（2026-08-11 オーナー指摘）。
+    /// 行き先の行を用意しておくことを固定する
+    @Test func memoQuotePageLeavesARowToMoveOnTo() {
+        #expect(MemoQuotePage.trailingBlankLineInsertion(in: "> 引用\np.42") == 9, "末尾なら足す位置を返す")
+        #expect(
+            MemoQuotePage.trailingBlankLineInsertion(in: "> 引用\np.42\nあとがき") == nil,
+            "続きがあるなら足さない"
+        )
+        #expect(MemoQuotePage.trailingBlankLineInsertion(in: "ふつうの本文") == nil)
+
+        #expect(MemoQuotePage.preparedForEditing("> 引用") == "> 引用\np.\n", "案内と行き先をまとめて用意")
+        #expect(MemoQuotePage.preparedForEditing("> 引用\np.42\n本文") == "> 引用\np.42\n本文")
+        #expect(MemoQuotePage.preparedForEditing("本文だけ") == "本文だけ", "引用が無ければ何も足さない")
+    }
+
+    /// 数字が未入力の案内は消せない。通すと足し直しとぶつかって `p` だけが残る
+    @Test func memoQuotePageMarkerCannotBeDeletedWhileEmpty() {
+        let empty = "> 引用\np."          // 改行は4文字目、`p.` は 5〜6 文字目
+        #expect(MemoQuotePage.protectsDeletion(of: NSRange(location: 5, length: 1), in: empty))
+        #expect(MemoQuotePage.protectsDeletion(of: NSRange(location: 4, length: 1), in: empty),
+                "直前の改行も守る（消すと `p.` が引用の行に流れ込む）")
+        #expect(!MemoQuotePage.protectsDeletion(of: NSRange(location: 2, length: 1), in: empty),
+                "引用の中はふつうに消せる")
+
+        let filled = "> 引用\np.42"
+        #expect(!MemoQuotePage.protectsDeletion(of: NSRange(location: 8, length: 1), in: filled),
+                "入力済みの数字はふつうに消せる（消し切れば案内に戻る）")
     }
 
     @Test func memoLinkTextDoesNotInterpretOtherMarkdown() {

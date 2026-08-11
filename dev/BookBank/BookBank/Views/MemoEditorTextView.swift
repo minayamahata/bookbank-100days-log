@@ -13,26 +13,328 @@
 import SwiftUI
 import UIKit
 
+/// 引用の囲みを自前で描くレイアウトマネージャ。文字の背景色属性では余白を作れず、
+/// 書籍詳細側の囲み（内側の余白10）と見た目が揃わないため（2026-08-11 オーナー指示）。
+/// この描画のため `UITextView` は旧来のレイアウト機構（TextKit 1）で組む
+final class MemoQuoteBackgroundLayoutManager: NSLayoutManager {
+    /// 囲みの内側の余白。上下は段落スタイルの前後空き、左右は字下げで作る
+    static let padding: CGFloat = 18
+    /// 囲みと隣の行のあいだ（書籍詳細のブロック間と同じ）
+    static let gapToNeighbor: CGFloat = 6
+
+    /// 単体のページ番号（`p.42`）のバッジ。角丸とグレーの背景は文字の背景色属性では作れないので、
+    /// 引用の囲みと同じくここで描く（2026-08-11 オーナー指示。文字色はテーマ色のまま）
+    static let pageBadgeCornerRadius: CGFloat = 4
+    static let pageBadgeInset = CGSize(width: 6, height: 3)
+    /// バッジと隣の文字のあいだ（**2026-08-11 オーナー指示**）
+    static let pageBadgeMargin: CGFloat = 4
+    /// バッジの前後に空ける文字送り（内側の余白＋外側の間隔）。文字を足さずに場所を作るため、
+    /// 直前の文字とバッジ末尾の文字の字送り（`.kern`）を広げてこの空きを作る
+    static var pageBadgeSpacing: CGFloat { pageBadgeInset.width + pageBadgeMargin }
+    /// バッジのグレー。書籍詳細（`MemoFormattedText`）と共有する
+    static let pageBadgeColorDefault = UIColor.systemFill
+
+    var quoteRanges: [NSRange] = []
+    var quoteColor: UIColor = .quaternarySystemFill
+    /// 数字が未入力のページ行。文字（`p.`）は隠してあるので、案内をここに描く
+    var pageHintRanges: [NSRange] = []
+    var pageHint: NSAttributedString?
+    var pageBadgeRanges: [NSRange] = []
+    var pageBadgeColor: UIColor = MemoQuoteBackgroundLayoutManager.pageBadgeColorDefault
+
+    /// 囲みの矩形（テキストコンテナ座標）。行に割り当てられた領域＝段落の前後空きを含むので、
+    /// それがそのまま内側の余白になる。ただし**本文の先頭では前の空きが、末尾では後の空きが
+    /// 効かない**（実測で確認）ため、その分をここで補う
+    func quoteBoxes() -> [CGRect] {
+        guard let container = textContainers.first, let storage = textStorage else { return [] }
+        // 範囲は本文から求めたものなので、描画が本文の変更に先回りした場合に備えて丸める
+        let available = NSRange(location: 0, length: storage.length)
+
+        return quoteRanges.compactMap { requested in
+            let range = NSIntersectionRange(requested, available)
+            guard range.length > 0 else { return nil }
+
+            let glyphRange = self.glyphRange(forCharacterRange: range, actualCharacterRange: nil)
+            var box = CGRect.null
+            enumerateLineFragments(forGlyphRange: glyphRange) { lineRect, _, _, _, _ in
+                box = box.union(lineRect)
+            }
+            guard !box.isNull else { return nil }
+
+            let missingTop = range.location == 0 ? Self.padding : 0
+            let missingBottom = NSMaxRange(range) == storage.length ? Self.padding : 0
+            return CGRect(
+                x: 0,
+                y: box.minY - missingTop,
+                width: container.size.width,
+                height: box.height + missingTop + missingBottom
+            )
+        }
+    }
+
+    /// 単体のページ番号を囲むバッジの矩形（テキストコンテナ座標）。
+    /// 文字にぴったり付く矩形を上下左右へ広げて余白にする——行に割り当てられた領域を使うと
+    /// 縦だけ大きくなり、書籍詳細側（文字の外形に付ける）と見た目が揃わない
+    func pageBadgeBoxes() -> [CGRect] {
+        guard let container = textContainers.first, let storage = textStorage else { return [] }
+        let available = NSRange(location: 0, length: storage.length)
+
+        var boxes: [CGRect] = []
+        for requested in pageBadgeRanges {
+            let range = NSIntersectionRange(requested, available)
+            guard range.length > 0 else { continue }
+            let glyphRange = self.glyphRange(forCharacterRange: range, actualCharacterRange: nil)
+            let font = storage.attribute(.font, at: range.location, effectiveRange: nil) as? UIFont
+            // 幅は字送りを広げる前の文字幅から測る——行の矩形には末尾に足した空きが入っている
+            let width = font.map { pageFont in
+                NSAttributedString(
+                    string: storage.attributedSubstring(from: range).string,
+                    attributes: [.font: pageFont]
+                ).size().width
+            }
+            enumerateEnclosingRects(
+                forGlyphRange: glyphRange,
+                withinSelectedGlyphRange: NSRange(location: NSNotFound, length: 0),
+                in: container
+            ) { rect, _ in
+                var box = rect
+                if let font {
+                    // 縦はベースラインから文字の高さぶんだけ取る
+                    let lineRect = self.lineFragmentRect(
+                        forGlyphAt: glyphRange.location, effectiveRange: nil
+                    )
+                    let baseline = self.location(forGlyphAt: glyphRange.location).y
+                    box = CGRect(
+                        x: rect.minX,
+                        y: lineRect.minY + baseline - font.ascender,
+                        width: min(width ?? rect.width, rect.width),
+                        height: font.ascender - font.descender
+                    )
+                }
+                boxes.append(
+                    box.insetBy(dx: -Self.pageBadgeInset.width, dy: -Self.pageBadgeInset.height)
+                )
+            }
+        }
+        return boxes
+    }
+
+    override func drawBackground(forGlyphRange glyphsToShow: NSRange, at origin: CGPoint) {
+        if let context = UIGraphicsGetCurrentContext() {
+            context.saveGState()
+            context.setFillColor(quoteColor.cgColor)
+            for box in quoteBoxes() {
+                context.fill(box.offsetBy(dx: origin.x, dy: origin.y))
+            }
+            context.setFillColor(pageBadgeColor.cgColor)
+            for box in pageBadgeBoxes() {
+                let path = UIBezierPath(
+                    roundedRect: box.offsetBy(dx: origin.x, dy: origin.y),
+                    cornerRadius: Self.pageBadgeCornerRadius
+                )
+                context.addPath(path.cgPath)
+                context.fillPath()
+            }
+            context.restoreGState()
+        }
+        drawPageHints(at: origin)
+        super.drawBackground(forGlyphRange: glyphsToShow, at: origin)
+    }
+
+    /// 数字未入力のページ行に「ページを入力」の案内を右詰めで描く。
+    /// 本文の文字として入れないので、入力しなければメモには何も残らない
+    private func drawPageHints(at origin: CGPoint) {
+        guard let hint = pageHint, let container = textContainers.first,
+              let storage = textStorage, !pageHintRanges.isEmpty else { return }
+
+        let available = NSRange(location: 0, length: storage.length)
+        let size = hint.size()
+        let rightEdge = container.size.width - container.lineFragmentPadding
+        for requested in pageHintRanges {
+            let range = NSIntersectionRange(requested, available)
+            guard range.length > 0 else { continue }
+            let glyphRange = self.glyphRange(forCharacterRange: range, actualCharacterRange: nil)
+            var line = CGRect.null
+            enumerateLineFragments(forGlyphRange: glyphRange) { _, usedRect, _, _, _ in
+                line = line.union(usedRect)
+            }
+            guard !line.isNull else { continue }
+            hint.draw(
+                in: CGRect(
+                    x: origin.x + rightEdge - size.width - 3,
+                    y: origin.y + line.midY - size.height / 2,
+                    width: size.width,
+                    height: size.height
+                )
+            )
+        }
+    }
+}
+
+/// カーソルの高さを文字に合わせる編集ビュー。
+/// 標準では行に割り当てられた領域いっぱいに伸びるため、引用の余白（段落の前後空き）を入れると
+/// カーソルだけが極端に長くなる（実測: 22ptの文字に対して52pt）。文字の高さに合わせて描き直す
+final class MemoCaretAlignedTextView: UITextView {
+    override func caretRect(for position: UITextPosition) -> CGRect {
+        var rect = super.caretRect(for: position)
+        let location = self.offset(from: beginningOfDocument, to: position)
+        // ページ番号の直後は、バッジの余白のために広げた字送りの分だけ左へ戻す——
+        // 戻さないとバッジの外にカーソルが立ち、入力中の場所に見えない（2026-08-12 オーナー報告）
+        if endsPageBadge(at: location) {
+            rect.origin.x -= MemoQuoteBackgroundLayoutManager.pageBadgeSpacing
+        }
+
+        guard let layoutManager = textContainer.layoutManager,
+              let storage = layoutManager.textStorage, storage.length > 0
+        else { return rect }
+
+        // 末尾の改行のうしろ（文字がまだ無い最後の行）は、その行のためだけの矩形に合わせる——
+        // 直前の文字（改行）に合わせるとひとつ上の行にカーソルが立って見え、
+        // Enterを押しても改行できていないように映る（2026-08-12 オーナー報告）
+        if location >= storage.length {
+            let extra = layoutManager.extraLineFragmentUsedRect
+            if extra.height > 0 {
+                return CGRect(
+                    x: rect.minX,
+                    y: extra.minY + textContainerInset.top - 1,
+                    width: rect.width,
+                    height: extra.height + 2
+                )
+            }
+        }
+
+        let offset = min(location, storage.length - 1)
+        guard offset >= 0 else { return rect }
+        let glyphIndex = layoutManager.glyphIndexForCharacter(at: offset)
+        guard glyphIndex < layoutManager.numberOfGlyphs else { return rect }
+
+        let textArea = layoutManager.lineFragmentUsedRect(forGlyphAt: glyphIndex, effectiveRange: nil)
+        guard textArea.height > 0 else { return rect }
+        return CGRect(
+            x: rect.minX,
+            y: textArea.minY + textContainerInset.top - 1,
+            width: rect.width,
+            height: textArea.height + 2
+        )
+    }
+
+    /// その位置がページ番号のバッジの直後か（バッジの範囲は描画側が持っている）
+    private func endsPageBadge(at location: Int) -> Bool {
+        guard let manager = textContainer.layoutManager as? MemoQuoteBackgroundLayoutManager
+        else { return false }
+        return manager.pageBadgeRanges.contains { NSMaxRange($0) == location }
+    }
+}
+
+/// 編集画面からテキストビューへ命令を送る通り道。
+/// 「ひとつ戻す」はiOS標準の取り消し機構に相乗りするので、ツールバーの書き換えも
+/// テキストビュー経由で行う——文字列を直接差し替えると取り消しの履歴に残らない
+@MainActor
+@Observable
+final class MemoEditorBridge {
+    @ObservationIgnored weak var textView: UITextView?
+    var canUndo = false
+
+    /// 取り消しの履歴に載る形で書き換える。テキストビューがまだ無ければ `false`（呼び出し側が従来の経路へ）
+    func replace(_ range: NSRange, with insertion: String, caretLocation: Int) -> Bool {
+        guard let textView,
+              let start = textView.position(from: textView.beginningOfDocument, offset: range.location),
+              let end = textView.position(from: start, offset: range.length),
+              let target = textView.textRange(from: start, to: end)
+        else { return false }
+
+        textView.replace(target, withText: insertion)
+        textView.selectedRange = NSRange(location: caretLocation, length: 0)
+        // 差し替えの通知が来ない経路があっても編集画面と食い違わないよう、こちらから反映させる
+        textView.delegate?.textViewDidChange?(textView)
+        refresh()
+        return true
+    }
+
+    func undo() {
+        guard let textView, let undoManager = textView.undoManager, undoManager.canUndo else { return }
+        undoManager.undo()
+        // 取り消すと復元された範囲が選択される（書式クリアを戻すと全選択に見える）ので、
+        // 末尾のキャレットに畳む
+        if textView.selectedRange.length > 0 {
+            textView.selectedRange = NSRange(
+                location: NSMaxRange(textView.selectedRange), length: 0
+            )
+        }
+        // 取り消しの経路によっては通知が来ないので、こちらから編集画面へ反映させる
+        textView.delegate?.textViewDidChange?(textView)
+        refresh()
+    }
+
+    func refresh() {
+        let available = textView?.undoManager?.canUndo ?? false
+        if canUndo != available { canUndo = available }
+    }
+}
+
 struct MemoEditorTextView: UIViewRepresentable {
     @Binding var text: String
     @Binding var selectedRange: NSRange
     /// ページ番号の入力中だけ数字が並んだキーボードにする。キャレットが `p.数字` から離れたら自動で戻す
     @Binding var prefersNumericKeyboard: Bool
     let accentColor: Color
+    /// ツールバーの書き換えと「ひとつ戻す」の通り道
+    let bridge: MemoEditorBridge
+
+    /// 本文の上下の余白（引用が端にある場合はここに囲みの余白ぶんを足す）
+    fileprivate static let baseTextInset: CGFloat = 12
+
+    /// 引用の中の文字色。本文より少し薄い黒（濃いめのグレー）で、書籍詳細と共有する
+    static let quoteTextColor = UIColor.label.withAlphaComponent(0.75)
+
+    /// 太字の太さ。`bold` では本文との差が弱いので一段上げる（**2026-08-12 オーナー指示**）。
+    /// 書籍詳細（`MemoFormattedText`）と共有する
+    static let boldWeight: UIFont.Weight = .heavy
+
+    /// Enterで分けた段落のあいだに足す空き。折り返しの行と行送りが同じだと改行できたのか
+    /// 分からないため、段落の行送りが2倍になるぶんだけ空ける（**2026-08-12 オーナー指示**）。
+    /// 書籍詳細（`MemoFormattedText`）と共有する
+    static var paragraphSpacing: CGFloat {
+        UIFont.preferredFont(forTextStyle: .body).lineHeight
+    }
 
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
     }
 
     func makeUIView(context: Context) -> UITextView {
-        let textView = UITextView()
+        // 引用の囲みを自前で描くため、レイアウト機構を明示して組む（TextKit 1）
+        let layoutManager = MemoQuoteBackgroundLayoutManager()
+        let container = NSTextContainer(
+            size: CGSize(width: 0, height: CGFloat.greatestFiniteMagnitude)
+        )
+        container.widthTracksTextView = true
+        layoutManager.addTextContainer(container)
+        // 文字置き場はレイアウト機構から弱参照されるだけなので、こちらで保持しないと
+        // 解放され、編集画面を開いた瞬間に落ちる
+        let storage = NSTextStorage()
+        storage.addLayoutManager(layoutManager)
+
+        let textView = MemoCaretAlignedTextView(frame: .zero, textContainer: container)
+        layoutManager.pageHint = NSAttributedString(
+            string: String(localized: "memo.quote.page.hint"),
+            attributes: [
+                .font: UIFont.preferredFont(forTextStyle: .footnote),
+                .foregroundColor: UIColor.tertiaryLabel
+            ]
+        )
+        context.coordinator.textStorage = storage
+        context.coordinator.quoteLayoutManager = layoutManager
         textView.delegate = context.coordinator
         textView.backgroundColor = .clear
         textView.font = .preferredFont(forTextStyle: .body)
         textView.adjustsFontForContentSizeCategory = true
-        textView.textContainerInset = UIEdgeInsets(top: 12, left: 0, bottom: 12, right: 0)
+        textView.textContainerInset = UIEdgeInsets(
+            top: Self.baseTextInset, left: 0, bottom: Self.baseTextInset, right: 0
+        )
         textView.textContainer.lineFragmentPadding = 4
         textView.text = text
+        bridge.textView = textView
         context.coordinator.applyStyling(to: textView, accent: UIColor(accentColor))
         // 旧 TextEditor と同じく、画面表示から一拍おいて自動フォーカス
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak textView] in
@@ -60,9 +362,9 @@ struct MemoEditorTextView: UIViewRepresentable {
         }
         context.coordinator.isApplyingRequestedState = false
 
-        // 数字キーボードは `.numbersAndPunctuation`。数字だけのテンキー（`.numberPad`）は
-        // 文字入力へ戻る手段が無く、ページ番号を打った位置から続きを書けなくなるため使わない
-        let keyboardType: UIKeyboardType = prefersNumericKeyboard ? .numbersAndPunctuation : .default
+        // ページ番号のあいだはテンキー（2026-08-11 オーナー指示）。テンキーには Enter が無いので、
+        // 抜け口は「何もないところのタップ」に一本化する（2026-08-12 オーナー確定）
+        let keyboardType: UIKeyboardType = prefersNumericKeyboard ? .numberPad : .default
         if textView.keyboardType != keyboardType {
             textView.keyboardType = keyboardType
             if textView.isFirstResponder {
@@ -75,9 +377,16 @@ struct MemoEditorTextView: UIViewRepresentable {
 
     final class Coordinator: NSObject, UITextViewDelegate {
         var parent: MemoEditorTextView
+        /// レイアウト機構は文字置き場に強参照されるので、こちらは弱参照でよい
+        weak var quoteLayoutManager: MemoQuoteBackgroundLayoutManager?
+        /// 文字置き場（`UITextView` からは弱参照）。エディタが生きている間はここで保持する
+        var textStorage: NSTextStorage?
         /// ツールバーが指定した状態を当てている最中。この間の位置変更は UITextView 側の副作用なので
         /// 記録し返さない——ツールバーが置いたキャレットが末尾へ上書きされてしまう
         var isApplyingRequestedState = false
+        /// ひとつ前の位置変更のときの本文の長さ。位置が動いた理由が入力かタップかを見分けるために持つ
+        /// （入力なら長さが変わる。テンキーからの抜け方の判定に使う）
+        private var lengthAtLastSelectionChange = -1
 
         init(_ parent: MemoEditorTextView) {
             self.parent = parent
@@ -87,16 +396,117 @@ struct MemoEditorTextView: UIViewRepresentable {
 
         func textViewDidChange(_ textView: UITextView) {
             parent.text = textView.text
+            parent.selectedRange = textView.selectedRange
+            parent.bridge.refresh()
+            ensureQuotePageLines(textView)
             releaseNumericKeyboardIfNeeded(textView)
             applyStyling(to: textView, accent: UIColor(parent.accentColor))
         }
 
+        /// 引用に出典ページの行が無ければ足し直す。案内を常に出しておくため（2026-08-11 オーナー指示）——
+        /// 引用を書いたあとに消してしまうと、入力する場所そのものが無くなってしまう。
+        /// 取り消しの履歴には載せない（自動で足したものを戻す操作は意味を持たない）
+        private func ensureQuotePageLines(_ textView: UITextView) {
+            guard textView.markedTextRange == nil else { return }
+            let offsets = MemoQuotePage.pageLineInsertions(in: textView.text ?? "")
+            // ページ行が本文の末尾のままだと、そこから先へ出られない（テンキーに改行キーが無い）
+            let tail = MemoQuotePage.trailingBlankLineInsertion(
+                in: MemoQuotePage.ensuringPageLines(in: textView.text ?? "")
+            )
+            guard !offsets.isEmpty || tail != nil else { return }
+
+            let caret = textView.selectedRange
+            let storage = textView.textStorage
+            storage.beginEditing()
+            for offset in offsets.sorted(by: >) {
+                storage.replaceCharacters(in: NSRange(location: offset, length: 0), with: "\np.")
+            }
+            if tail != nil {
+                storage.replaceCharacters(
+                    in: NSRange(location: storage.length, length: 0), with: "\n"
+                )
+            }
+            storage.endEditing()
+
+            // キャレットより前に入った分だけ後ろへずらす（行末に入るので同位置なら動かさない）
+            let insertedBefore = offsets.count(where: { $0 < caret.location }) * 3
+            textView.selectedRange = NSRange(
+                location: caret.location + insertedBefore, length: caret.length
+            )
+            parent.text = textView.text
+            parent.selectedRange = textView.selectedRange
+        }
+
         func textViewDidChangeSelection(_ textView: UITextView) {
             guard !isApplyingRequestedState else { return }
+            let length = (textView.text as NSString).length
+            let followsEdit = length != lengthAtLastSelectionChange
+            lengthAtLastSelectionChange = length
+
+            guard !releaseNumericKeyboardKeepingCaret(textView, followsEdit: followsEdit) else {
+                return
+            }
+            snapCaretPastPageMarker(textView)
             if parent.selectedRange != textView.selectedRange {
                 parent.selectedRange = textView.selectedRange
             }
+            adoptNumericKeyboardOnQuotePageLine(textView)
             releaseNumericKeyboardIfNeeded(textView)
+            // 案内は「キャレットがその行に無いとき」だけ出すので、選択が動くたびに当て直す
+            applyStyling(to: textView, accent: UIColor(parent.accentColor))
+        }
+
+        /// 出典ページの行では、キャレットを必ず `p.` の直後へ置き直す（判定は `MemoQuotePage`）
+        private func snapCaretPastPageMarker(_ textView: UITextView) {
+            let selection = textView.selectedRange
+            guard selection.length == 0 else { return }
+            let snapped = MemoQuotePage.caretLocation(
+                snapping: selection.location, in: textView.text ?? ""
+            )
+            guard snapped != selection.location else { return }
+            textView.selectedRange = NSRange(location: snapped, length: 0)
+        }
+
+        /// 出典ページの行に入ったら数字キーボードにする（案内を見て触った直後に数字が打てるように）
+        private func adoptNumericKeyboardOnQuotePageLine(_ textView: UITextView) {
+            guard !parent.prefersNumericKeyboard else { return }
+            let text = textView.text ?? ""
+            let selection = textView.selectedRange
+            guard selection.length == 0,
+                  caretFollowsPageMarker(in: text, at: selection.location),
+                  MemoTextBlocks.quotePageLineRanges(in: text).contains(where: {
+                      NSLocationInRange(selection.location, $0)
+                          || selection.location == NSMaxRange($0)
+                  })
+            else { return }
+            parent.prefersNumericKeyboard = true
+        }
+
+        /// 何もないところを触ってテンキーから抜けるときは、**キャレットを動かさずキーボードだけ戻す**
+        /// （**2026-08-12 オーナー報告**——本文の途中にページ番号を入れると、抜けるたびに末尾へ飛んでいた）。
+        /// 文字の無い場所を触るとキャレットは必ず本文の末尾に入るので、そこへ飛んだかどうかで見分ける。
+        /// 代わりに、テンキー中に末尾を狙って触った1回は空振りになる（もう一度触れば末尾へ行ける）。
+        /// 数字を打ってもキャレットは末尾へ進むので、**入力に続く位置変更は対象外**
+        /// （2026-08-12 オーナー報告——1桁打つとテンキーが閉じていた）
+        private func releaseNumericKeyboardKeepingCaret(
+            _ textView: UITextView,
+            followsEdit: Bool
+        ) -> Bool {
+            guard parent.prefersNumericKeyboard, !followsEdit else { return false }
+            let text = textView.text ?? ""
+            let end = (text as NSString).length
+            let previous = parent.selectedRange
+            guard textView.selectedRange == NSRange(location: end, length: 0),
+                  previous.length == 0, previous.location != end,
+                  caretFollowsPageMarker(in: text, at: previous.location)
+            else { return false }
+
+            parent.prefersNumericKeyboard = false
+            isApplyingRequestedState = true
+            textView.selectedRange = previous
+            isApplyingRequestedState = false
+            applyStyling(to: textView, accent: UIColor(parent.accentColor))
+            return true
         }
 
         /// ページ番号から離れたら通常のキーボードへ戻す（数字キーボードのまま取り残さない）
@@ -136,6 +546,21 @@ struct MemoEditorTextView: UIViewRepresentable {
             shouldChangeTextIn range: NSRange,
             replacementText replacement: String
         ) -> Bool {
+            // 引用の中の改行は、その引用の出典ページへの移動として扱う（2026-08-12 オーナー指示）
+            if replacement == "\n", textView.markedTextRange == nil,
+               let destination = MemoQuotePage.pageCaretLocation(
+                   forReturnAt: range.location, in: textView.text ?? ""
+               ) {
+                textView.selectedRange = NSRange(location: destination, length: 0)
+                parent.selectedRange = textView.selectedRange
+                return false
+            }
+
+            // 数字未入力の出典ページは消させない。消しても足し直すので、通せば `p` だけが残る
+            if replacement.isEmpty, range.length == 1,
+               MemoQuotePage.protectsDeletion(of: range, in: textView.text ?? "") {
+                return false
+            }
             guard replacement.isEmpty, range.length == 1,
                   let targets = markerDeletion(at: range.location, in: textView.text ?? "")
             else { return true }
@@ -207,9 +632,13 @@ struct MemoEditorTextView: UIViewRepresentable {
             let fullRange = NSRange(location: 0, length: storage.length)
 
             let bodyFont = UIFont.preferredFont(forTextStyle: .body)
+            // Enterで分けた段落は折り返しの行より広く空ける（段落の行送りが2倍になる）
+            let bodyStyle = NSMutableParagraphStyle()
+            bodyStyle.paragraphSpacing = MemoEditorTextView.paragraphSpacing
             let baseAttributes: [NSAttributedString.Key: Any] = [
                 .font: bodyFont,
-                .foregroundColor: UIColor.label
+                .foregroundColor: UIColor.label,
+                .paragraphStyle: bodyStyle
             ]
             // 記号の消し方: 文字は残したまま、極小フォント＋透明で幅も見た目も無くす
             let hiddenAttributes: [NSAttributedString.Key: Any] = [
@@ -223,55 +652,150 @@ struct MemoEditorTextView: UIViewRepresentable {
             let links = MemoLinkParser.parse(text)
             let linkRanges = links.map(\.range)
 
-            // 引用行: 行全体に薄いグレーの背景、行頭の「> 」は隠す
-            (text as NSString).enumerateSubstrings(
-                in: fullRange, options: [.byLines, .substringNotRequired]
-            ) { _, lineRange, _, _ in
-                guard lineRange.length >= 2,
-                      (text as NSString).substring(
-                        with: NSRange(location: lineRange.location, length: 2)
-                      ) == "> " else { return }
-                storage.addAttribute(
-                    .backgroundColor, value: UIColor.secondarySystemFill, range: lineRange
-                )
-                storage.addAttributes(
-                    hiddenAttributes, range: NSRange(location: lineRange.location, length: 2)
-                )
+            // 引用行: 行頭の「> 」を隠し、囲みの内側に余白ができるよう文字を寄せる。
+            // 文字は本文より少し小さく（書籍詳細と同じ）。囲み自体は
+            // `MemoQuoteBackgroundLayoutManager` が描く
+            let nsText = text as NSString
+            let quoteBlocks = MemoTextBlocks.quoteBlockRanges(in: text)
+            let quoteFont = UIFont.preferredFont(forTextStyle: .callout)
+            for block in quoteBlocks {
+                nsText.enumerateSubstrings(
+                    in: block, options: [.byLines, .substringNotRequired]
+                ) { _, lineRange, _, _ in
+                    storage.addAttribute(.font, value: quoteFont, range: lineRange)
+                    // 引用の文字は本文より少し薄い黒（濃いめのグレー）
+                    storage.addAttribute(
+                        .foregroundColor,
+                        value: MemoEditorTextView.quoteTextColor,
+                        range: lineRange
+                    )
+                    storage.addAttributes(
+                        hiddenAttributes, range: NSRange(location: lineRange.location, length: 2)
+                    )
+                    storage.addAttribute(
+                        .paragraphStyle,
+                        value: Self.quoteParagraphStyle(
+                            of: lineRange, in: block,
+                            lineFragmentPadding: textView.textContainer.lineFragmentPadding
+                        ),
+                        range: lineRange
+                    )
+                }
+            }
+            quoteLayoutManager?.quoteRanges = quoteBlocks
+            applyNeighborGaps(around: quoteBlocks, in: nsText, storage: storage)
+            // 本文の端の引用は囲みを外へ広げて余白を補うので、その分の余地を作る。
+            // 作らないと囲みがヘッダー側へはみ出して見切れる
+            let padding = MemoQuoteBackgroundLayoutManager.padding
+            let insets = UIEdgeInsets(
+                top: MemoEditorTextView.baseTextInset
+                    + (quoteBlocks.first?.location == 0 ? padding : 0),
+                left: 0,
+                bottom: MemoEditorTextView.baseTextInset
+                    + (quoteBlocks.last.map { NSMaxRange($0) == nsText.length } == true ? padding : 0),
+                right: 0
+            )
+            if textView.textContainerInset != insets {
+                textView.textContainerInset = insets
             }
 
             // 太字: 中身を太く、記号 ** は隠す
             let boldMarkers = MemoLinkText
                 .pairedBoldMarkers(in: text, excluding: linkRanges)
                 .sorted()
-            let boldFont = UIFont.systemFont(ofSize: bodyFont.pointSize, weight: .bold)
             for pairStart in stride(from: 0, to: boldMarkers.count - 1, by: 2) {
                 let opening = boldMarkers[pairStart]
                 let closing = boldMarkers[pairStart + 1]
                 let contentStart = text.index(opening, offsetBy: 2)
-                storage.addAttribute(.font, value: boldFont, range: NSRange(contentStart..<closing, in: text))
+                let content = NSRange(contentStart..<closing, in: text)
+                // 引用の中は文字が小さいので、太字もその行の大きさに合わせる。
+                // 太さは `bold` より一段上（**2026-08-12 オーナー指示**——本文との差をはっきり出す）
+                let boldFont = UIFont.systemFont(
+                    ofSize: Self.fontSize(at: content.location, in: storage, fallback: bodyFont),
+                    weight: MemoEditorTextView.boldWeight
+                )
+                storage.addAttribute(.font, value: boldFont, range: content)
                 for marker in [opening..<contentStart, closing..<text.index(closing, offsetBy: 2)] {
                     storage.addAttributes(hiddenAttributes, range: NSRange(marker, in: text))
                 }
             }
 
-            // ページ番号: 表示と同じバッジ風（つながりのラベル内は除外）
+            // ページ番号: 表示と同じバッジ風（つながりのラベル内と、引用の出典ページの行は除外）
+            let quotePageLines = MemoTextBlocks.quotePageLineRanges(in: text)
             let pageFont = UIFont.systemFont(
                 ofSize: UIFont.preferredFont(forTextStyle: .footnote).pointSize, weight: .medium
             )
+            var pageBadges: [NSRange] = []
             for page in MemoPageMarker.ranges(in: text)
             where !linkRanges.contains(where: { $0.contains(page.lowerBound) }) {
                 let range = NSRange(page, in: text)
+                guard !quotePageLines.contains(where: { NSLocationInRange(range.location, $0) })
+                else { continue }
                 storage.addAttribute(.font, value: pageFont, range: range)
                 storage.addAttribute(.foregroundColor, value: accent, range: range)
+                // バッジの左右に場所を作る（本文の文字は足さず、字送りだけ広げる）
+                let spacing = MemoQuoteBackgroundLayoutManager.pageBadgeSpacing
                 storage.addAttribute(
-                    .backgroundColor, value: accent.withAlphaComponent(0.14), range: range
+                    .kern, value: spacing, range: NSRange(location: NSMaxRange(range) - 1, length: 1)
                 )
+                let line = nsText.lineRange(for: range)
+                if range.location > line.location {
+                    storage.addAttribute(
+                        .kern, value: spacing,
+                        range: NSRange(location: range.location - 1, length: 1)
+                    )
+                } else {
+                    // 行頭のバッジは字送りでは空きを作れない——直前は前の行の改行なので、
+                    // 広げると前の行が伸びる（未確定文字の囲みがはみ出して見えた・2026-08-12 オーナー報告）。
+                    // 代わりに行を字下げして、バッジの左端が他の行の文字に揃うようにする
+                    let inherited = storage.attribute(
+                        .paragraphStyle, at: range.location, effectiveRange: nil
+                    ) as? NSParagraphStyle
+                    let style = inherited?.mutableCopy() as? NSMutableParagraphStyle
+                        ?? NSMutableParagraphStyle()
+                    style.firstLineHeadIndent = MemoQuoteBackgroundLayoutManager.pageBadgeInset.width
+                    storage.addAttribute(.paragraphStyle, value: style, range: line)
+                }
+                // 背景は角丸とまわりの余白を持たせるためレイアウト機構が描く
+                pageBadges.append(range)
             }
+            quoteLayoutManager?.pageBadgeRanges = pageBadges
+
+            // 出典ページの行: 囲みの枠外・右下へ。装飾は付けず小さくするだけ（オーナー指示）。
+            // 数字が未入力なら `p.` を隠して案内を描く
+            // （行の高さは残す——潰れるとカーソルも案内も置き場を失う）
+            var emptyPageLines: [NSRange] = []
+            let pageLineFont = UIFont.preferredFont(forTextStyle: .footnote)
+            let caret = textView.selectedRange
+            for line in quotePageLines {
+                let style = NSMutableParagraphStyle()
+                style.alignment = .right
+                style.minimumLineHeight = pageLineFont.lineHeight
+                style.paragraphSpacingBefore = MemoQuoteBackgroundLayoutManager.gapToNeighbor
+                style.paragraphSpacing = MemoQuoteBackgroundLayoutManager.gapToNeighbor
+                storage.addAttribute(.paragraphStyle, value: style, range: line)
+                storage.addAttribute(.font, value: pageLineFont, range: line)
+                guard MemoQuotePage.digits(inPageOnlyLine: nsText.substring(with: line))?.isEmpty
+                    == true else { continue }
+
+                // 数字が未入力の行: キャレットが乗っている間は `p.` を出す（数字を打つ位置が分かる）。
+                // 離れている間は隠して、代わりに案内を描く
+                let focused = caret.length == 0
+                    && (NSLocationInRange(caret.location, line) || caret.location == NSMaxRange(line))
+                if !focused {
+                    storage.addAttributes(hiddenAttributes, range: line)
+                    emptyPageLines.append(line)
+                }
+            }
+            quoteLayoutManager?.pageHintRanges = emptyPageLines
 
             // つながり: 中身をテーマ色＋セミボールド、括弧は隠す
-            let linkFont = UIFont.systemFont(ofSize: bodyFont.pointSize, weight: .semibold)
             for link in links {
                 let range = NSRange(link.range, in: text)
+                let linkFont = UIFont.systemFont(
+                    ofSize: Self.fontSize(at: range.location, in: storage, fallback: bodyFont),
+                    weight: .semibold
+                )
                 storage.addAttribute(.font, value: linkFont, range: range)
                 storage.addAttribute(.foregroundColor, value: accent, range: range)
                 let opening = link.range.lowerBound..<text.index(link.range.lowerBound, offsetBy: 2)
@@ -283,6 +807,74 @@ struct MemoEditorTextView: UIViewRepresentable {
 
             storage.endEditing()
             textView.typingAttributes = baseAttributes
+            textView.setNeedsDisplay()
+        }
+
+        /// その位置に当たっている文字の大きさ（引用行なら小さいほう）
+        private static func fontSize(
+            at location: Int,
+            in storage: NSTextStorage,
+            fallback: UIFont
+        ) -> CGFloat {
+            guard location >= 0, location < storage.length,
+                  let font = storage.attribute(.font, at: location, effectiveRange: nil) as? UIFont
+            else { return fallback.pointSize }
+            return font.pointSize
+        }
+
+        /// 引用行の段落スタイル。左右は字下げで、上下はまとまりの最初と最後の行の前後空きで
+        /// 余白を作る（この空きは行の領域に含まれ、そのまま囲みの内側の余白になる）。
+        /// まとまりの内側の行には前後の空きを付けない（1つの囲みが行ごとに割れないようにする）
+        private static func quoteParagraphStyle(
+            of lineRange: NSRange,
+            in block: NSRange,
+            lineFragmentPadding: CGFloat
+        ) -> NSParagraphStyle {
+            let padding = MemoQuoteBackgroundLayoutManager.padding
+            let style = NSMutableParagraphStyle()
+            let indent = max(0, padding - lineFragmentPadding)
+            style.firstLineHeadIndent = indent
+            style.headIndent = indent
+            style.tailIndent = -indent
+            if lineRange.location == block.location {
+                style.paragraphSpacingBefore = padding
+            }
+            if lineRange.location + lineRange.length == block.location + block.length {
+                style.paragraphSpacing = padding
+            }
+            return style
+        }
+
+        /// 囲みの外側（前後の行）に間隔を空ける。囲みは行の領域いっぱいに描くので、
+        /// この空きが無いと隣の行の文字が囲みの縁に触れる
+        private func applyNeighborGaps(
+            around blocks: [NSRange],
+            in nsText: NSString,
+            storage: NSTextStorage
+        ) {
+            // 前後どちらの隣にもなる行（引用に挟まれた1行）があるので、行ごとにまとめてから当てる
+            var gaps: [Int: (range: NSRange, before: Bool, after: Bool)] = [:]
+            func mark(at location: Int, before: Bool) {
+                guard location >= 0, location < nsText.length else { return }
+                let line = nsText.lineRange(for: NSRange(location: location, length: 0))
+                var gap = gaps[line.location] ?? (line, false, false)
+                if before { gap.before = true } else { gap.after = true }
+                gaps[line.location] = gap
+            }
+
+            for block in blocks {
+                mark(at: block.location - 1, before: false)
+                mark(at: block.location + block.length + 1, before: true)
+            }
+
+            for gap in gaps.values {
+                let style = NSMutableParagraphStyle()
+                // 囲みに面していない側は段落の空きのまま（本文どうしの行送りを変えない）
+                style.paragraphSpacing = MemoEditorTextView.paragraphSpacing
+                if gap.before { style.paragraphSpacingBefore = MemoQuoteBackgroundLayoutManager.gapToNeighbor }
+                if gap.after { style.paragraphSpacing = MemoQuoteBackgroundLayoutManager.gapToNeighbor }
+                storage.addAttribute(.paragraphStyle, value: style, range: gap.range)
+            }
         }
     }
 }

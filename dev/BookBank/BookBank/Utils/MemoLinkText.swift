@@ -8,7 +8,7 @@
 //
 //  解釈するのは**ツールバーが出せるものだけ**（同 0.4節）:
 //  `[[ ]]`（記号を隠して着色）・`**` のペア（太字）・行頭の `> `（薄いグレーの囲み）・
-//  `p.数字`（角丸バッジ）。見出し・箇条書き・斜体・リンク等の他のMarkdown記法は解釈しない。
+//  `p.数字`（グレーの角丸バッジ）。見出し・箇条書き・斜体・リンク等の他のMarkdown記法は解釈しない。
 //
 
 import SwiftUI
@@ -37,23 +37,42 @@ extension AttributeDynamicLookup {
 /// `Text` 側の印。`TextRenderer` が背景の角丸を描くときの目印
 private struct MemoPageBadgeAttribute: TextAttribute {}
 
-/// ページ番号の run の背後に角丸4の薄いテーマ色を敷く。
-/// `AttributedString` の背景色属性は角丸を持てないため、描画側で塗る
+/// ページ番号の run の背後にグレーの角丸バッジを敷く（文字色はテーマ色のまま）。
+/// `AttributedString` の背景色属性は角丸も余白も持てないため、描画側で塗る。
+/// 寸法は編集画面（`MemoQuoteBackgroundLayoutManager`）と共有する
 private struct MemoPageBadgeRenderer: TextRenderer {
     let badgeColor: Color
 
     func draw(layout: Text.Layout, in context: inout GraphicsContext) {
         for line in layout {
+            // バッジは字送りを広げた文字（末尾）で run が割れるので、続きは1枚にまとめる
+            var box: CGRect?
             for run in line {
-                if run[MemoPageBadgeAttribute.self] != nil {
-                    // 角丸は付けない——編集画面の背景色属性が角丸を持てず、
-                    // 同じ装飾が画面ごとに違って見えるのを避けるため（2026-08-11 オーナー指示）
-                    let rect = run.typographicBounds.rect.insetBy(dx: -4, dy: -1.5)
-                    context.fill(Path(rect), with: .color(badgeColor))
+                guard run[MemoPageBadgeAttribute.self] != nil else {
+                    fill(box, in: &context)
+                    box = nil
+                    continue
                 }
-                context.draw(run)
+                let bounds = run.typographicBounds.rect
+                box = box.map { $0.union(bounds) } ?? bounds
             }
+            fill(box, in: &context)
+            for run in line { context.draw(run) }
         }
+    }
+
+    private func fill(_ box: CGRect?, in context: inout GraphicsContext) {
+        guard var box else { return }
+        let inset = MemoQuoteBackgroundLayoutManager.pageBadgeInset
+        // 字送りには末尾に足した空きが入っているので、その分を戻してから余白を付ける
+        box.size.width -= MemoQuoteBackgroundLayoutManager.pageBadgeSpacing
+        context.fill(
+            Path(
+                roundedRect: box.insetBy(dx: -inset.width, dy: -inset.height),
+                cornerRadius: MemoQuoteBackgroundLayoutManager.pageBadgeCornerRadius
+            ),
+            with: .color(badgeColor)
+        )
     }
 }
 
@@ -71,27 +90,73 @@ struct MemoFormattedText: View {
             ForEach(Array(MemoTextBlocks.parse(memo).enumerated()), id: \.offset) { _, block in
                 switch block {
                 case .paragraph(let content):
-                    inline(content)
+                    // Enterで分けた行は1行ずつ積んで空きを入れる——折り返しの行と同じ行送りだと
+                    // 段落の区切りが読めない（2026-08-12 オーナー指示。編集画面と同じ空き）
+                    VStack(alignment: .leading, spacing: MemoEditorTextView.paragraphSpacing) {
+                        ForEach(
+                            Array(content.components(separatedBy: "\n").enumerated()), id: \.offset
+                        ) { _, line in
+                            inline(line)
+                                // 空行にも1行ぶんの高さを持たせる（空きの値は行送りと同じ）
+                                .frame(
+                                    maxWidth: .infinity,
+                                    minHeight: MemoEditorTextView.paragraphSpacing,
+                                    alignment: .leading
+                                )
+                                // 行頭のバッジは内側の余白ぶん字下げする（編集画面と同じ）——
+                                // 字送りでは前の行が伸びてしまうため、行ごと寄せて場所を作る
+                                .padding(.leading, Self.badgeIndent(of: line))
+                        }
+                    }
                 case .quote(let content):
-                    inline(content)
+                    // 引用の文字は本文より少し小さく・少し薄い黒、囲みの内側に余白18（編集画面と同じ）。
+                    // 太字も囲みの中の大きさに合わせる（編集画面はその行のフォントから拾っている）
+                    inline(content, boldFont: .callout.weight(MemoLinkText.boldWeight))
+                        .font(.callout)
+                        .foregroundStyle(Color(MemoEditorTextView.quoteTextColor))
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(Color(.secondarySystemFill))
+                        .padding(18)
+                        .background(Color(.quaternarySystemFill))
+                case .quotePage(let digits):
+                    // 出典ページは囲みの枠外・右下。装飾は付けず小さくするだけ（オーナー指示）。
+                    // 未入力の行は保存時に消えるのでここには来ない
+                    if !digits.isEmpty {
+                        Text(verbatim: "p.\(digits)")
+                            .font(.footnote)
+                            .frame(maxWidth: .infinity, alignment: .trailing)
+                    }
                 }
             }
         }
     }
 
-    private func inline(_ content: String) -> some View {
-        MemoLinkText.text(content, accentColor: accentColor)
-            .textRenderer(MemoPageBadgeRenderer(badgeColor: accentColor.opacity(0.14)))
+    /// 行頭がページ番号なら、バッジの内側の余白ぶんの字下げ。それ以外は0
+    private static func badgeIndent(of line: String) -> CGFloat {
+        guard MemoPageMarker.ranges(in: line).first?.lowerBound == line.startIndex,
+              !line.isEmpty
+        else { return 0 }
+        return MemoQuoteBackgroundLayoutManager.pageBadgeInset.width
+    }
+
+    private func inline(
+        _ content: String,
+        boldFont: Font = .body.weight(MemoLinkText.boldWeight)
+    ) -> some View {
+        MemoLinkText.text(content, accentColor: accentColor, boldFont: boldFont)
+            .textRenderer(
+                MemoPageBadgeRenderer(
+                    badgeColor: Color(MemoQuoteBackgroundLayoutManager.pageBadgeColorDefault)
+                )
+            )
     }
 }
 
 // MARK: - インライン装飾
 
 enum MemoLinkText {
+    /// 太字の太さ。編集画面（`MemoEditorTextView.boldWeight`）と同じ段
+    static let boldWeight: Font.Weight = .heavy
+
     /// 1ブロックぶんの本文を装飾付きの `AttributedString` にする。
     ///
     /// - `[[中身]]`: 記号を隠し、中身だけ `color`＋セミボールドで着色
@@ -101,7 +166,14 @@ enum MemoLinkText {
     /// 記号を隠すため表示文字列は原文と一致しない。不変条件は「**解釈対象の記号以外の
     /// 文字は一切加工しない**」（設計メモ 4.6節・テストで固定)。編集画面は記号を出したまま。
     /// 行頭 `> ` の引用はここでは扱わない（`MemoTextBlocks` が囲みに変換する）
-    static func highlighted(_ memo: String, color: Color) -> AttributedString {
+    /// - Parameter boldFont: 太字に当てるフォント。太さは標準の太字より一段上なので
+    ///   「太く」の指定だけでは出せず、行の大きさに合ったフォントを呼び出し側から渡す
+    ///   （引用の中は本文より小さい）
+    static func highlighted(
+        _ memo: String,
+        color: Color,
+        boldFont: Font = .body.weight(MemoLinkText.boldWeight)
+    ) -> AttributedString {
         let links = MemoLinkParser.parse(memo)
         let linksByStart = Dictionary(uniqueKeysWithValues: links.map { ($0.range.lowerBound, $0) })
         let boldMarkers = pairedBoldMarkers(in: memo, excluding: links.map(\.range))
@@ -118,7 +190,7 @@ enum MemoLinkText {
         func flush() {
             guard !buffer.isEmpty else { return }
             var part = AttributedString(buffer)
-            if isBold { part.inlinePresentationIntent = .stronglyEmphasized }
+            if isBold { part.font = boldFont }
             result += part
             buffer = ""
         }
@@ -136,10 +208,18 @@ enum MemoLinkText {
 
             if let page = pagesByStart[index] {
                 flush()
+                let spacing = MemoQuoteBackgroundLayoutManager.pageBadgeSpacing
+                // バッジの前後に場所を作る（文字は足さず、直前の文字とバッジ末尾の字送りを広げる）
+                if let previous = result.characters.indices.last {
+                    result[previous...].kern = spacing
+                }
                 var badge = AttributedString(String(memo[page]))
                 badge.foregroundColor = color
                 badge.font = .footnote.weight(.medium)
                 badge.memoPageNumber = true
+                if let last = badge.characters.indices.last {
+                    badge[last...].kern = spacing
+                }
                 result += badge
                 index = page.upperBound
                 continue
@@ -168,8 +248,12 @@ enum MemoLinkText {
     /// `highlighted` の結果を `Text` に変換する。ページ番号の run にだけ描画用の印
     /// （`MemoPageBadgeAttribute`）を付ける——カスタム `TextAttribute` は `Text` の連結でしか
     /// 埋め込めないため、この変換層が要る
-    static func text(_ memo: String, accentColor: Color) -> Text {
-        let attributed = highlighted(memo, color: accentColor)
+    static func text(
+        _ memo: String,
+        accentColor: Color,
+        boldFont: Font = .body.weight(MemoLinkText.boldWeight)
+    ) -> Text {
+        let attributed = highlighted(memo, color: accentColor, boldFont: boldFont)
         var result = Text(verbatim: "")
         for (isPage, range) in attributed.runs[\.memoPageNumber] {
             let piece = Text(AttributedString(attributed[range]))

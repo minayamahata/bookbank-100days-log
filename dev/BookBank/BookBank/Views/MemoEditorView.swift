@@ -15,6 +15,8 @@ struct MemoEditorView: View {
     @State private var showCancelAlert = false
     @State private var selectedRange = NSRange(location: 0, length: 0)
     @State private var prefersNumericKeyboard = false
+    /// ツールバーの書き換えと「ひとつ戻す」をテキストビューへ渡す通り道
+    @State private var bridge = MemoEditorBridge()
     
     let title: LocalizedStringKey
     /// 入力サジェストの候補元。`nil` ならサジェストしない（月メモはT1のスコープ外＝設計メモ 4.3節）
@@ -31,7 +33,10 @@ struct MemoEditorView: View {
         onSave: @escaping (String) -> Void
     ) {
         self._memo = memo
-        self._editedText = State(initialValue: memo.wrappedValue)
+        // 既にある引用にも出典ページの案内を出す（入力されなければ保存時に落ちる）
+        self._editedText = State(
+            initialValue: MemoQuotePage.preparedForEditing(memo.wrappedValue)
+        )
         self.title = title
         self.linkIndex = linkIndex
         self.accentColor = accentColor
@@ -54,15 +59,20 @@ struct MemoEditorView: View {
                     text: $editedText,
                     selectedRange: $selectedRange,
                     prefersNumericKeyboard: $prefersNumericKeyboard,
-                    accentColor: accentColor
+                    accentColor: accentColor,
+                    bridge: bridge
                 )
             }
             .padding(.horizontal, 20)
             .safeAreaInset(edge: .bottom) {
-                // ツールバーは常設、サジェストは候補があるときだけその上に出る（設計メモ 4.5節）
-                VStack(spacing: 0) {
-                    linkSuggestionRow
-                    editorToolbar
+                // ツールバーは常設、サジェストは候補があるときだけその上に出る（設計メモ 4.5節）。
+                // ただし出典ページの入力中（テンキー）は畳む——キーボードが背の低いものに
+                // 替わる一瞬、ツールバーが元の高さのまま宙に浮いて見えるため（2026-08-11 オーナー指摘）
+                if !prefersNumericKeyboard {
+                    VStack(spacing: 0) {
+                        linkSuggestionRow
+                        editorToolbar
+                    }
                 }
             }
             .navigationTitle(title)
@@ -100,40 +110,92 @@ struct MemoEditorView: View {
     
     // MARK: - ツールバー（設計メモ 4.5節）
 
-    /// 左から つなぐ・太字・引用・ページ番号。書式はMarkdown記法を本文に埋め込む方式で、
+    /// 左から つなぐ｜太字・引用・ページ番号。書式はMarkdown記法を本文に埋め込む方式で、
     /// ボタンは記号を挿入するだけ（独自のリッチテキスト形式を持たない）。
-    /// アイコンではなく**テキストラベル**で出す——リンクの図像は外部リンク（https://）に
-    /// 見えるなど、図像では操作の意味が伝わらないため（2026-08-11 オーナー指示）。
+    /// **アイコン＋ラベル**で出し、役割ごとに区切り線で分ける（2026-08-11 オーナー指示）——
+    /// 図像だけでは操作の意味が伝わらないため、ラベルは残す。
     /// 「つなぐ」は書籍メモのみ——月メモは候補元が無い（`linkIndex == nil`・4.3節のスコープ）
     private var editorToolbar: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 12) {
-                if linkIndex != nil {
-                    toolbarButton("memo.toolbar.link", action: insertLinkBrackets)
-                }
-                toolbarButton("memo.toolbar.bold", action: wrapSelectionInBold)
-                toolbarButton("memo.toolbar.quote", action: insertQuote)
-                toolbarButton("memo.toolbar.page", action: insertPageMarker)
+        // 横スクロールはしない。ボタンはラベルの幅に合わせ、余りを均等な間隔に配る——
+        // 幅を等分すると、ラベルが短いボタン（太字・引用）の周りだけ隙間が広く見える
+        HStack(spacing: 0) {
+            if linkIndex != nil {
+                toolbarButton("memo.toolbar.link", icon: "icn_node", action: insertLinkBrackets)
+                toolbarGap
+                toolbarDivider
+                toolbarGap
             }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 8)
+            toolbarButton("memo.toolbar.bold", icon: "icon_bold", action: wrapSelectionInBold)
+            toolbarGap
+            toolbarButton("memo.toolbar.quote", icon: "icon_quote", action: insertQuote)
+            toolbarGap
+            toolbarButton("memo.toolbar.page", icon: "icn_pagenum", action: insertPageMarker)
+            toolbarGap
+            toolbarDivider
+            toolbarGap
+            toolbarButton("memo.toolbar.clear", icon: "icn_clear", action: clearFormatting)
+            toolbarGap
+            toolbarButton(
+                "memo.toolbar.undo",
+                icon: "icn_back",
+                enabled: bridge.canUndo,
+                action: bridge.undo
+            )
         }
-        .background(.bar)
+        // カプセルの丸みが端のボタンを削らないよう、内側の余白は丸みの分だけ広げる。
+        // 左は「つなぐ」が縁に近く見えるのでさらに広く（2026-08-11 オーナー指示）
+        .padding(.leading, 24)
+        .padding(.trailing, 16)
+        .padding(.vertical, 6)
+        // 浮いて見せるので、輪郭と影を持たせる——本文と同じ白の上では素の材質だと境目が消える
+        .background(.bar, in: Capsule())
+        .overlay(Capsule().stroke(Color(.separator).opacity(0.6), lineWidth: 0.5))
+        .shadow(color: .black.opacity(0.12), radius: 6, y: 2)
+        // キーボードとのあいだに隙間を空ける（2026-08-11 オーナー指示）
+        .padding(.horizontal, 8)
+        .padding(.bottom, 6)
     }
+
+    /// アイコンの表示サイズ。図像がすべて18×18の同じ画布で書き出されているので、
+    /// ボタンごとに大きさを振り分けずこの1つで揃える（2026-08-11 オーナー指示）
+    private static let toolbarIconSize: CGFloat = 20
 
     private func toolbarButton(
         _ label: LocalizedStringKey,
+        icon: String,
+        enabled: Bool = true,
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
-            Text(label)
-                .font(.subheadline)
-                .foregroundColor(.primary)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background(Color(.secondarySystemFill), in: Capsule())
+            VStack(spacing: 6) {
+                Image(icon)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: Self.toolbarIconSize, height: Self.toolbarIconSize)
+                Text(label)
+                    .font(.system(size: 10))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+            }
+            .foregroundColor(.primary)
+            .opacity(enabled ? 1 : 0.35)
+            .padding(.vertical, 6)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .disabled(!enabled)
+    }
+
+    /// ボタンのあいだの間隔。余りを均等に配るので、どの隙間も同じ幅になる
+    private var toolbarGap: some View {
+        Spacer(minLength: 6)
+    }
+
+    /// 役割の区切り。カプセルの内側に収まる高さにする（縁に触ると囲みが割れて見える）
+    private var toolbarDivider: some View {
+        Rectangle()
+            .fill(Color(.separator))
+            .frame(width: 1, height: 32)
     }
 
     /// いま選択している範囲。無選択（キャレットのみ）は空範囲、変換できなければ末尾扱い
@@ -141,12 +203,35 @@ struct MemoEditorView: View {
         Range(selectedRange, in: editedText) ?? (editedText.endIndex..<editedText.endIndex)
     }
 
-    /// 範囲を置き換え、置き換え開始から `caretOffset` 文字目へキャレットを移す
+    /// 範囲を置き換え、置き換え開始から `caretOffset` 文字目へキャレットを移す。
+    /// 書き換えはテキストビュー経由で行う——文字列を直接差し替えると「ひとつ戻す」の履歴に残らない
     private func replaceRange(_ range: Range<String.Index>, with insertion: String, caretOffset: Int) {
         let startOffset = editedText.distance(from: editedText.startIndex, to: range.lowerBound)
-        editedText.replaceSubrange(range, with: insertion)
-        let caret = editedText.index(editedText.startIndex, offsetBy: startOffset + caretOffset)
-        selectedRange = NSRange(caret..<caret, in: editedText)
+        let target = NSRange(range, in: editedText)
+
+        var updated = editedText
+        updated.replaceSubrange(range, with: insertion)
+        let caret = updated.index(updated.startIndex, offsetBy: startOffset + caretOffset)
+        let caretLocation = NSRange(caret..<caret, in: updated).location
+
+        if bridge.replace(target, with: insertion, caretLocation: caretLocation) { return }
+        // テキストビューがまだ無いとき（プレビューなど）は従来どおり文字列を差し替える
+        editedText = updated
+        selectedRange = NSRange(location: caretLocation, length: 0)
+    }
+
+    /// メモ全体から装飾の記号を外す（2026-08-11 オーナー確定）。組み立ては `MemoPlainText`
+    private func clearFormatting() {
+        let stripped = MemoPlainText.stripped(from: editedText)
+        guard stripped != editedText else { return }
+        replaceRange(
+            editedText.startIndex..<editedText.endIndex,
+            with: stripped,
+            caretOffset: min(
+                editedText.distance(from: editedText.startIndex, to: currentSelectionRange.lowerBound),
+                stripped.count
+            )
+        )
     }
 
     /// 選択中ならそれを `[[ ]]` で囲み、無選択なら空の括弧を挿す。
@@ -165,42 +250,16 @@ struct MemoEditorView: View {
         replaceRange(range, with: "**\(selected)**", caretOffset: caretOffset)
     }
 
-    /// 行頭に `> ` を入れる（表示側が解釈するのはこの形だけ＝設計メモ 4.6節）。
-    /// 引用は行単位の仕組みなので、行の一部を選んだときは**その部分だけを独立した行に切り出す**——
-    /// 選んでいない前後の文字まで囲みに入るのを避けるため（2026-08-11 オーナー指示）
+    /// 行頭に `> ` を入れ、あわせて出典ページの行を用意する（組み立ては `MemoQuoteInsertion`）
     private func insertQuote() {
-        let range = currentSelectionRange
-        let selected = String(editedText[range])
-
-        guard !selected.isEmpty else {
-            let caret = range.lowerBound
-            let lineStart = editedText[..<caret].lastIndex(where: \.isNewline)
-                .map { editedText.index(after: $0) } ?? editedText.startIndex
-            let caretDistance = editedText.distance(from: lineStart, to: caret)
-            replaceRange(lineStart..<lineStart, with: "> ", caretOffset: caretDistance + 2)
-            return
-        }
-
-        // 複数行を選んだ場合は各行に付ける（連続する引用行はひとつの囲みにまとまる）
-        let quoted = selected.components(separatedBy: "\n")
-            .map { "> \($0)" }
-            .joined(separator: "\n")
-        // 選択が行の途中から始まる／途中で終わるときだけ改行で行を切る（空行を増やさない）
-        let opensLine = range.lowerBound == editedText.startIndex
-            || editedText[editedText.index(before: range.lowerBound)].isNewline
-        let closesLine = range.upperBound == editedText.endIndex
-            || editedText[range.upperBound].isNewline
-        let insertion = (opensLine ? "" : "\n") + quoted + (closesLine ? "" : "\n")
-
+        let insertion = MemoQuoteInsertion.make(in: editedText, selecting: currentSelectionRange)
         replaceRange(
-            range,
-            with: insertion,
-            caretOffset: (opensLine ? 0 : 1) + quoted.count
+            insertion.replaced, with: insertion.text, caretOffset: insertion.caretOffset
         )
     }
 
     /// `p.` を挿してキャレットを直後へ（数字はユーザーが打つ）。文字の挿入だけの入力補助。
-    /// 続けて数字を打つので、キーボードも数字が並んだものへ切り替える（2026-08-11 オーナー指示）
+    /// 続けて数字を打つので、キーボードもテンキーへ切り替える（2026-08-11 オーナー指示）
     private func insertPageMarker() {
         let range = currentSelectionRange
         replaceRange(range, with: "p.", caretOffset: 2)
@@ -263,17 +322,27 @@ struct MemoEditorView: View {
         replaceRange(draft.range, with: "[[\(link.display)]] ", caretOffset: link.display.count + 5)
     }
 
-    /// 変更があるかチェック
+    /// 変更があるかチェック。比べるのは保存する形——編集のために足した案内や空行では
+    /// 「変更あり」にしない
     private var hasChanges: Bool {
-        return editedText != memo
+        return savedText != memo
+    }
+
+    /// 保存する形。入力されなかった出典ページの行と、編集のために用意した末尾の空行を落とす
+    private var savedText: String {
+        var text = MemoQuotePage.removingEmptyPageLines(from: editedText)
+        while text.hasSuffix("\n") { text.removeLast() }
+        return text
     }
     
-    /// 保存して閉じる
+    /// 保存して閉じる。出典ページを入力しなかった引用からは `p.` の行を落とす（入力は任意）。
+    /// 編集のために用意した末尾の空行も落とす（メモの中身ではない）
     private func saveAndDismiss() {
+        let saved = savedText
         #if DEBUG
-        print("💾 [メモモーダル] 保存して閉じる: \"\(editedText)\"")
+        print("💾 [メモモーダル] 保存して閉じる: \"\(saved)\"")
         #endif
-        onSave(editedText)
+        onSave(saved)
         dismiss()
     }
 }
