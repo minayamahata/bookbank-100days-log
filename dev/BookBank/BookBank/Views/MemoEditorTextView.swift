@@ -41,19 +41,31 @@ struct MemoEditorTextView: UIViewRepresentable {
 
     func updateUIView(_ textView: UITextView, context: Context) {
         context.coordinator.parent = self
-        if textView.text != text {
-            textView.text = text
+        // ツールバーからの差し替えで届いた値。反映途中に UITextView 側から書き戻されると
+        // 消えてしまうので、先に控えてから当てる
+        let requestedText = text
+        let requestedSelection = selectedRange
+
+        context.coordinator.isApplyingRequestedState = true
+        if textView.text != requestedText {
+            // 文字列の代入だけでキャレットが末尾へ飛ぶため、選択位置はこの後で必ず当て直す
+            textView.text = requestedText
         }
         let length = (textView.text as NSString).length
-        if textView.selectedRange != selectedRange,
-           selectedRange.location + selectedRange.length <= length {
-            textView.selectedRange = selectedRange
+        if textView.selectedRange != requestedSelection,
+           requestedSelection.location + requestedSelection.length <= length {
+            textView.selectedRange = requestedSelection
         }
+        context.coordinator.isApplyingRequestedState = false
+
         context.coordinator.applyStyling(to: textView, accent: UIColor(accentColor))
     }
 
     final class Coordinator: NSObject, UITextViewDelegate {
         var parent: MemoEditorTextView
+        /// ツールバーが指定した状態を当てている最中。この間の位置変更は UITextView 側の副作用なので
+        /// 記録し返さない——ツールバーが置いたキャレットが末尾へ上書きされてしまう
+        var isApplyingRequestedState = false
 
         init(_ parent: MemoEditorTextView) {
             self.parent = parent
@@ -67,6 +79,7 @@ struct MemoEditorTextView: UIViewRepresentable {
         }
 
         func textViewDidChangeSelection(_ textView: UITextView) {
+            guard !isApplyingRequestedState else { return }
             if parent.selectedRange != textView.selectedRange {
                 parent.selectedRange = textView.selectedRange
             }
