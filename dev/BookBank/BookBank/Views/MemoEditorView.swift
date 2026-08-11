@@ -67,11 +67,15 @@ struct MemoEditorView: View {
             .safeAreaInset(edge: .bottom) {
                 // ツールバーは常設、サジェストは候補があるときだけその上に出る（設計メモ 4.5節）。
                 // ただし出典ページの入力中（テンキー）は畳む——キーボードが背の低いものに
-                // 替わる一瞬、ツールバーが元の高さのまま宙に浮いて見えるため（2026-08-11 オーナー指摘）
+                // 替わる一瞬、ツールバーが元の高さのまま宙に浮いて見えるため（2026-08-11 オーナー指摘）。
+                // つながりを書いている間も畳む（2026-08-12 オーナー指示）——いま書いているのは
+                // つながりのラベルであって、他のボタンを押す場面ではない
                 if !prefersNumericKeyboard {
                     VStack(spacing: 0) {
                         linkSuggestionRow
-                        editorToolbar
+                        if !isWritingLink {
+                            editorToolbar
+                        }
                     }
                 }
             }
@@ -309,6 +313,13 @@ struct MemoEditorView: View {
         return MemoLinkParser.draftLink(in: editedText, before: caret)
     }
 
+    /// つながりのラベルを書いている途中か（キャレットが `[[ ]]` の中にある）。
+    /// この間はツールバーを畳む（2026-08-12 オーナー指示）。抜けるのは括弧の外を触るか、
+    /// 候補を選ぶか、改行を押したとき（改行は `]]` の先への移動として扱う）
+    private var isWritingLink: Bool {
+        currentDraftLink != nil
+    }
+
     /// キャレット位置。範囲を選択している間はサジェストを出さない
     private var caretIndex: String.Index? {
         guard selectedRange.length == 0 else { return nil }
@@ -328,9 +339,11 @@ struct MemoEditorView: View {
         return savedText != memo
     }
 
-    /// 保存する形。入力されなかった出典ページの行と、編集のために用意した末尾の空行を落とす
+    /// 保存する形。入力されなかった出典ページの行・中身を書かなかった `[[ ]]`・
+    /// 編集のために用意した末尾の空行を落とす
     private var savedText: String {
         var text = MemoQuotePage.removingEmptyPageLines(from: editedText)
+        text = MemoLinkParser.removingEmptyPairs(from: text)
         while text.hasSuffix("\n") { text.removeLast() }
         return text
     }

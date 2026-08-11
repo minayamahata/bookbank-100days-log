@@ -430,6 +430,46 @@ struct BookBankTests {
         #expect(MemoLinkParser.parse("#京都 は旧記法なので拾わない").isEmpty)
     }
 
+    // MARK: - 中身が空の `[[ ]]`（編集画面では記号を出さない・4.6節）
+
+    @Test func memoLinkFindsEmptyPairsToHide() {
+        // 「つなぐ」を押した直後の形。つながりとしては不成立だが、記号を隠す範囲として必要
+        let text = "ああ[[]]いい"
+        let pairs = MemoLinkParser.emptyPairs(in: text)
+        #expect(pairs.count == 1)
+        #expect(pairs.first.map { String(text[$0]) } == "[[]]")
+        #expect(MemoLinkParser.emptyPairs(in: "[[ ]]").count == 1, "空白のみも空と同じ")
+        #expect(MemoLinkParser.emptyPairs(in: "［［］］").count == 1, "全角も同じ")
+        #expect(MemoLinkParser.emptyPairs(in: "[[京都]]").isEmpty, "成立しているつながりは対象外")
+        #expect(MemoLinkParser.emptyPairs(in: "[[").isEmpty, "閉じていなければ隠さない（本文の文字）")
+    }
+
+    @Test func memoLinkRemovesEmptyPairsOnSave() {
+        // 書かずに閉じたものはメモにもエクスポートにも残さない（出典ページの `p.` と同じ扱い）
+        #expect(MemoLinkParser.removingEmptyPairs(from: "旅の記録 [[]]") == "旅の記録 ")
+        #expect(
+            MemoLinkParser.removingEmptyPairs(from: "[[]]と[[ ]]と[[京都]]") == "とと[[京都]]",
+            "成立しているつながりは残す"
+        )
+        #expect(MemoLinkParser.removingEmptyPairs(from: "[[京都]]") == "[[京都]]")
+    }
+
+    @Test func memoLinkFindsPairEnclosingCaret() throws {
+        // 括弧の中でEnterを押したときの行き先（`]]` の先）を決めるのに使う
+        let text = "ああ[[京都]]いい"
+        let inside = text.index(text.startIndex, offsetBy: 5) // 「京」の直後
+        let pair = try #require(MemoLinkParser.enclosingPair(in: text, at: inside))
+        #expect(String(text[pair]) == "[[京都]]")
+        #expect(text.distance(from: text.startIndex, to: pair.upperBound) == 8)
+
+        let outside = text.index(text.startIndex, offsetBy: 8) // `]]` の直後
+        #expect(MemoLinkParser.enclosingPair(in: text, at: outside) == nil)
+        // 中身が空でも括弧の中にいる（押した直後にEnterでも抜けられる）
+        let empty = "[[]]"
+        let caret = empty.index(empty.startIndex, offsetBy: 2)
+        #expect(MemoLinkParser.enclosingPair(in: empty, at: caret) != nil)
+    }
+
     // MARK: - MemoLinkParser.draftLink / MemoLinkIndex（入力サジェストの土台）
 
     /// キャレットを文字列末尾に置いて入力途中のつながりを取る（実際の編集も多くはこの形）

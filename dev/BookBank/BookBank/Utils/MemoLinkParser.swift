@@ -40,7 +40,57 @@ enum MemoLinkParser {
     /// ——行をまたぐと表示も崩れるうえ、閉じ忘れの `[[` が後続行の `]]` と誤って結合する
     /// 事故もこれで防げる。入れ子はなく、最初の `]]` で閉じる
     nonisolated static func parse(_ text: String) -> [MemoLink] {
-        var links: [MemoLink] = []
+        closedPairs(in: text).compactMap { pair in
+            let body = String(text[pair.body])
+            let key = normalize(body)
+            guard isValidKey(key) else { return nil }
+            return MemoLink(
+                key: key,
+                display: body.trimmingCharacters(in: .whitespaces),
+                range: pair.range
+            )
+        }
+    }
+
+    /// 中身がまだ空（空白のみ）の `[[ ]]` を出現順に返す。
+    ///
+    /// ツールバーの「つなぐ」を押した直後の形で、つながりとしては**不成立**（3.2節）。
+    /// それでも編集画面には `[[ ]]` という記号を出さない（設計メモ 4.6節・2026-08-12 オーナー指示
+    /// ——Markdownを知らない人には意味が分からない）ため、隠す範囲としてここで拾う。
+    /// 書かずに閉じたものは保存時に落ちる（`removingEmptyPairs`）
+    nonisolated static func emptyPairs(in text: String) -> [Range<String.Index>] {
+        closedPairs(in: text)
+            .filter { normalize(String(text[$0.body])).isEmpty }
+            .map { $0.range }
+    }
+
+    /// 中身が空のまま残った `[[ ]]` を落とす。数字が入らなかった出典ページの行と同じ扱いで、
+    /// メモ本文にもエクスポートにも記号を残さない（設計メモ 4.6節）
+    nonisolated static func removingEmptyPairs(from text: String) -> String {
+        var result = text
+        for pair in emptyPairs(in: text).reversed() {
+            result.removeSubrange(pair)
+        }
+        return result
+    }
+
+    /// キャレットを囲んでいる `[[ ]]`（成立しているものも中身が空のものも含む）。
+    /// 括弧の中でEnterを押したときの行き先を決めるのに使う（設計メモ 4.5節）
+    nonisolated static func enclosingPair(
+        in text: String,
+        at caret: String.Index
+    ) -> Range<String.Index>? {
+        closedPairs(in: text)
+            .first { $0.range.lowerBound < caret && caret < $0.range.upperBound }?
+            .range
+    }
+
+    /// 閉じている `[[ ]]` を出現順に返す（中身の妥当性は見ない）。
+    /// つながりの抽出（`parse`）と、記号を隠すための空の括弧の検出が同じ走査を共有する
+    private nonisolated static func closedPairs(
+        in text: String
+    ) -> [(range: Range<String.Index>, body: Range<String.Index>)] {
+        var pairs: [(range: Range<String.Index>, body: Range<String.Index>)] = []
         var index = text.startIndex
 
         while let opener = pair(of: isOpenBracket, in: text, from: index) {
@@ -51,21 +101,16 @@ enum MemoLinkParser {
                 continue
             }
 
-            let body = String(text[opener.upperBound..<closer.lowerBound])
-            let key = normalize(body)
-            if isValidKey(key) {
-                links.append(
-                    MemoLink(
-                        key: key,
-                        display: body.trimmingCharacters(in: .whitespaces),
-                        range: opener.lowerBound..<closer.upperBound
-                    )
+            pairs.append(
+                (
+                    range: opener.lowerBound..<closer.upperBound,
+                    body: opener.upperBound..<closer.lowerBound
                 )
-            }
+            )
             index = closer.upperBound
         }
 
-        return links
+        return pairs
     }
 
     /// キャレットの位置で入力途中になっているつながりを返す（無ければ nil）。

@@ -39,6 +39,9 @@ final class MemoQuoteBackgroundLayoutManager: NSLayoutManager {
     /// 数字が未入力のページ行。文字（`p.`）は隠してあるので、案内をここに描く
     var pageHintRanges: [NSRange] = []
     var pageHint: NSAttributedString?
+    /// 中身が空のつながり（「つなぐ」を押した直後）。記号は隠してあるので、案内をここに描く
+    var linkHintRange: NSRange?
+    var linkHint: NSAttributedString?
     var pageBadgeRanges: [NSRange] = []
     var pageBadgeColor: UIColor = MemoQuoteBackgroundLayoutManager.pageBadgeColorDefault
 
@@ -138,7 +141,37 @@ final class MemoQuoteBackgroundLayoutManager: NSLayoutManager {
             context.restoreGState()
         }
         drawPageHints(at: origin)
+        drawLinkHint(at: origin)
         super.drawBackground(forGlyphRange: glyphsToShow, at: origin)
+    }
+
+    /// 中身が空のつながりに「つながりを入力」の案内を、キャレットの位置から描く。
+    /// 記号（`[[ ]]`）を出さない代わりに、そこが何を書く場所なのかをこれで伝える
+    private func drawLinkHint(at origin: CGPoint) {
+        guard let hint = linkHint, let requested = linkHintRange,
+              let container = textContainers.first, let storage = textStorage
+        else { return }
+
+        let range = NSIntersectionRange(requested, NSRange(location: 0, length: storage.length))
+        guard range.length > 0 else { return }
+        let glyphRange = self.glyphRange(forCharacterRange: range, actualCharacterRange: nil)
+        var line = CGRect.null
+        enumerateLineFragments(forGlyphRange: glyphRange) { _, usedRect, _, _, _ in
+            line = line.union(usedRect)
+        }
+        guard !line.isNull else { return }
+
+        // 記号は隠してあり幅がほぼ無いので、この矩形の左端がキャレットの位置になる
+        let box = boundingRect(forGlyphRange: glyphRange, in: container)
+        let size = hint.size()
+        hint.draw(
+            in: CGRect(
+                x: origin.x + box.minX,
+                y: origin.y + line.midY - size.height / 2,
+                width: size.width,
+                height: size.height
+            )
+        )
     }
 
     /// 数字未入力のページ行に「ページを入力」の案内を右詰めで描く。
@@ -316,12 +349,15 @@ struct MemoEditorTextView: UIViewRepresentable {
         storage.addLayoutManager(layoutManager)
 
         let textView = MemoCaretAlignedTextView(frame: .zero, textContainer: container)
+        let hintAttributes: [NSAttributedString.Key: Any] = [
+            .font: UIFont.preferredFont(forTextStyle: .footnote),
+            .foregroundColor: UIColor.tertiaryLabel
+        ]
         layoutManager.pageHint = NSAttributedString(
-            string: String(localized: "memo.quote.page.hint"),
-            attributes: [
-                .font: UIFont.preferredFont(forTextStyle: .footnote),
-                .foregroundColor: UIColor.tertiaryLabel
-            ]
+            string: String(localized: "memo.quote.page.hint"), attributes: hintAttributes
+        )
+        layoutManager.linkHint = NSAttributedString(
+            string: String(localized: "memo.link.hint"), attributes: hintAttributes
         )
         context.coordinator.textStorage = storage
         context.coordinator.quoteLayoutManager = layoutManager
@@ -546,6 +582,19 @@ struct MemoEditorTextView: UIViewRepresentable {
             shouldChangeTextIn range: NSRange,
             replacementText replacement: String
         ) -> Bool {
+            // つながりの中の改行は、括弧の外へ出る操作として扱う（2026-08-12 オーナー指示で
+            // 記号を隠したため、`]]` の先へキャレットを送る手がかりが画面に無い）。
+            // 改行をそのまま入れると括弧が行をまたいでつながりが壊れるので、通す意味もない
+            if replacement == "\n", range.length == 0, textView.markedTextRange == nil,
+               let text = textView.text,
+               let caret = Range(NSRange(location: range.location, length: 0), in: text)?.lowerBound,
+               let pair = MemoLinkParser.enclosingPair(in: text, at: caret) {
+                let destination = NSRange(pair.upperBound..<pair.upperBound, in: text).location
+                textView.selectedRange = NSRange(location: destination, length: 0)
+                parent.selectedRange = textView.selectedRange
+                return false
+            }
+
             // 引用の中の改行は、その引用の出典ページへの移動として扱う（2026-08-12 オーナー指示）
             if replacement == "\n", textView.markedTextRange == nil,
                let destination = MemoQuotePage.pageCaretLocation(
@@ -596,6 +645,12 @@ struct MemoEditorTextView: UIViewRepresentable {
                     || (index >= closingStart && index < range.location + range.length) {
                     return [range]
                 }
+            }
+
+            // 中身が空の括弧は隠してあるので、どこを消しても4文字まとめて消す
+            for pair in MemoLinkParser.emptyPairs(in: text) {
+                let range = NSRange(pair, in: text)
+                if NSLocationInRange(index, range) { return [range] }
             }
 
             let boldMarkers = MemoLinkText
@@ -805,9 +860,66 @@ struct MemoEditorTextView: UIViewRepresentable {
                 }
             }
 
+            // まだ中身が空の `[[]]`（「つなぐ」を押した直後の形）も記号を隠す
+            // （2026-08-12 オーナー指示——`[[ ]]` はMarkdownを知らない人には意味が分からない）。
+            // 何を書く場所なのかは、キャレットが中にある間だけ案内で伝える
+            quoteLayoutManager?.linkHintRange = emptyLinkHint(
+                in: text, nsText: nsText, caret: caret, storage: storage,
+                hiddenAttributes: hiddenAttributes
+            )
+
             storage.endEditing()
             textView.typingAttributes = baseAttributes
             textView.setNeedsDisplay()
+        }
+
+        /// 中身が空の `[[]]` の記号を隠し、案内を描く位置を返す（無ければ `nil`）。
+        ///
+        /// 案内を出すのは**キャレットが括弧の中にあり、その行に続きの文字が無いとき**だけ——
+        /// 行の途中で「つなぐ」を押した場合は、案内が後ろの文字に重なってしまう。
+        /// あわせて、記号しか無い行は高さを本文の1行分だけ確保する（隠すと潰れて
+        /// カーソルも案内も置き場を失う。出典ページの行と同じ手当て）
+        private func emptyLinkHint(
+            in text: String,
+            nsText: NSString,
+            caret: NSRange,
+            storage: NSTextStorage,
+            hiddenAttributes: [NSAttributedString.Key: Any]
+        ) -> NSRange? {
+            var hint: NSRange?
+            for pair in MemoLinkParser.emptyPairs(in: text) {
+                let range = NSRange(pair, in: text)
+                storage.addAttributes(hiddenAttributes, range: range)
+
+                let line = nsText.lineRange(for: range)
+                let head = NSRange(
+                    location: line.location, length: range.location - line.location
+                )
+                let tail = NSRange(
+                    location: NSMaxRange(range),
+                    length: max(0, NSMaxRange(line) - NSMaxRange(range))
+                )
+                let tailIsBlank = isBlank(nsText.substring(with: tail))
+                if tailIsBlank, isBlank(nsText.substring(with: head)) {
+                    let inherited = storage.attribute(
+                        .paragraphStyle, at: range.location, effectiveRange: nil
+                    ) as? NSParagraphStyle
+                    let style = inherited?.mutableCopy() as? NSMutableParagraphStyle
+                        ?? NSMutableParagraphStyle()
+                    style.minimumLineHeight = UIFont.preferredFont(forTextStyle: .body).lineHeight
+                    storage.addAttribute(.paragraphStyle, value: style, range: line)
+                }
+
+                if caret.length == 0, caret.location > range.location,
+                   caret.location < NSMaxRange(range), tailIsBlank {
+                    hint = range
+                }
+            }
+            return hint
+        }
+
+        private func isBlank(_ text: String) -> Bool {
+            text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         }
 
         /// その位置に当たっている文字の大きさ（引用行なら小さいほう）

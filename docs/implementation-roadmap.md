@@ -145,6 +145,7 @@ flowchart LR
 | ステップ9': 検収 | ドキュメント同期・N0エクスポートで既存メモとの衝突確認（`[[`・`**`・行頭 `>` の出現。JSONはコミットしない）・実機確認1回（ツールバー完成後にまとめて） |
 | **共有IDのuuid化** ✅ **完了 (2026-08-07)** | R4申し送りからの持ち込み（`docs/r4-repository-abstraction-notes.md` 10.1）。`ShareService` が送る `readingListId` を `legacyShareId`（`persistentModelID` 文字列）から `uuid` へ。**再起動をまたぐと再共有のたびに別URLが発行される既存不具合の解消**。サーバ側の変更は不要（ID形式に依存していないことをオーナーが確認済み）。`ReadingListDTO.legacyShareId` と `ModelDTOMapping` の該当行を削除し、**アプリ本体の `persistentModelID` 使用は移行コードのみになった**。リリースノートは「共有リンクは常に最新の内容を表示します」に統一 |
 | 雑務: UIテストの実行時間 ✅ 完了 (2026-08-07) | `BookBankUITestsLaunchTests.runsForEachTargetApplicationUIConfiguration` が Xcode テンプレートのまま `true` で、UI構成ごとに `testLaunch` を繰り返していた。1回ごとに5秒スプラッシュが乗るためスキーム全体のテストが15分近くかかり事実上回せない。`false` にして1回だけ実行する。**R4.5の主題とは無関係なので別コミット**（検収はこれまでどおりユニットテストで行う方針も変わらない） |
+| 雑務: `RepositoryFoundationTests` がテスト実行機ごと落ちる（**2026-08-12 発覚・未着手**） | クラス内の全テスト（約40件）が `0.000` 秒で失敗する。単独実行でも同じで、原因は**テスト実行機のネイティブなクラッシュ**（`malloc: pointer being freed was not allocated`）。**メモつながりの変更を退避した状態でも同じアドレスで落ちるので、この変更とは無関係**（切り分け済み）。SwiftDataのインメモリ容器を使うクラスなので、シミュレータのランタイム更新（iOS 26.2）が疑わしい。**R4.5の主題とは無関係なので別件として扱う**が、この間はリポジトリ層の検収がユニットテストで回せない（メモ側の純関数テストは `BookBankTests` / `MemoQuoteGeometryTests` を個別指定して通している） |
 | UI改善 | バックログから選定（着手時に確定） |
 
 > `#` 時代の実装のうち、着色機構・サジェストUI・集計はそのまま流用する（破棄と流用の内訳は設計メモ 9章）。

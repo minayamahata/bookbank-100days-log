@@ -229,6 +229,8 @@ enum MemoQuotePage {
 enum MemoPlainText {
     static func stripped(from memo: String) -> String {
         var text = MemoQuotePage.removingEmptyPageLines(from: memo)
+        // 中身を書かなかった `[[ ]]` は画面に見えていないので、装飾ではなく残りかすとして落とす
+        text = MemoLinkParser.removingEmptyPairs(from: text)
 
         // 外す範囲を集めてから後ろから消す（前から消すと位置がずれる）
         var removals: [Range<String.Index>] = []
