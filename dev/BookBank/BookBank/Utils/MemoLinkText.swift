@@ -171,7 +171,15 @@ enum MemoLinkText {
         var result = Text(verbatim: "")
         for (isPage, range) in attributed.runs[\.memoPageNumber] {
             let piece = Text(AttributedString(attributed[range]))
-            result = result + (isPage == true ? piece.customAttribute(MemoPageBadgeAttribute()) : piece)
+            let marked = isPage == true ? piece.customAttribute(MemoPageBadgeAttribute()) : piece
+            // `Text` 同士の `+` はiOS 26で非推奨。連結は補間で行う。
+            // ここは訳語ではなく連結だけが目的なので、翻訳カタログに拾わせない形で組み立てる
+            var interpolation = LocalizedStringKey.StringInterpolation(
+                literalCapacity: 0, interpolationCount: 2
+            )
+            interpolation.appendInterpolation(result)
+            interpolation.appendInterpolation(marked)
+            result = Text(LocalizedStringKey(stringInterpolation: interpolation))
         }
         return result
     }
