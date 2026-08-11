@@ -110,7 +110,7 @@ struct MemoEditorView: View {
                     toolbarButton("memo.toolbar.link", action: insertLinkBrackets)
                 }
                 toolbarButton("memo.toolbar.bold", action: wrapSelectionInBold)
-                toolbarButton("memo.toolbar.quote", action: insertQuotePrefix)
+                toolbarButton("memo.toolbar.quote", action: insertQuote)
                 toolbarButton("memo.toolbar.page", action: insertPageMarker)
             }
             .padding(.horizontal, 20)
@@ -163,13 +163,38 @@ struct MemoEditorView: View {
         replaceRange(range, with: "**\(selected)**", caretOffset: caretOffset)
     }
 
-    /// キャレット行の行頭に `> ` を入れる（表示側が解釈するのはこの形だけ＝設計メモ 4.6節）
-    private func insertQuotePrefix() {
-        let caret = currentSelectionRange.lowerBound
-        let lineStart = editedText[..<caret].lastIndex(where: \.isNewline)
-            .map { editedText.index(after: $0) } ?? editedText.startIndex
-        let caretDistance = editedText.distance(from: lineStart, to: caret)
-        replaceRange(lineStart..<lineStart, with: "> ", caretOffset: caretDistance + 2)
+    /// 行頭に `> ` を入れる（表示側が解釈するのはこの形だけ＝設計メモ 4.6節）。
+    /// 引用は行単位の仕組みなので、行の一部を選んだときは**その部分だけを独立した行に切り出す**——
+    /// 選んでいない前後の文字まで囲みに入るのを避けるため（2026-08-11 オーナー指示）
+    private func insertQuote() {
+        let range = currentSelectionRange
+        let selected = String(editedText[range])
+
+        guard !selected.isEmpty else {
+            let caret = range.lowerBound
+            let lineStart = editedText[..<caret].lastIndex(where: \.isNewline)
+                .map { editedText.index(after: $0) } ?? editedText.startIndex
+            let caretDistance = editedText.distance(from: lineStart, to: caret)
+            replaceRange(lineStart..<lineStart, with: "> ", caretOffset: caretDistance + 2)
+            return
+        }
+
+        // 複数行を選んだ場合は各行に付ける（連続する引用行はひとつの囲みにまとまる）
+        let quoted = selected.components(separatedBy: "\n")
+            .map { "> \($0)" }
+            .joined(separator: "\n")
+        // 選択が行の途中から始まる／途中で終わるときだけ改行で行を切る（空行を増やさない）
+        let opensLine = range.lowerBound == editedText.startIndex
+            || editedText[editedText.index(before: range.lowerBound)].isNewline
+        let closesLine = range.upperBound == editedText.endIndex
+            || editedText[range.upperBound].isNewline
+        let insertion = (opensLine ? "" : "\n") + quoted + (closesLine ? "" : "\n")
+
+        replaceRange(
+            range,
+            with: insertion,
+            caretOffset: (opensLine ? 0 : 1) + quoted.count
+        )
     }
 
     /// `p.` を挿してキャレットを直後へ（数字はユーザーが打つ）。文字の挿入だけの入力補助
