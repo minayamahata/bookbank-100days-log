@@ -3,8 +3,8 @@
 //  BookBank
 //
 //  メモ本文から `[[ ]]`（つながり）を抽出する純関数（docs/memo-tagging-design.md 3.2節）。
-//  つながりはスキーマを持たず「メモの中に既にある文字列」なので、表示・サジェスト・
-//  絞り込みのすべてがこのパーサの結果から導出される（同 3.3節）。
+//  つながりはスキーマを持たず「メモの中に既にある文字列」なので、表示・絞り込みの
+//  すべてがこのパーサの結果から導出される（同 3.3節）。
 //  View に依存しないためユニットテスト対象にできる（実装ガイド 5章）。
 //
 
@@ -18,14 +18,6 @@ struct MemoLink: Equatable, Hashable, Sendable {
     let display: String
     /// メモ本文中の範囲。**`[[ ]]` を含む**（表示で記号を隠すときに置き換える範囲そのもの）
     let range: Range<String.Index>
-}
-
-/// キャレット位置で入力途中になっているつながり。入力サジェストの対象を決めるのに使う。
-struct MemoDraftLink: Equatable, Sendable {
-    /// 候補で置き換える範囲。`[[` から、キャレット直後に閉じ括弧が続く場合はそこまで含む
-    let range: Range<String.Index>
-    /// `[[` からキャレットまでに書かれたラベルの正規化キー。`[[` だけなら空文字
-    let partialKey: String
 }
 
 enum MemoLinkParser {
@@ -113,23 +105,6 @@ enum MemoLinkParser {
         return pairs
     }
 
-    /// キャレットの位置で入力途中になっているつながりを返す（無ければ nil）。
-    ///
-    /// キャレットと同じ行を後方に走査し、まだ `]]` で閉じられていない `[[` を探す。
-    /// キャレットの直後（同じ行）に `]]` が続く場合は範囲をそこまで広げる——ツールバーの
-    /// 「つなぐ」が `[[]]` を挿入してキャレットを括弧の中に置く形（設計メモ 4.5節）と、
-    /// 既存のつながりの中身を編集し直す形の両方が、候補タップで丸ごと置き換わる
-    nonisolated static func draftLink(in text: String, before caret: String.Index) -> MemoDraftLink? {
-        guard let openerStart = unclosedOpenerStart(in: text, before: caret) else { return nil }
-
-        let bodyStart = text.index(openerStart, offsetBy: 2)
-        let partialKey = normalize(String(text[bodyStart..<caret]))
-        guard partialKey.count <= maxKeyLength else { return nil }
-
-        let end = trailingCloserEnd(in: text, from: caret) ?? caret
-        return MemoDraftLink(range: openerStart..<end, partialKey: partialKey)
-    }
-
     /// ラベルの同一視キーを作る（前後の空白をトリム → NFKC＋小文字化）。
     ///
     /// ノードのキーワード抽出と同じ正規化であり（設計メモ 前提4）、**本棚内検索の
@@ -195,46 +170,4 @@ enum MemoLinkParser {
         return nil
     }
 
-    /// キャレットと同じ行を後方に走査し、まだ閉じられていない `[[` の開始位置を返す。
-    /// 途中で `]]` か改行に当たったら、キャレットの手前につながりは開いていない
-    private nonisolated static func unclosedOpenerStart(
-        in text: String,
-        before caret: String.Index
-    ) -> String.Index? {
-        var index = caret
-        while index > text.startIndex {
-            let current = text.index(before: index)
-            let character = text[current]
-            if character.isNewline { return nil }
-            if current > text.startIndex {
-                let previous = text.index(before: current)
-                if isCloseBracket(character), isCloseBracket(text[previous]) { return nil }
-                if isOpenBracket(character), isOpenBracket(text[previous]) { return previous }
-            }
-            index = current
-        }
-        return nil
-    }
-
-    /// キャレット以降、同じ行の中で `]]` が（新しい `[[` より先に）現れるならその終端。
-    /// 現れなければ nil（範囲はキャレットまでで、候補は挿入になる）
-    private nonisolated static func trailingCloserEnd(
-        in text: String,
-        from caret: String.Index
-    ) -> String.Index? {
-        var index = caret
-        while index < text.endIndex {
-            let character = text[index]
-            if character.isNewline { return nil }
-            let next = text.index(after: index)
-            if next < text.endIndex {
-                if isCloseBracket(character), isCloseBracket(text[next]) {
-                    return text.index(after: next)
-                }
-                if isOpenBracket(character), isOpenBracket(text[next]) { return nil }
-            }
-            index = next
-        }
-        return nil
-    }
 }

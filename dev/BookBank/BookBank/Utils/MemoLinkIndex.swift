@@ -3,8 +3,9 @@
 //  BookBank
 //
 //  全書籍のメモをパースして作るつながりの集計（docs/memo-tagging-design.md 3.3節）。
-//  つながりは永続化しないため、サジェストと絞り込みはこの都度構築のインデックスから導く。
-//  スキーマを持たないぶん「メモを直せばつながりが変わる」という単純さが保たれる。
+//  つながりは永続化しないため、本棚の絞り込み（ステップ8'）はこの都度構築の
+//  インデックスから導く。スキーマを持たないぶん「メモを直せばつながりが変わる」
+//  という単純さが保たれる。
 //
 
 import Foundation
@@ -13,13 +14,13 @@ struct MemoLinkIndex: Equatable, Sendable {
     struct Link: Equatable, Hashable, Sendable {
         /// 一致判定に使う正規化キー
         let key: String
-        /// 表示・挿入に使うラベル。同じキーに複数の書き方があれば最も多く書かれたもの
+        /// 表示に使うラベル。同じキーに複数の書き方があれば最も多く書かれたもの
         let display: String
         /// このつながりを持つ本の数
         let bookCount: Int
     }
 
-    /// 使う本の多い順、同数なら綴り順。サジェストの表示順にそのまま使える
+    /// 使う本の多い順、同数なら綴り順。絞り込みのチップの並びにそのまま使える
     let links: [Link]
 
     static let empty = MemoLinkIndex(links: [])
@@ -46,11 +47,6 @@ struct MemoLinkIndex: Equatable, Sendable {
         }
 
         return MemoLinkIndex(links: links)
-    }
-
-    /// 入力中の断片に前方一致するつながりを、既にメモに書かれているものを除いて返す
-    func suggestions(matching partialKey: String, excluding usedKeys: Set<String>) -> [Link] {
-        links.filter { !usedKeys.contains($0.key) && $0.key.hasPrefix(partialKey) }
     }
 
     /// 最も多く書かれた綴り。同数なら辞書順の小さいほうを選び、結果が入力順に依存しないようにする

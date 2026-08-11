@@ -178,7 +178,7 @@ struct UserBookDetailView: View {
                     get: { book.memo ?? "" },
                     set: { _ in }
                 ),
-                    linkIndex: MemoLinkIndex.build(from: repos.books.latestSnapshot),
+                    allowsLinks: true,
                     accentColor: linkColor
             ) { newMemo in
                 saveMemo(newMemo)

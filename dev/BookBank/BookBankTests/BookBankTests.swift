@@ -470,12 +470,7 @@ struct BookBankTests {
         #expect(MemoLinkParser.enclosingPair(in: empty, at: caret) != nil)
     }
 
-    // MARK: - MemoLinkParser.draftLink / MemoLinkIndex（入力サジェストの土台）
-
-    /// キャレットを文字列末尾に置いて入力途中のつながりを取る（実際の編集も多くはこの形）
-    private func draftAtEnd(_ text: String) -> MemoDraftLink? {
-        MemoLinkParser.draftLink(in: text, before: text.endIndex)
-    }
+    // MARK: - MemoLinkIndex（本棚の絞り込みの土台・ステップ8'）
 
     /// 集計に必要なのは `id` と `memo` だけなので、他は既定値で埋める
     private func sampleLinkedBook(id: String, memo: String?) -> BookDTO {
@@ -491,50 +486,6 @@ struct BookBankTests {
             updatedAt: now,
             hasCoverImage: false
         )
-    }
-
-    @Test func memoDraftLinkDetectsPartialInput() {
-        #expect(draftAtEnd("旅の記録 [[京")?.partialKey == "京")
-        #expect(draftAtEnd("[[KYO")?.partialKey == "kyo", "候補の突合は正規化キーで行う")
-        #expect(draftAtEnd("[[京都]] [[奈")?.partialKey == "奈", "閉じたつながりの後ろも入力途中と見なす")
-    }
-
-    @Test func memoDraftLinkDetectsBareOpener() {
-        // `[[` を打った瞬間が、既存のつながりを全部出せる最も役に立つ瞬間
-        #expect(draftAtEnd("[[")?.partialKey == "")
-        #expect(draftAtEnd("旅の記録 [[")?.partialKey == "")
-        #expect(draftAtEnd("［［")?.partialKey == "", "全角括弧の手打ちも受ける")
-    }
-
-    @Test func memoDraftLinkCoversTrailingCloser() throws {
-        // ツールバーの「つなぐ」は [[]] を挿入してキャレットを括弧の中に置く（4.5節）。
-        // その状態で候補をタップしたら、後ろの ]] ごと丸ごと置き換わらなければならない
-        var text = "[[]]"
-        var caret = text.index(text.startIndex, offsetBy: 2)
-        var draft = try #require(MemoLinkParser.draftLink(in: text, before: caret))
-        #expect(draft.partialKey == "")
-        #expect(String(text[draft.range]) == "[[]]")
-
-        // 既存のつながりの中身を編集し直す形も同じ
-        text = "[[京都]] のメモ"
-        caret = text.index(text.startIndex, offsetBy: 3) // 「京」の直後
-        draft = try #require(MemoLinkParser.draftLink(in: text, before: caret))
-        #expect(draft.partialKey == "京")
-        #expect(String(text[draft.range]) == "[[京都]]")
-    }
-
-    @Test func memoDraftLinkRejectsPositionsThatAreNotLinks() {
-        #expect(draftAtEnd("つながりのないメモ") == nil)
-        #expect(draftAtEnd("[") == nil, "括弧1つでは開かない")
-        #expect(draftAtEnd("[[京都]] のあと") == nil, "キャレットの手前で閉じていれば対象外")
-        #expect(draftAtEnd("[[京都\n") == nil, "行をまたいだら開いていない扱い（改行不成立と同じ）")
-        #expect(draftAtEnd("[[\(String(repeating: "あ", count: 31))") == nil, "上限超過は候補も出さない")
-    }
-
-    @Test func memoDraftLinkRangeCoversWhatWillBeReplaced() throws {
-        let text = "旅の記録 [[京"
-        let draft = try #require(draftAtEnd(text))
-        #expect(String(text[draft.range]) == "[[京")
     }
 
     @Test func memoLinkIndexAggregatesLinksByBookCount() {
@@ -566,19 +517,15 @@ struct BookBankTests {
         #expect(index.links.first?.display == "SF", "表示は最も多く書かれた綴り")
     }
 
-    @Test func memoLinkIndexSuggestsByPrefixExcludingWrittenLinks() {
+    @Test func memoLinkIndexKeepsSpellingVariantsApart() {
+        // 表記ゆれは吸収しない（前提4）。絞り込みのチップに「京都」と「きょうと」が
+        // 別々に並ぶことが、ユーザーがゆれに気づく場所になる（2026-08-12 オーナー確定・4.1節）
         let books = [
-            sampleLinkedBook(id: "1", memo: "[[京都]] [[京都駅]]"),
-            sampleLinkedBook(id: "2", memo: "[[奈良]]")
+            sampleLinkedBook(id: "1", memo: "[[京都]]"),
+            sampleLinkedBook(id: "2", memo: "[[きょうと]]")
         ]
         let index = MemoLinkIndex.build(from: books)
-
-        #expect(index.suggestions(matching: "京", excluding: []).map(\.key) == ["京都", "京都駅"])
-        #expect(index.suggestions(matching: "", excluding: []).count == 3, "[[ だけなら全部出す")
-        #expect(
-            index.suggestions(matching: "京", excluding: ["京都"]).map(\.key) == ["京都駅"],
-            "編集中のメモに既に書かれているつながりは候補から外す"
-        )
+        #expect(index.links.map(\.key) == ["きょうと", "京都"], "同数なら綴り順に並ぶ")
     }
 
     @Test func memoLinkHighlightHidesBracketsAndKeepsRestIntact() {

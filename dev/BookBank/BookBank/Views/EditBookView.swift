@@ -340,7 +340,7 @@ struct EditBookView: View {
                         get: { book.memo ?? "" },
                         set: { _ in }
                     ),
-                    linkIndex: MemoLinkIndex.build(from: repos.books.latestSnapshot),
+                    allowsLinks: true,
                     accentColor: memoAccentColor
                 ) { newMemo in
                     saveMemo(newMemo)
