@@ -46,8 +46,10 @@ private struct MemoPageBadgeRenderer: TextRenderer {
         for line in layout {
             for run in line {
                 if run[MemoPageBadgeAttribute.self] != nil {
+                    // 角丸は付けない——編集画面の背景色属性が角丸を持てず、
+                    // 同じ装飾が画面ごとに違って見えるのを避けるため（2026-08-11 オーナー指示）
                     let rect = run.typographicBounds.rect.insetBy(dx: -4, dy: -1.5)
-                    context.fill(Path(roundedRect: rect, cornerRadius: 4), with: .color(badgeColor))
+                    context.fill(Path(rect), with: .color(badgeColor))
                 }
                 context.draw(run)
             }
@@ -75,7 +77,7 @@ struct MemoFormattedText: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 6)
-                        .background(Color(.secondarySystemFill), in: RoundedRectangle(cornerRadius: 6))
+                        .background(Color(.secondarySystemFill))
                 }
             }
         }
