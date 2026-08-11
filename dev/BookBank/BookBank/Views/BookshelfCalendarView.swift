@@ -184,8 +184,11 @@ struct BookshelfCalendarView<Header: View>: View {
                 Button {
                     onMonthlyMemo(year, month)
                 } label: {
-                    Image(systemName: "ellipsis")
-                        .font(.system(size: 16, weight: .semibold))
+                    Image("icn_log-edit")
+                        .renderingMode(.template)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 16, height: 16)
                         .foregroundColor(colorScheme == .dark ? .white : .black)
                         .frame(width: 32, height: 32)
                         .background(
