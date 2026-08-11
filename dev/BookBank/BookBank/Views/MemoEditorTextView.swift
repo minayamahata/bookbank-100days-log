@@ -5,7 +5,7 @@
 //  メモ編集欄のエディタ本体（docs/memo-tagging-design.md 4.6節）。
 //  編集中も表示と同じ装飾をその場で反映する——Markdownを初めて見る人は、ボタンを押して
 //  記号だけが出ても何が起きたのか分からないため（2026-08-11 オーナー指示）。
-//  記号そのものは残して薄く表示する（隠すとカーソル位置と文字の対応が壊れて編集できない）。
+//  記号（`[[ ]]` / `**` / 行頭の `> `）は**一切表示しない**。装飾UIだけで表す（同日 指示）。
 //  SwiftUIの `TextEditor` は属性付き表示ができないため `UITextView` を包む。
 //  装飾は textStorage の属性だけを差し替える（文字列は触らない）のでカーソル位置は保たれる。
 //
@@ -27,6 +27,7 @@ struct MemoEditorTextView: UIViewRepresentable {
         textView.delegate = context.coordinator
         textView.backgroundColor = .clear
         textView.font = .preferredFont(forTextStyle: .body)
+        textView.adjustsFontForContentSizeCategory = true
         textView.textContainerInset = UIEdgeInsets(top: 12, left: 0, bottom: 12, right: 0)
         textView.textContainer.lineFragmentPadding = 4
         textView.text = text
@@ -58,6 +59,8 @@ struct MemoEditorTextView: UIViewRepresentable {
             self.parent = parent
         }
 
+        // MARK: - 入力の反映
+
         func textViewDidChange(_ textView: UITextView) {
             parent.text = textView.text
             applyStyling(to: textView, accent: UIColor(parent.accentColor))
@@ -68,6 +71,75 @@ struct MemoEditorTextView: UIViewRepresentable {
                 parent.selectedRange = textView.selectedRange
             }
         }
+
+        /// 見えない記号を1文字ずつ消させない。記号の上で削除したら、その装飾のまとまりごと消す。
+        /// つながりは全体（チップを消す感覚）、太字は開き・閉じの両方、引用は行頭の `> ` を消す
+        func textView(
+            _ textView: UITextView,
+            shouldChangeTextIn range: NSRange,
+            replacementText replacement: String
+        ) -> Bool {
+            guard replacement.isEmpty, range.length == 1,
+                  let targets = markerDeletion(at: range.location, in: textView.text ?? "")
+            else { return true }
+
+            let storage = textView.textStorage
+            storage.beginEditing()
+            for target in targets.sorted(by: { $0.location > $1.location }) {
+                storage.replaceCharacters(in: target, with: "")
+            }
+            storage.endEditing()
+
+            // 消えた文字のうち、削除位置より前にあった分だけキャレットを戻す
+            let removedBefore = targets.reduce(0) { total, target in
+                total + max(0, min(target.location + target.length, range.location) - target.location)
+            }
+            textView.selectedRange = NSRange(location: range.location - removedBefore, length: 0)
+
+            parent.text = textView.text
+            parent.selectedRange = textView.selectedRange
+            applyStyling(to: textView, accent: UIColor(parent.accentColor))
+            return false
+        }
+
+        /// `index` の文字が隠した記号なら、まとめて消すべき範囲を返す。記号でなければ `nil`（通常削除）
+        private func markerDeletion(at index: Int, in text: String) -> [NSRange]? {
+            let links = MemoLinkParser.parse(text)
+
+            for link in links {
+                let range = NSRange(link.range, in: text)
+                let openingEnd = range.location + 2
+                let closingStart = range.location + range.length - 2
+                if (index >= range.location && index < openingEnd)
+                    || (index >= closingStart && index < range.location + range.length) {
+                    return [range]
+                }
+            }
+
+            let boldMarkers = MemoLinkText
+                .pairedBoldMarkers(in: text, excluding: links.map(\.range))
+                .sorted()
+            for pairStart in stride(from: 0, to: boldMarkers.count - 1, by: 2) {
+                let pair = [boldMarkers[pairStart], boldMarkers[pairStart + 1]].map { marker in
+                    NSRange(marker..<text.index(marker, offsetBy: 2), in: text)
+                }
+                if pair.contains(where: { NSLocationInRange(index, $0) }) {
+                    return pair
+                }
+            }
+
+            let nsText = text as NSString
+            let lineRange = nsText.lineRange(for: NSRange(location: index, length: 0))
+            let prefix = NSRange(location: lineRange.location, length: 2)
+            if lineRange.length >= 2, nsText.substring(with: prefix) == "> ",
+               index == lineRange.location || index == lineRange.location + 1 {
+                return [prefix]
+            }
+
+            return nil
+        }
+
+        // MARK: - 装飾
 
         /// 表示（4.6節）と同じ規則で属性を当てる。文字列は変更しない。
         /// 日本語IMEの変換中（markedText あり）は触らない——変換の下線や候補が壊れるため
@@ -82,6 +154,11 @@ struct MemoEditorTextView: UIViewRepresentable {
                 .font: bodyFont,
                 .foregroundColor: UIColor.label
             ]
+            // 記号の消し方: 文字は残したまま、極小フォント＋透明で幅も見た目も無くす
+            let hiddenAttributes: [NSAttributedString.Key: Any] = [
+                .font: UIFont.systemFont(ofSize: 0.01),
+                .foregroundColor: UIColor.clear
+            ]
 
             storage.beginEditing()
             storage.setAttributes(baseAttributes, range: fullRange)
@@ -89,7 +166,7 @@ struct MemoEditorTextView: UIViewRepresentable {
             let links = MemoLinkParser.parse(text)
             let linkRanges = links.map(\.range)
 
-            // 引用行: 行全体に薄いグレー、行頭の「> 」は薄く
+            // 引用行: 行全体に薄いグレーの背景、行頭の「> 」は隠す
             (text as NSString).enumerateSubstrings(
                 in: fullRange, options: [.byLines, .substringNotRequired]
             ) { _, lineRange, _, _ in
@@ -100,13 +177,12 @@ struct MemoEditorTextView: UIViewRepresentable {
                 storage.addAttribute(
                     .backgroundColor, value: UIColor.secondarySystemFill, range: lineRange
                 )
-                storage.addAttribute(
-                    .foregroundColor, value: UIColor.tertiaryLabel,
-                    range: NSRange(location: lineRange.location, length: 2)
+                storage.addAttributes(
+                    hiddenAttributes, range: NSRange(location: lineRange.location, length: 2)
                 )
             }
 
-            // 太字: 中身を太く、記号 ** は薄く
+            // 太字: 中身を太く、記号 ** は隠す
             let boldMarkers = MemoLinkText
                 .pairedBoldMarkers(in: text, excluding: linkRanges)
                 .sorted()
@@ -117,9 +193,7 @@ struct MemoEditorTextView: UIViewRepresentable {
                 let contentStart = text.index(opening, offsetBy: 2)
                 storage.addAttribute(.font, value: boldFont, range: NSRange(contentStart..<closing, in: text))
                 for marker in [opening..<contentStart, closing..<text.index(closing, offsetBy: 2)] {
-                    storage.addAttribute(
-                        .foregroundColor, value: UIColor.tertiaryLabel, range: NSRange(marker, in: text)
-                    )
+                    storage.addAttributes(hiddenAttributes, range: NSRange(marker, in: text))
                 }
             }
 
@@ -137,7 +211,7 @@ struct MemoEditorTextView: UIViewRepresentable {
                 )
             }
 
-            // つながり: 中身をテーマ色＋セミボールド、括弧は薄いテーマ色
+            // つながり: 中身をテーマ色＋セミボールド、括弧は隠す
             let linkFont = UIFont.systemFont(ofSize: bodyFont.pointSize, weight: .semibold)
             for link in links {
                 let range = NSRange(link.range, in: text)
@@ -146,10 +220,7 @@ struct MemoEditorTextView: UIViewRepresentable {
                 let opening = link.range.lowerBound..<text.index(link.range.lowerBound, offsetBy: 2)
                 let closing = text.index(link.range.upperBound, offsetBy: -2)..<link.range.upperBound
                 for brackets in [opening, closing] {
-                    storage.addAttribute(
-                        .foregroundColor, value: accent.withAlphaComponent(0.45),
-                        range: NSRange(brackets, in: text)
-                    )
+                    storage.addAttributes(hiddenAttributes, range: NSRange(brackets, in: text))
                 }
             }
 
