@@ -13,24 +13,27 @@ struct MemoEditorView: View {
     
     @State private var editedText: String
     @State private var showCancelAlert = false
-    @State private var selection: TextSelection?
-    @FocusState private var isFocused: Bool
+    @State private var selectedRange = NSRange(location: 0, length: 0)
     
     let title: LocalizedStringKey
     /// 入力サジェストの候補元。`nil` ならサジェストしない（月メモはT1のスコープ外＝設計メモ 4.3節）
     let linkIndex: MemoLinkIndex?
+    /// つながりの着色とページ番号バッジに使う色（黒テーマ＋ダーク時の退避は呼び出し側の責務）
+    let accentColor: Color
     let onSave: (String) -> Void
     
     init(
         memo: Binding<String>,
         title: LocalizedStringKey = "book.memo",
         linkIndex: MemoLinkIndex? = nil,
+        accentColor: Color = .accentColor,
         onSave: @escaping (String) -> Void
     ) {
         self._memo = memo
         self._editedText = State(initialValue: memo.wrappedValue)
         self.title = title
         self.linkIndex = linkIndex
+        self.accentColor = accentColor
         self.onSave = onSave
     }
     
@@ -45,11 +48,12 @@ struct MemoEditorView: View {
                         .padding(.vertical, 12)
                 }
                 
-                // TextEditor
-                TextEditor(text: $editedText, selection: $selection)
-                    .font(.body)
-                    .padding(4)
-                    .focused($isFocused)
+                // 編集中も表示と同じ装飾をその場で反映するエディタ（設計メモ 4.6節）
+                MemoEditorTextView(
+                    text: $editedText,
+                    selectedRange: $selectedRange,
+                    accentColor: accentColor
+                )
             }
             .padding(.horizontal, 20)
             .safeAreaInset(edge: .bottom) {
@@ -89,12 +93,6 @@ struct MemoEditorView: View {
                 Text("memo.discard.message")
             }
             .interactiveDismissDisabled(hasChanges)
-            .onAppear {
-                // 画面表示時に自動フォーカス
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    isFocused = true
-                }
-            }
         }
     }
     
@@ -136,12 +134,9 @@ struct MemoEditorView: View {
         .buttonStyle(.plain)
     }
 
-    /// いま選択している範囲。無選択（キャレットのみ）は空範囲、未フォーカスは末尾扱い
+    /// いま選択している範囲。無選択（キャレットのみ）は空範囲、変換できなければ末尾扱い
     private var currentSelectionRange: Range<String.Index> {
-        if let selection, case .selection(let range) = selection.indices {
-            return range
-        }
-        return editedText.endIndex..<editedText.endIndex
+        Range(selectedRange, in: editedText) ?? (editedText.endIndex..<editedText.endIndex)
     }
 
     /// 範囲を置き換え、置き換え開始から `caretOffset` 文字目へキャレットを移す
@@ -149,7 +144,7 @@ struct MemoEditorView: View {
         let startOffset = editedText.distance(from: editedText.startIndex, to: range.lowerBound)
         editedText.replaceSubrange(range, with: insertion)
         let caret = editedText.index(editedText.startIndex, offsetBy: startOffset + caretOffset)
-        selection = TextSelection(insertionPoint: caret)
+        selectedRange = NSRange(caret..<caret, in: editedText)
     }
 
     /// 選択中ならそれを `[[ ]]` で囲み、無選択なら空の括弧を挿す。
@@ -228,25 +223,15 @@ struct MemoEditorView: View {
 
     /// キャレット位置。範囲を選択している間はサジェストを出さない
     private var caretIndex: String.Index? {
-        guard let selection else { return nil }
-        switch selection.indices {
-        case .selection(let range):
-            return range.isEmpty ? range.lowerBound : nil
-        default:
-            return nil
-        }
+        guard selectedRange.length == 0 else { return nil }
+        return Range(selectedRange, in: editedText)?.lowerBound
     }
 
     /// 入力途中のつながりを候補で置き換える（キャレット直後の `]]` も範囲に含まれるので、
     /// ツールバー挿入直後の `[[]]` も丸ごと差し替わる）。末尾の空白は続きを書きやすくするため
     private func complete(with link: MemoLinkIndex.Link) {
         guard let draft = currentDraftLink else { return }
-        let insertion = "[[\(link.display)]] "
-        // 置き換えで既存の String.Index は無効になるため、先に開始位置を数で取る
-        let offset = editedText.distance(from: editedText.startIndex, to: draft.range.lowerBound)
-        editedText.replaceSubrange(draft.range, with: insertion)
-        let caret = editedText.index(editedText.startIndex, offsetBy: offset + insertion.count)
-        selection = TextSelection(insertionPoint: caret)
+        replaceRange(draft.range, with: "[[\(link.display)]] ", caretOffset: link.display.count + 5)
     }
 
     /// 変更があるかチェック

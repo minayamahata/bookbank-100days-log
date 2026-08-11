@@ -9,6 +9,7 @@ struct EditBookView: View {
     // MARK: - Environment
     
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.colorScheme) private var colorScheme
     @Environment(LanguageManager.self) private var languageManager
     @Environment(CurrencyManager.self) private var currencyManager
     @Environment(AppRepositories.self) private var repos
@@ -46,6 +47,18 @@ struct EditBookView: View {
             return PassbookColor.color(for: passbook, in: customPassbooks)
         }
         return .blue
+    }
+
+    /// メモエディタの装飾色。黒テーマ＋ダークモードではテーマ色が背景に沈むため白へ退避する
+    /// （`UserBookDetailView.linkColor` と同じ判断）
+    private var memoAccentColor: Color {
+        let isBlackTheme = bookPassbookDTO.map {
+            PassbookColor.isBlackTheme(for: $0, in: customPassbooks)
+        } ?? false
+        if colorScheme == .dark && isBlackTheme {
+            return .white
+        }
+        return themeColor
     }
     
     private var isManual: Bool {
@@ -327,7 +340,8 @@ struct EditBookView: View {
                         get: { book.memo ?? "" },
                         set: { _ in }
                     ),
-                    linkIndex: MemoLinkIndex.build(from: repos.books.latestSnapshot)
+                    linkIndex: MemoLinkIndex.build(from: repos.books.latestSnapshot),
+                    accentColor: memoAccentColor
                 ) { newMemo in
                     saveMemo(newMemo)
                 }

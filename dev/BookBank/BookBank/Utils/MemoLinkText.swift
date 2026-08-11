@@ -176,10 +176,11 @@ enum MemoLinkText {
         return result
     }
 
-    /// 同じ行の中でペアが閉じている `**` の開始位置の集合。
+    /// 同じ行の中でペアが閉じている `**` の開始位置の集合（昇順に並べると開き・閉じが交互になる）。
     /// 奇数個目が余った場合や行をまたぐ場合、その `**` はただの文字として表示される。
-    /// `[[ ]]` の中の `**` は数えない（中身は任意の文字列であり装飾記号ではない）
-    private static func pairedBoldMarkers(
+    /// `[[ ]]` の中の `**` は数えない（中身は任意の文字列であり装飾記号ではない）。
+    /// 編集画面のライブ装飾（`MemoEditorTextView`）も同じ規則を使う
+    static func pairedBoldMarkers(
         in text: String,
         excluding excludedRanges: [Range<String.Index>]
     ) -> Set<String.Index> {
