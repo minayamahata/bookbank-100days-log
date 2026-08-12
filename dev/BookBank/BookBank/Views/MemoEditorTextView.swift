@@ -773,77 +773,26 @@ struct MemoEditorTextView: UIViewRepresentable {
             }
 
             // 数字未入力の出典ページは消させない。消しても足し直すので、通せば `p` だけが残る
-            if replacement.isEmpty, range.length == 1,
+            if replacement.isEmpty, range.length >= 1,
                MemoQuotePage.protectsDeletion(of: range, in: textView.text ?? "") {
                 return false
             }
-            guard replacement.isEmpty, range.length == 1,
-                  let targets = markerDeletion(at: range.location, in: textView.text ?? "")
+            // 隠れた記号に触れた削除はまとまりごと（1文字でも範囲でも同じ）。
+            // 取り消しの履歴にも載せる——textStorage 直書きだと「ひとつ戻す」に残らない
+            guard replacement.isEmpty, range.length >= 1,
+                  let targets = MemoHiddenMarkers.bulkDeletionTargets(
+                      covering: range, in: textView.text ?? ""
+                  )
             else { return true }
 
-            let storage = textView.textStorage
-            storage.beginEditing()
+            let undo = textView.undoManager
+            undo?.beginUndoGrouping()
             for target in targets.sorted(by: { $0.location > $1.location }) {
-                storage.replaceCharacters(in: target, with: "")
+                _ = parent.bridge.replace(target, with: "", caretLocation: target.location)
             }
-            storage.endEditing()
-
-            // 消えた文字のうち、削除位置より前にあった分だけキャレットを戻す
-            let removedBefore = targets.reduce(0) { total, target in
-                total + max(0, min(target.location + target.length, range.location) - target.location)
-            }
-            textView.selectedRange = NSRange(location: range.location - removedBefore, length: 0)
-
-            parent.text = textView.text
-            parent.selectedRange = textView.selectedRange
-            applyStyling(to: textView, accent: UIColor(parent.accentColor))
+            undo?.endUndoGrouping()
+            parent.bridge.refresh()
             return false
-        }
-
-        /// `index` の文字が隠した記号なら、まとめて消すべき範囲を返す。記号でなければ `nil`（通常削除）
-        private func markerDeletion(at index: Int, in text: String) -> [NSRange]? {
-            let links = MemoLinkParser.parse(text)
-
-            for link in links {
-                let range = NSRange(link.range, in: text)
-                let openingEnd = range.location + 2
-                let closingStart = range.location + range.length - 2
-                if (index >= range.location && index < openingEnd)
-                    || (index >= closingStart && index < range.location + range.length) {
-                    return [range]
-                }
-            }
-
-            // 中身が空の括弧は隠してあるので、どこを消しても4文字まとめて消す
-            for pair in MemoLinkParser.emptyPairs(in: text) {
-                let range = NSRange(pair, in: text)
-                if NSLocationInRange(index, range) { return [range] }
-            }
-
-            let boldMarkers = MemoLinkText
-                .pairedBoldMarkers(in: text, excluding: links.map(\.range))
-                .sorted()
-            for pairStart in stride(from: 0, to: boldMarkers.count - 1, by: 2) {
-                let pair = [boldMarkers[pairStart], boldMarkers[pairStart + 1]].map { marker in
-                    NSRange(marker..<text.index(marker, offsetBy: 2), in: text)
-                }
-                if pair.contains(where: { NSLocationInRange(index, $0) }) {
-                    return pair
-                }
-            }
-
-            let nsText = text as NSString
-            let lineRange = nsText.lineRange(for: NSRange(location: index, length: 0))
-            let prefix = NSRange(location: lineRange.location, length: 2)
-            if lineRange.length >= 2, nsText.substring(with: prefix) == "> ",
-               index == lineRange.location || index == lineRange.location + 1 {
-                // 引用でなくなると、続く空の出典ページの行は置き場を失う（`p.` が本文に残る）。
-                // ツールバーで引用を外したときと同じ後始末をする（4.5節）
-                guard let page = emptyPageLine(after: lineRange, in: nsText) else { return [prefix] }
-                return [prefix, page]
-            }
-
-            return nil
         }
 
         // MARK: - 装飾
@@ -1177,17 +1126,6 @@ struct MemoEditorTextView: UIViewRepresentable {
                 }
             }
             return hint
-        }
-
-        /// `line` の次が数字未入力の出典ページの行なら、その行（手前の改行を含む）
-        private func emptyPageLine(after line: NSRange, in nsText: NSString) -> NSRange? {
-            let next = NSMaxRange(line)
-            guard next < nsText.length else { return nil }
-            let pageLine = nsText.lineRange(for: NSRange(location: next, length: 0))
-            let content = nsText.substring(with: pageLine)
-                .trimmingCharacters(in: .newlines)
-            guard MemoQuotePage.digits(inPageOnlyLine: content)?.isEmpty == true else { return nil }
-            return NSRange(location: next - 1, length: content.count + 1)
         }
 
         private func isBlank(_ text: String) -> Bool {

@@ -497,6 +497,40 @@ struct BookBankTests {
         #expect(trimmed("> 引用の行", 0...2).isEmpty)
     }
 
+    /// 隠れた記号に触れた削除は、1文字でも範囲でもまとまりごと（設計メモ 4.6節）
+    @Test func memoHiddenMarkersBulkDeleteKeepsMarkerPairsTogether() {
+        let linked = "あ[[京都]]い"
+        // `[[` の1文字目だけ消そうとしてもつながり全体
+        #expect(
+            MemoHiddenMarkers.bulkDeletionTargets(
+                covering: NSRange(location: 1, length: 1), in: linked
+            ) == [NSRange(location: 1, length: 6)]
+        )
+
+        // 範囲選択が開き括弧だけを含んでも、閉じ側を残さない
+        let expanded = try! #require(
+            MemoHiddenMarkers.bulkDeletionTargets(
+                covering: NSRange(location: 0, length: 3), in: linked
+            )
+        )
+        #expect(expanded == [NSRange(location: 0, length: 7)], "「あ」とつながり全体")
+
+        // 中身だけなら通常削除（記号に触れていない）
+        #expect(
+            MemoHiddenMarkers.bulkDeletionTargets(
+                covering: NSRange(location: 3, length: 2), in: linked
+            ) == nil
+        )
+
+        // 太字は開き・閉じの両方
+        let boldTargets = try! #require(
+            MemoHiddenMarkers.bulkDeletionTargets(
+                covering: NSRange(location: 0, length: 1), in: "**太**"
+            )
+        )
+        #expect(Set(boldTargets.map(\.location)) == Set([0, 3]))
+    }
+
     /// キャレットは隠れた記号の中に置かない（**2026-08-12 オーナー指示**——場面ごとの
     /// 個別対応をやめ、記号をまたぐときの振る舞いを1か所で決める）
     @Test func memoHiddenMarkersKeepTheCaretOutOfTheSymbols() {

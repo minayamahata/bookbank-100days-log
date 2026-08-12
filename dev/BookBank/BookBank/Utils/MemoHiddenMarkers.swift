@@ -190,4 +190,107 @@ enum MemoHiddenMarkers {
         }
         return line.location
     }
+
+    // MARK: - まとまり削除（設計メモ 4.6節）
+
+    /// 削除範囲が隠れた記号に触れていれば、まとまりごと消すべき範囲の一覧。
+    /// 1文字削除も範囲削除も同じ規則——触れた記号の装飾を片側だけ残さない。
+    /// 触れていなければ `nil`（通常の削除へ）
+    static func bulkDeletionTargets(covering range: NSRange, in text: String) -> [NSRange]? {
+        guard range.length >= 1, range.location >= 0 else { return nil }
+        let nsLength = (text as NSString).length
+        guard range.location < nsLength else { return nil }
+
+        var targets: [NSRange] = []
+        let end = min(range.location + range.length, nsLength)
+        for location in range.location..<end {
+            if let group = deletionGroup(at: location, in: text) {
+                targets.append(contentsOf: group)
+            }
+        }
+        guard !targets.isEmpty else { return nil }
+
+        // 範囲削除では選んだ本文も一緒に消す（記号だけ広げて本文が残るのを防ぐ）
+        if range.length > 1 {
+            targets.append(range)
+        }
+        return mergedRanges(targets)
+    }
+
+    /// `index` の文字が隠した記号なら、まとめて消すべき範囲。記号でなければ `nil`
+    static func deletionGroup(at index: Int, in text: String) -> [NSRange]? {
+        let links = MemoLinkParser.parse(text)
+
+        for link in links {
+            let range = NSRange(link.range, in: text)
+            let openingEnd = range.location + 2
+            let closingStart = range.location + range.length - 2
+            if (index >= range.location && index < openingEnd)
+                || (index >= closingStart && index < range.location + range.length) {
+                return [range]
+            }
+        }
+
+        for pair in MemoLinkParser.emptyPairs(in: text) {
+            let range = NSRange(pair, in: text)
+            if NSLocationInRange(index, range) { return [range] }
+        }
+
+        let boldMarkers = MemoLinkText
+            .pairedBoldMarkers(in: text, excluding: links.map(\.range))
+            .sorted()
+        for pairStart in stride(from: 0, to: boldMarkers.count - 1, by: 2) {
+            let pair = [boldMarkers[pairStart], boldMarkers[pairStart + 1]].map { marker in
+                NSRange(marker..<text.index(marker, offsetBy: 2), in: text)
+            }
+            if pair.contains(where: { NSLocationInRange(index, $0) }) {
+                return pair
+            }
+        }
+
+        let nsText = text as NSString
+        let lineRange = nsText.lineRange(for: NSRange(location: index, length: 0))
+        let prefix = NSRange(location: lineRange.location, length: 2)
+        if lineRange.length >= 2, nsText.substring(with: prefix) == "> ",
+           index == lineRange.location || index == lineRange.location + 1 {
+            guard let page = emptyPageLine(after: lineRange, in: nsText) else { return [prefix] }
+            return [prefix, page]
+        }
+
+        return nil
+    }
+
+    /// 重なる／隣接する範囲を1つにまとめる（後ろから消すときに二重に削らない）
+    static func mergedRanges(_ ranges: [NSRange]) -> [NSRange] {
+        let sorted = ranges
+            .filter { $0.length > 0 && $0.location >= 0 }
+            .sorted { $0.location < $1.location }
+        guard var current = sorted.first else { return [] }
+        var result: [NSRange] = []
+        for next in sorted.dropFirst() {
+            let currentEnd = NSMaxRange(current)
+            if next.location <= currentEnd {
+                current = NSRange(
+                    location: current.location,
+                    length: max(currentEnd, NSMaxRange(next)) - current.location
+                )
+            } else {
+                result.append(current)
+                current = next
+            }
+        }
+        result.append(current)
+        return result
+    }
+
+    /// `line` の次が数字未入力の出典ページの行なら、その行（手前の改行を含む）
+    private static func emptyPageLine(after line: NSRange, in nsText: NSString) -> NSRange? {
+        let next = NSMaxRange(line)
+        guard next < nsText.length else { return nil }
+        let pageLine = nsText.lineRange(for: NSRange(location: next, length: 0))
+        let content = nsText.substring(with: pageLine)
+            .trimmingCharacters(in: .newlines)
+        guard MemoQuotePage.digits(inPageOnlyLine: content)?.isEmpty == true else { return nil }
+        return NSRange(location: next - 1, length: content.count + 1)
+    }
 }
