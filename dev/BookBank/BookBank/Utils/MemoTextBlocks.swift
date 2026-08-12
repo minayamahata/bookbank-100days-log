@@ -428,6 +428,17 @@ enum MemoPageMarker {
         return start..<caret
     }
 
+    /// キャレットの居るページ番号が**その行の最後**にあるとき、その直後（＝行末）の位置。
+    /// 同じ行の余白を触ったときの行き先で、テンキーから抜ける口になる（設計メモ 4.6節）——
+    /// テンキーには改行キーが無いので、番号がメモの末尾にあると先へ進めなくなる。
+    /// 行にまだ続きがあるなら、触った先は行末であってページ番号の直後ではないので返さない
+    static func lineEndEscape(from caret: String.Index, in text: String) -> String.Index? {
+        guard let marker = enclosing(caret, in: text) else { return nil }
+        let lineEnd = text[marker.upperBound...].firstIndex(where: \.isNewline) ?? text.endIndex
+        guard marker.upperBound == lineEnd else { return nil }
+        return marker.upperBound
+    }
+
     private static func isASCIIDigit(_ character: Character) -> Bool {
         character.isASCII && character.isNumber
     }

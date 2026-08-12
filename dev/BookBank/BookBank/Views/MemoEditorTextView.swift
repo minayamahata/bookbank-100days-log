@@ -375,6 +375,16 @@ struct MemoEditorTextView: UIViewRepresentable {
         context.coordinator.textStorage = storage
         context.coordinator.quoteLayoutManager = layoutManager
         textView.delegate = context.coordinator
+        // ページ番号と同じ行の余白を触ったときの抜け口（2026-08-12 オーナー指示・下記
+        // `escapePageMarker`）。キャレットが既に行末に在ると位置が動かず、`UITextView` の
+        // タップだけでは何も起きない——触ったこと自体を受け取る必要があるので手を挙げる
+        let escapeTap = UITapGestureRecognizer(
+            target: context.coordinator,
+            action: #selector(Coordinator.handlePageMarkerEscapeTap(_:))
+        )
+        escapeTap.delegate = context.coordinator
+        escapeTap.cancelsTouchesInView = false
+        textView.addGestureRecognizer(escapeTap)
         textView.backgroundColor = .clear
         textView.font = .preferredFont(forTextStyle: .body)
         textView.adjustsFontForContentSizeCategory = true
@@ -424,7 +434,7 @@ struct MemoEditorTextView: UIViewRepresentable {
         context.coordinator.applyStyling(to: textView, accent: UIColor(accentColor))
     }
 
-    final class Coordinator: NSObject, UITextViewDelegate {
+    final class Coordinator: NSObject, UITextViewDelegate, UIGestureRecognizerDelegate {
         var parent: MemoEditorTextView
         /// レイアウト機構は文字置き場に強参照されるので、こちらは弱参照でよい
         weak var quoteLayoutManager: MemoQuoteBackgroundLayoutManager?
@@ -572,6 +582,78 @@ struct MemoEditorTextView: UIViewRepresentable {
             isApplyingRequestedState = false
             applyStyling(to: textView, accent: UIColor(parent.accentColor))
             return true
+        }
+
+        // MARK: - ページ番号からの抜け口
+
+        /// `UITextView` 自身のタップとは別に手を挙げる（触った位置を見るだけで、邪魔はしない）
+        func gestureRecognizer(
+            _ gestureRecognizer: UIGestureRecognizer,
+            shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer
+        ) -> Bool {
+            true
+        }
+
+        @objc func handlePageMarkerEscapeTap(_ recognizer: UITapGestureRecognizer) {
+            guard let textView = recognizer.view as? UITextView else { return }
+            escapePageMarker(in: textView, tappedAt: recognizer.location(in: textView))
+        }
+
+        /// **ページ番号と同じ行の、文字より後ろの余白**を触ったら、番号の外（行末）へ出て
+        /// 通常のキーボードへ戻す（**2026-08-12 オーナー指示**——番号がメモの末尾にあると、
+        /// テンキーに改行キーが無いぶん先へ進めなくなっていた）。
+        /// **行より下の広い余白は対象にしない**——そちらは「キャレットを動かさずキーボードだけ戻す」
+        /// ままにする（同日の手当て。抜けるたびに末尾へ飛ぶのを防いでいる）。
+        /// 行末に番号が無い（`本文p.42のところ`）ときも触らない——行末へ入るのが当たり前の動きで、
+        /// それは `UITextView` が自分でやる
+        @discardableResult
+        func escapePageMarker(in textView: UITextView, tappedAt point: CGPoint) -> Bool {
+            guard parent.prefersNumericKeyboard, textView.selectedRange.length == 0 else {
+                return false
+            }
+            let text = textView.text ?? ""
+            guard let caret = Range(textView.selectedRange, in: text)?.lowerBound,
+                  let escape = MemoPageMarker.lineEndEscape(from: caret, in: text)
+            else { return false }
+
+            let destination = NSRange(escape..<escape, in: text).location
+            guard tapFollowsLineEnd(at: destination, in: textView, point: point) else {
+                return false
+            }
+
+            parent.prefersNumericKeyboard = false
+            if textView.selectedRange.location != destination {
+                isApplyingRequestedState = true
+                textView.selectedRange = NSRange(location: destination, length: 0)
+                isApplyingRequestedState = false
+            }
+            parent.selectedRange = textView.selectedRange
+            applyStyling(to: textView, accent: UIColor(parent.accentColor))
+            return true
+        }
+
+        /// 触った点が、その位置の行の**文字の外の余白**か（行の帯から上下に外れていれば偽）。
+        /// 左右どちらも見るのは、出典ページの行が右寄せで、余白が番号の**左**にあるため
+        private func tapFollowsLineEnd(
+            at location: Int,
+            in textView: UITextView,
+            point: CGPoint
+        ) -> Bool {
+            let nsText = textView.text as NSString
+            let line = nsText.lineRange(for: NSRange(location: min(location, nsText.length), length: 0))
+            let manager = textView.layoutManager
+            let glyphs = manager.glyphRange(forCharacterRange: line, actualCharacterRange: nil)
+            var used = CGRect.null
+            manager.enumerateLineFragments(forGlyphRange: glyphs) { _, usedRect, _, _, _ in
+                used = used.union(usedRect)
+            }
+            guard !used.isNull else { return false }
+
+            let inset = textView.textContainerInset
+            // 行送りの空きまで含めると下の広い余白と地続きになるので、文字のある高さだけで見る
+            let band = used.offsetBy(dx: inset.left, dy: inset.top).insetBy(dx: 0, dy: -4)
+            guard band.minY <= point.y, point.y <= band.maxY else { return false }
+            return point.x < band.minX || point.x > band.maxX
         }
 
         /// ページ番号から離れたら通常のキーボードへ戻す（数字キーボードのまま取り残さない）

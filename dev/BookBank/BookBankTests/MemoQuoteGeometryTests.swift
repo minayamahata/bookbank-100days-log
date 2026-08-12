@@ -225,6 +225,80 @@ struct MemoQuoteGeometryTests {
         #expect(bridge.canUndo, "「ひとつ戻す」で戻せる")
     }
 
+    /// ページ番号と同じ行の余白を触ったら、番号の外へ出て通常のキーボードに戻る
+    /// （**2026-08-12 オーナー報告**——メモの末尾がページ番号だと、テンキーに改行キーが
+    /// 無いぶん先へ進めなくなっていた）。行より下の広い余白は対象にしない——そちらは
+    /// 「キャレットを動かさずキーボードだけ戻す」ままにする（同日の別の手当て）
+    @Test func tappingPastAPageNumberLeavesTheNumberPad() throws {
+        func escape(memo: String, caret: Int, point: (CGRect) -> CGPoint) throws -> (
+            escaped: Bool, numeric: Bool, caret: Int
+        ) {
+            let numeric = Flag(true)
+            let editor = MemoEditorTextView(
+                text: .constant(memo),
+                selectedRange: .constant(NSRange(location: caret, length: 0)),
+                prefersNumericKeyboard: Binding(
+                    get: { numeric.value }, set: { numeric.value = $0 }
+                ),
+                accentColor: .blue,
+                bridge: MemoEditorBridge()
+            )
+            let coordinator = editor.makeCoordinator()
+            let (textView, manager, storage) = makeTextView(text: memo)
+            coordinator.quoteLayoutManager = manager
+            coordinator.textStorage = storage
+            textView.selectedRange = NSRange(location: caret, length: 0)
+            // 出典ページの行は右寄せなど見た目の手当てが入るので、本番と同じ組み方で測る
+            coordinator.applyStyling(to: textView, accent: .blue)
+            manager.ensureLayout(for: textView.textContainer)
+
+            let line = manager.lineFragmentUsedRect(
+                forGlyphAt: manager.glyphIndexForCharacter(at: caret - 1), effectiveRange: nil
+            ).offsetBy(dx: 0, dy: textView.textContainerInset.top)
+            let escaped = coordinator.escapePageMarker(in: textView, tappedAt: point(line))
+            return (escaped, numeric.value, textView.selectedRange.location)
+        }
+
+        // 末尾がページ番号: 同じ行の右の余白を触ると番号の外へ出て、通常のキーボードに戻る
+        let sameLine = try escape(memo: "本文p.42", caret: 6) {
+            CGPoint(x: $0.maxX + 40, y: $0.midY)
+        }
+        #expect(sameLine.escaped)
+        #expect(sameLine.numeric == false, "テンキーから抜ける（ここから改行できる）")
+        #expect(sameLine.caret == 6, "キャレットはページ番号の直後")
+
+        // 行より下の広い余白は現状維持（キャレットを動かさずキーボードだけ戻す側の担当）
+        let below = try escape(memo: "本文p.42", caret: 6) {
+            CGPoint(x: $0.maxX + 40, y: $0.maxY + 40)
+        }
+        #expect(below.escaped == false)
+        #expect(below.numeric, "触った先が行の外なら、この規則は何もしない")
+
+        // 文字の上を触ったときも何もしない（`UITextView` が自分でその場所へ入れる）
+        let onText = try escape(memo: "本文p.42", caret: 6) {
+            CGPoint(x: $0.midX, y: $0.midY)
+        }
+        #expect(onText.escaped == false)
+
+        // 行末に番号が無ければ触らない（行末へ入るのが当たり前の動き）
+        let midLine = try escape(memo: "本文p.42のところ", caret: 6) {
+            CGPoint(x: $0.maxX + 40, y: $0.midY)
+        }
+        #expect(midLine.escaped == false)
+
+        // 引用の出典ページ（右寄せの行）は、余白が番号の**左**にある
+        let quotePage = try escape(memo: "> 引用\np.83", caret: 8) {
+            CGPoint(x: max($0.minX - 40, 0), y: $0.midY)
+        }
+        #expect(quotePage.escaped)
+        #expect(quotePage.numeric == false)
+    }
+
+    private final class Flag {
+        var value: Bool
+        init(_ value: Bool) { self.value = value }
+    }
+
     /// 引用の冒頭がつながりでも、行頭でEnterを押せば上に空行ができる
     /// （**2026-08-12 オーナー報告A**——`> ` を飛ばした先がそのまま `[[` の中になり、
     /// 行頭に見える位置がつながりの内側だった。そこでEnterを押すと「括弧の外へ出る」規則が
