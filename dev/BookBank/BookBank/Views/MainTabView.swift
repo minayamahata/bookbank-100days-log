@@ -53,6 +53,11 @@ class BookshelfChromeState {
     /// 本棚タブがカレンダー表示中か
     var isCalendar = false
 
+    /// 本棚内検索モード中か。検索モードのあいだは本棚タブの＋ボタンを隠す
+    /// （0件画面の「本を登録する」と重複するため。キーボードの有無ではなく
+    /// モードで判定する——キーボードを閉じても検索モードは続く・2026-08-12 オーナー確定）
+    var isSearching = false
+
     /// つながりでの絞り込み（nil = 絞り込みなし・同時に選べるのは1つ）。
     /// `BookshelfView` のローカル状態ではなくここに置くのは、口座切替（`.id` による
     /// View再生成）をまたいで維持するため——絞り込んだまま口座を切り替えると
@@ -412,7 +417,8 @@ struct MainTabView: View {
             // プラスボタン（右下に配置、タブバーの上）- リキッドグラス風
             // 口座タブ(0)、ナビゲーション中、詳細画面表示中は非表示
             // 総合口座の通帳タブ(1)では丸アクションボタンに「本の追加」があるため非表示
-            if !isNavigating && !floatingButtonState.isHidden && selectedTab != 0 && !passbookSheetChromeState.isExpanded && !(selectedTab == 1 && isOverallMode) {
+            // 本棚タブ(2)の検索モード中も非表示（0件画面の「本を登録する」と重複するため）
+            if !isNavigating && !floatingButtonState.isHidden && selectedTab != 0 && !passbookSheetChromeState.isExpanded && !(selectedTab == 1 && isOverallMode) && !(selectedTab == 2 && bookshelfChromeState.isSearching) {
                 HStack {
                     Spacer()
                     

@@ -55,6 +55,9 @@ struct BookshelfView: View {
     /// 検索フィールドのフォーカス
     @FocusState private var isSearchFieldFocused: Bool
 
+    /// つながり一覧を全件に展開しているか（検索モードに入り直すと畳んだ状態に戻る）
+    @State private var showsAllLinks = false
+
     /// 月別メモ編集用（口座横断・年月ごとに1つ。全口座のカレンダーから編集可能）
     /// 年・月・本文を1つの値で持ち、`.sheet(item:)` で開くことで
     /// 常に正しい月のデータで開き直され、別の月のメモを保存してしまう不具合を防ぐ
@@ -327,6 +330,9 @@ struct BookshelfView: View {
                 // 共有 chrome を状態源として採用し、外部からのカレンダー起動（通帳からの導線）を反映する
                 showCalendarView = bookshelfChromeState.isCalendar
             }
+            // 口座切替（.id によるView再生成）で検索モードは終わるので、
+            // ＋ボタン用の共有状態が「検索中」のまま残らないよう同期する
+            bookshelfChromeState.isSearching = isSearching
         }
         .onChange(of: showCalendarView) { _, newValue in
             if managesCalendarChrome {
@@ -588,12 +594,18 @@ struct BookshelfView: View {
         .buttonStyle(.plain)
     }
 
+    /// 一覧に最初から出すつながりの数（多い順の上位）。実際は数十件に収まる想定だが、
+    /// 上限が無いと際限なく伸びるため区切る（2026-08-12 実機確認を受けたオーナー指示）
+    private static let linkListDisplayLimit = 20
+
     /// 検索の入力前に出す、つながりの一覧（多い順・件数つき）。
     /// 全部のつながりを見られる場所で、表記ゆれ（[[京都]] と [[きょうと]]）に
-    /// 気づく場所を兼ねる（設計メモ 4.1節）。つながりが1つも無ければ何も出ない
+    /// 気づく場所を兼ねる（設計メモ 4.1節）。つながりが1つも無ければ何も出ない。
+    /// 上限を超えるぶんは「もっと見る」で全件に展開する
     @ViewBuilder
     private var linkListSection: some View {
         let links = linkIndex.links
+        let visibleLinks = showsAllLinks ? links : Array(links.prefix(Self.linkListDisplayLimit))
         if !links.isEmpty {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(spacing: 6) {
@@ -604,8 +616,12 @@ struct BookshelfView: View {
                 .foregroundColor(bookshelfControlColor.opacity(0.7))
 
                 ChipFlowLayout(spacing: 8, lineSpacing: 8) {
-                    ForEach(links, id: \.key) { link in
+                    ForEach(visibleLinks, id: \.key) { link in
                         linkSuggestionChip(link, showsIcon: false)
+                    }
+
+                    if links.count > visibleLinks.count {
+                        showMoreLinksChip(remaining: links.count - visibleLinks.count)
                     }
                 }
             }
@@ -613,6 +629,29 @@ struct BookshelfView: View {
             .padding(.horizontal, 20)
             .padding(.bottom, 20)
         }
+    }
+
+    /// 一覧の続きを開くチップ（残り件数つき）。押すと全件に展開する
+    private func showMoreLinksChip(remaining: Int) -> some View {
+        Button(action: { showsAllLinks = true }) {
+            HStack(spacing: 4) {
+                Text(L10n.format("bookshelf.links.show_more", Int64(remaining)))
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 9, weight: .semibold))
+            }
+            .font(.system(size: 13))
+            .foregroundColor(bookshelfControlColor.opacity(0.7))
+            .padding(.horizontal, 12)
+            .padding(.vertical, 7)
+            .overlay(
+                Capsule().strokeBorder(
+                    bookshelfControlColor.opacity(0.3),
+                    style: StrokeStyle(lineWidth: 1, dash: [3, 3])
+                )
+            )
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
     }
 
     /// 検索語に一致するつながりのチップ（検索結果の上・決定事項3）。
@@ -644,11 +683,16 @@ struct BookshelfView: View {
         }
     }
 
-    /// 検索モードに入る（フィールドを展開してフォーカス）
+    /// 検索モードに入る（フィールドを展開してフォーカス）。
+    /// 検索モード中は右下の＋ボタンを隠すため、共有状態にも反映する
+    /// （0件画面の「本を登録する」と重複するため・2026-08-12 オーナー確定）。
+    /// つながり一覧は入り直すたびに畳んだ状態から始める
     private func enterShelfSearch() {
+        showsAllLinks = false
         withAnimation(.easeInOut(duration: 0.2)) {
             isSearching = true
         }
+        bookshelfChromeState.isSearching = true
         isSearchFieldFocused = true
     }
 
@@ -659,6 +703,7 @@ struct BookshelfView: View {
         withAnimation(.easeInOut(duration: 0.2)) {
             isSearching = false
         }
+        bookshelfChromeState.isSearching = false
     }
 
     /// タブ切替風のフィルター項目（等幅）。カプセルで個々を囲まず、
@@ -786,7 +831,7 @@ struct BookshelfView: View {
                 NavigationLink(value: BookSearchDestination(passbook: registrationPassbook)) {
                     HStack(spacing: 6) {
                         Image(systemName: "magnifyingglass")
-                        Text("bookshelf.search.online_cta")
+                        Text("book.register")
                     }
                     .font(.subheadline.weight(.semibold))
                     .foregroundColor(bookshelfControlColor)
