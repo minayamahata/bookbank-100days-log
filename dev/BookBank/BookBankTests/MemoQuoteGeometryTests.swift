@@ -221,8 +221,53 @@ struct MemoQuoteGeometryTests {
 
         #expect(allowed == false, "改行は自分で入れる（そのまま通すと引用の内側に入る）")
         #expect(textView.text == "\n" + memo, "引用の上に空行ができ、引用は下がる")
-        #expect(textView.selectedRange.location == 3, "キャレットは下がった引用の行頭に付いていく")
+        #expect(textView.selectedRange.location == 0, "キャレットは作った空行に入る（そのまま書ける）")
         #expect(bridge.canUndo, "「ひとつ戻す」で戻せる")
+    }
+
+    /// 引用の隣の空行は触れる幅を残す（**2026-08-12 オーナー報告**——引用の上の空行を
+    /// タップするとカーソルが引用に入ってしまい、作った空行に書けなかった）。
+    /// 囲みの内側の余白（18pt）は引用の行の領域なので、そこを触れば引用に入るのが正しい。
+    /// 空行の領域が狭いと指のわずかなずれで余白側に落ちるため、空行は詰めないでおく
+    @Test func blankLinesNextToAQuoteStayTappable() throws {
+        let lineHeight = UIFont.preferredFont(forTextStyle: .body).lineHeight
+
+        for memo in ["\n> 引用の行\np.", "> 引用の行\np.\n\nあとの行", "> 一\np.\n\n> 二\np."] {
+            let (textView, manager) = try Self.makeEditor(memo: memo)
+            let nsText = textView.text as NSString
+
+            var blanks: [Int] = []
+            var location = 0
+            while location < nsText.length {
+                let line = nsText.lineRange(for: NSRange(location: location, length: 0))
+                if nsText.substring(with: line).trimmingCharacters(in: .whitespacesAndNewlines)
+                    .isEmpty {
+                    blanks.append(line.location)
+                }
+                location = NSMaxRange(line)
+            }
+            try #require(!blanks.isEmpty, "空行のあるメモで見る: \(memo.debugDescription)")
+
+            for blank in blanks {
+                let glyph = manager.glyphIndexForCharacter(at: blank)
+                let band = manager.lineFragmentRect(forGlyphAt: glyph, effectiveRange: nil)
+                    .offsetBy(dx: 0, dy: textView.textContainerInset.top)
+
+                #expect(
+                    band.height >= lineHeight + MemoEditorTextView.paragraphSpacing - 0.5,
+                    "引用の隣でも空行は詰めない: \(memo.debugDescription)"
+                )
+                for y in [band.minY + 2, band.midY, band.maxY - 2] {
+                    let position = try #require(
+                        textView.closestPosition(to: CGPoint(x: 150, y: y))
+                    )
+                    #expect(
+                        textView.offset(from: textView.beginningOfDocument, to: position) == blank,
+                        "空行の領域を触ったら空行にカーソルが入る: \(memo.debugDescription) y=\(y)"
+                    )
+                }
+            }
+        }
     }
 
     /// 「ひとつ戻す」はiOS標準の取り消し機構に相乗りする。取り消すと復元された範囲が選択される

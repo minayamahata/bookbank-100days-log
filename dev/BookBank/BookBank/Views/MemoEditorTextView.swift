@@ -636,11 +636,14 @@ struct MemoEditorTextView: UIViewRepresentable {
                 // 入れた改行がこの規則に再入しないよう、印を立ててから呼ぶ
                 isOpeningLineAboveQuote = true
                 defer { isOpeningLineAboveQuote = false }
-                // キャレットは引用の文字に付いていく（下がった引用の行頭のまま）
+                // **キャレットは新しくできた空行に置く**（**2026-08-12 オーナー確定**——
+                // 一般のエディタは文字の側にキャレットを残すが、iOSには矢印キーが無く、
+                // 空行へ戻る手段がタップだけになる。そのタップが引用に吸われて
+                // 「作った空行に入力できない」状態になったため、標準の挙動から外れる）
                 _ = parent.bridge.replace(
                     NSRange(location: opening, length: 0),
                     with: "\n",
-                    caretLocation: range.location + 1
+                    caretLocation: opening
                 )
                 return false
             }
@@ -1134,11 +1137,24 @@ struct MemoEditorTextView: UIViewRepresentable {
             }
 
             for gap in gaps.values {
+                // 空行を詰めない（**2026-08-12 オーナー報告**——引用の隣の空行は
+                // 「そこに書くために空けた行」なので、詰めると触れる幅が狭くなり、
+                // 囲みの内側の余白と紛れてタップが引用に吸われる）。
+                // 詰めるのは文字のある行だけ——囲みと本文が離れて見えるのを防ぐための手当てなので、
+                // 文字が無いなら詰める理由がない
+                let isBlank = nsText.substring(with: gap.range)
+                    .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                 let style = NSMutableParagraphStyle()
                 // 囲みに面していない側は段落の空きのまま（本文どうしの行送りを変えない）
                 style.paragraphSpacing = MemoEditorTextView.paragraphSpacing
-                if gap.before { style.paragraphSpacingBefore = MemoQuoteBackgroundLayoutManager.gapToNeighbor }
-                if gap.after { style.paragraphSpacing = MemoQuoteBackgroundLayoutManager.gapToNeighbor }
+                if !isBlank {
+                    if gap.before {
+                        style.paragraphSpacingBefore = MemoQuoteBackgroundLayoutManager.gapToNeighbor
+                    }
+                    if gap.after {
+                        style.paragraphSpacing = MemoQuoteBackgroundLayoutManager.gapToNeighbor
+                    }
+                }
                 storage.addAttribute(.paragraphStyle, value: style, range: gap.range)
             }
         }
