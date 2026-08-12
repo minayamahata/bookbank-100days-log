@@ -117,6 +117,10 @@ struct MemoFormattedText: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(18)
                         .background(Color(.quaternarySystemFill))
+                        // 囲みの下は広めに空ける（編集画面と同じ・ブロック間の6と合わせて18）
+                        .padding(
+                            .bottom, MemoQuoteBackgroundLayoutManager.gapBelowBox - 6
+                        )
                 case .quotePage(let digits):
                     // 出典ページは囲みの枠外・右下。装飾は付けず小さくするだけ（オーナー指示）。
                     // 未入力の行は保存時に消えるのでここには来ない

@@ -480,6 +480,35 @@ struct MemoQuoteGeometryTests {
         #expect(inlineBox.minX - previousEnd <= inset + margin, "離れすぎない")
     }
 
+    /// 囲みの**下**は広めに空ける（**2026-08-12 オーナー指示**で6→18。上は6のまま）——
+    /// 出典ページの行が囲みに貼り付いて見えていた
+    @Test func quoteBoxKeepsAWiderGapBelow() throws {
+        let (textView, manager) = try Self.makeEditor(memo: "まえの行\n> 引用\np.83\nあとの行")
+        let box = try #require(manager.quoteBoxes().first)
+        let nsText = textView.text as NSString
+
+        let page = nsText.range(of: "p.83")
+        let pageTop = manager.lineFragmentUsedRect(
+            forGlyphAt: manager.glyphIndexForCharacter(at: page.location), effectiveRange: nil
+        ).minY
+        #expect(
+            pageTop - box.maxY >= MemoQuoteBackgroundLayoutManager.gapBelowBox - 0.5,
+            "囲みの下と出典ページのあいだは18"
+        )
+
+        let headBottom = manager.lineFragmentUsedRect(
+            forGlyphAt: manager.glyphIndexForCharacter(at: 0), effectiveRange: nil
+        ).maxY
+        #expect(
+            box.minY - headBottom >= MemoQuoteBackgroundLayoutManager.gapToNeighbor - 0.5,
+            "囲みの上の空きは残る"
+        )
+        #expect(
+            box.minY - headBottom < MemoQuoteBackgroundLayoutManager.gapBelowBox,
+            "広げるのは下だけ（上は6のまま）"
+        )
+    }
+
     /// バッジ直後のカーソルは、テンキーで打っているあいだは枠の中、抜けたら枠の右外に立つ
     /// （**2026-08-12 オーナー指示**——タップで抜けても枠の中に見えたままで、
     /// Enterを押して初めて抜けたと分かる状態だった。位置は同じで、見せ方だけを切り替える）
