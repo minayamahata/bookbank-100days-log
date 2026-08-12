@@ -225,23 +225,6 @@ struct MemoQuoteGeometryTests {
         #expect(bridge.canUndo, "「ひとつ戻す」で戻せる")
     }
 
-    /// 画面下の帯（ツールバー）は畳んでも階層から外さない（**2026-08-12 オーナー報告B**——
-    /// テンキーから抜けたとき、戻ってきたツールバーが左上・ナビゲーションバーに重なる位置へ
-    /// 小さく描かれた）。畳めば高さ0、戻せば元の高さに戻ることを測っておく——
-    /// `if` で出し入れする実装に戻すと、この帯は「畳んだ状態」を持てなくなる
-    @Test func collapsedBottomBarKeepsItsPlaceInTheLayout() {
-        func measured(isCollapsed: Bool) -> CGSize {
-            let bar = CollapsibleBottomBar(isCollapsed: isCollapsed) {
-                Color.red.frame(height: 50)
-            }
-            return UIHostingController(rootView: bar)
-                .sizeThatFits(in: CGSize(width: 393, height: CGFloat.greatestFiniteMagnitude))
-        }
-
-        #expect(measured(isCollapsed: false).height == 50, "出しているときは中身の高さ")
-        #expect(measured(isCollapsed: true).height == 0, "畳んだら高さだけ0にする（外さない）")
-    }
-
     /// 引用の冒頭がつながりでも、行頭でEnterを押せば上に空行ができる
     /// （**2026-08-12 オーナー報告A**——`> ` を飛ばした先がそのまま `[[` の中になり、
     /// 行頭に見える位置がつながりの内側だった。そこでEnterを押すと「括弧の外へ出る」規則が

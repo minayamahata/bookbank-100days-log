@@ -584,6 +584,10 @@ struct BookBankTests {
         // 中にいなければ挿す（従来どおり・キャレットは `p.` の直後）
         #expect(toggled("本文", at: 2).text == "本文p.")
         #expect(toggled("本文", at: 2).caret == 4)
+        // 押した直後にもう一度押せば元に戻る（押し間違いの取り消し。
+        // このために**テンキー中もツールバーを畳まない**・設計メモ 4.5節）
+        let inserted = toggled("本文", at: 2)
+        #expect(toggled(inserted.text, at: inserted.caret).text == "本文")
         // 数字が入っていれば記号だけ外す（つながり・太字と同じ）
         #expect(toggled("本文p.42のところ", at: 5).text == "本文42のところ")
         #expect(toggled("本文p.42のところ", at: 5).caret == 4, "残した数字の後ろに置く")

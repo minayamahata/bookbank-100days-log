@@ -65,14 +65,11 @@ struct MemoEditorView: View {
             }
             .padding(.horizontal, 20)
             .safeAreaInset(edge: .bottom) {
-                // ツールバーは編集中は常に出す（設計メモ 4.5節）。畳むのは出典ページの
-                // 入力中（テンキー）だけ——キーボードが背の低いものに替わる一瞬、ツールバーが
-                // 元の高さのまま宙に浮いて見えるため（2026-08-11 オーナー指摘）。
-                // つながりを書いている間も畳まない（2026-08-12 オーナー指示・かわりに
-                // 「つなぐ」を光らせて、いまどの装飾の中にいるかを伝える）
-                CollapsibleBottomBar(isCollapsed: prefersNumericKeyboard) {
-                    editorToolbar
-                }
+                // ツールバーは編集中**ずっと**出す（設計メモ 4.5節）。テンキー中に畳む仕様は
+                // **2026-08-12 オーナー確定で廃止**——ページ番号ボタンをトグルにした以上、
+                // 押した直後に畳むと「押し間違いをもう一度押して消す」ができない。
+                // 条件分岐が無くなったので、帯を出し入れして壊す余地も無くなる
+                editorToolbar
             }
             .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
