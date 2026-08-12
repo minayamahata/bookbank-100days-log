@@ -7,412 +7,147 @@
 ## プロジェクト概要
 
 **BookBank（読書銀行）**
-読んだ本の金額を貯金のように積み立てていく、知的エンタメiOSアプリ
+読んだ本の金額を貯金のように積み立てていく、知的エンタメiOSアプリ。
+App Store公開済み・5言語対応（日本語・英語・韓国語・簡体字・繁体字）。
+
+プロジェクト構成・技術スタック・ビルドとテストの回し方・コードの約束・Git運用は
+**`AGENTS.md` を正とする**（ここには写さない——両方に書くと片方だけ古くなる）。
+リリース計画の正は `docs/implementation-roadmap.md`。本書が持つのは
+**現在のフェーズ・実装済み・未実装**の3つと、日付ごとの開発履歴。
 
 ---
 
-## プロジェクト構造
+## 現在のフェーズ（2026-08-13時点）
 
-```
-BookBank-100days-log/
-├── days/                          # 100日チャレンジの開発記録日報
-├── docs/                          # 設計ドキュメント
-│   ├── table.md                  # テーブル設計概要
-│   ├── tables-definition.md      # 詳細なテーブル定義
-│   ├── er-diagram.md             # ER図
-│   ├── crud.md                   # CRUD設計
-│   └── screen-list.md            # 画面一覧
-├── Roadmap.md                     # DAY54-100の開発計画
-└── dev/BookBank/                  # 実際のXcodeプロジェクト
-    ├── BookBank.xcodeproj
-    ├── BookBank/
-    │   ├── BookBankApp.swift     # アプリエントリーポイント
-    │   ├── ContentView.swift      # 口座一覧画面
-    │   ├── Models/                # データモデル
-    │   └── Views/                 # 画面コンポーネント
-    └── ...
-```
+**R4.5（v1.6.x）— メモつながり `[[ ]]` T1。実装は完了し、検収（ステップ9'）中。**
 
----
-
-## 技術スタック
-
-- **言語**: Swift
-- **UI**: SwiftUI
-- **データ管理**: SwiftData
-- **アーキテクチャ**: MVVM（予定）
-- **iOS最小バージョン**: iOS 17.0以降
+- 直近の完了リリースは **v1.6.0（R4・リポジトリ抽象化・2026-08-07）**
+- R4.5の実装ステップ5'〜8'（パーサ・表示・編集ツールバー・チップ行と絞り込み）は完了（2026-08-11〜12）
+- 検収の残タスク:
+  - N0エクスポートによる既存メモとの衝突確認（**人間タスク**。手順は `docs/memo-tagging-design.md` 8章、走査は `tools/memo-markup-check.py`）
+  - 実機確認の残項目（同 4.6節）
+  - 同乗させる「UI改善」の選定（未着手・バックログから）
+- 次のリリースは **R6（v2.0.0）クラウド移行**（Firebase Auth + Firestore）。以降は R8 Web v1 → R9 課金刷新 → R5 ノードグラフ → … と**直列**で進める（ロードマップ 1章）
 
 ---
 
 ## データモデル（SwiftData）
 
+R4（v1.6.0）以降、**View層はモデルを直接触らない**——取得・保存はリポジトリ
+（`Repositories/`・DTO）経由で、`@Model` を扱うのはリポジトリ実装と移行コードのみ。
+全モデルにR3で `uuid`（R6のFirestore docID用の安定ID）が入っている。
+R6でこの4モデルがFirestoreへ移行される（`docs/cloud-migration-architecture.md` 3.3節）。
+
 ### 1. Passbook（口座・通帳）
 
-ユーザーの書籍を分類・管理するための論理的なグループ
-
-**プロパティ**:
-- `name: String` - 口座名（例: "総合口座", "技術書", "漫画"）
-- `type: PassbookType` - 口座種別（overall/custom）
-- `sortOrder: Int` - 表示順序
-- `isActive: Bool` - 有効フラグ
-- `createdAt: Date` - 作成日時
-- `updatedAt: Date` - 更新日時
-
-**リレーション**:
-- `userBooks: [UserBook]` - この口座に登録されている書籍
-
-**Computed Properties**:
-- `isOverall: Bool` - 総合口座かどうか
-- `bookCount: Int` - 登録書籍数
-- `totalValue: Int` - 総額（登録時価格の合計）
-
-**ファクトリーメソッド**:
-- `createOverall()` - 総合口座を作成
-
----
+書籍を分類・管理する論理的なグループ。
+`name` / `type`（overall/custom）/ `sortOrder` / `isActive` /
+`colorIndex`・`customColorHex`（テーマカラー。カスタム色はUnlimited機能）/ `createdAt` / `updatedAt`。
+`userBooks` へカスケード削除のリレーション（口座を消すと本も消える）。
 
 ### 2. UserBook（ユーザー登録書籍）
 
-ユーザーが登録した書籍情報
+書籍マスター情報とユーザー固有情報を統合したモデル。
 
-**書籍マスター情報**:
-- `title: String` - 書籍タイトル
-- `author: String?` - 著者名
-- `isbn: String?` - ISBN
-- `publisher: String?` - 出版社
-- `publishedYear: Int?` - 出版年
-- `price: Int?` - 定価
-- `thumbnailURL: String?` - 表紙画像URL
-- `source: BookSource` - 登録元（api/manual）
+- **マスター情報**: `title` / `author` / `isbn` / `publisher` / `publishedYear` / `seriesName` /
+  `price` / `imageURL` / `coverImageData`（手動登録の表紙・外部ストレージ）/
+  `bookFormat` / `pageCount` / `source`（api/manual）
+- **ユーザー固有**: `memo`（プレーン文字列。R4.5の `[[ ]]` つながりや書式記号もこの中の文字にすぎない）/
+  `isFavorite` / `priceAtRegistration`・`currencyCode`（資産計算用）/ `registeredAt`
+- **リレーション**: `passbook`（所属口座）/ `readingLists`（逆参照）
 
-**ユーザー固有情報**:
-- `memo: String?` - ユーザーメモ
-- `isFavorite: Bool` - お気に入りフラグ
-- `priceAtRegistration: Int?` - 登録時点の価格（資産計算用）
-- `registeredAt: Date` - 書籍登録日時
-- `createdAt: Date` - 作成日時
-- `updatedAt: Date` - 更新日時
+### 3. ReadingList（読了リスト）
 
-**リレーション**:
-- `passbook: Passbook?` - 所属口座
+ユーザーが作るキュレーションリスト。`title` / `listDescription` / `colorIndex` /
+`bookIds`（並び順。R3で旧 `bookOrderData` からUUID配列へ移行）/ `books` リレーション。
 
-**Computed Properties**:
-- `displayAuthor: String` - 表示用の著者名
-- `displayPrice: String?` - 表示用の価格文字列
-- `hasISBN13: Bool` - ISBN-13形式かどうか
+### 4. MonthlyMemo（月別メモ）
+
+口座を横断して年月ごとに書くメモ。`year` / `month` / `text`。
+
+### （レガシー）Subscription
+
+スキーマには残っているが、**課金判定には使っていない**——現在の課金は
+`Services/UnlimitedManager.swift`（StoreKit 2・`Transaction.currentEntitlements`）で判定する。
 
 ---
 
-### 3. Subscription（サブスクリプション）
+## 実装済み機能（リリース履歴ベース）
 
-課金状態を管理（StoreKit 2連携予定）
+画面ごとの細かい変更は下の「開発履歴」に日付つきで残っている。ここでは
+「何ができるアプリか」と「どのリリースで入ったか」を持つ。
 
-**プロパティ**:
-- `plan: SubscriptionPlan` - プラン種別（free/pro）
-- `status: SubscriptionStatus` - 課金状態
-- `startedAt: Date` - 利用開始日時
-- `endedAt: Date?` - 利用終了日時
-- `createdAt: Date` - 作成日時
-- `updatedAt: Date` - 更新日時
+### 基盤（〜v1.3系・2026年1〜3月の集中開発）
 
-**Computed Properties**:
-- `isProActive: Bool` - Pro機能が利用可能かどうか
-- `isFree: Bool` - 無料プランかどうか
+- **口座（通帳）**: 複数口座＋総合口座（全口座の合算ビュー）。口座ごとのテーマカラー
+  （カスタム色はUnlimited）・追加/編集/削除・初回起動のオンボーディング
+- **本の登録**: 書籍検索（楽天ブックス・Google Books・NAVER。切り替え可能）・
+  バーコードスキャン・手動登録（表紙はカメラ/ライブラリから）
+- **通帳画面**: 登録した本が入金のように記帳される
+- **本棚**: 4カラムグリッド・月別カレンダービュー・フィルター（お気に入り/メモ）
+- **本の詳細・編集**: 表紙・価格・詳細情報・メモ（全画面エディタ）
+- **月別メモ**: 年月ごとのふりかえりメモ（カレンダービューから編集）
+- **読了リスト**: 本を選んでリスト化・並べ替え・Web共有（別リポジトリ `bookbank-share` がURLを発行）・
+  Markdownダウンロード
+- **統計**: 年別の金額・冊数グラフ（Swift Charts）・年別サマリー
+- **Unlimited課金**: StoreKit 2（年額/買い切り）。口座・読了リスト無制限、詳細エクスポートなど
+- **5言語ローカライズ**（ja/en/ko/zh-Hans/zh-Hant）・ダークモード対応
 
----
+### R1: v1.3.1 — 残バグ即応 ✅（2026-07-07〜09）
 
-## 実装済み機能
+価格・通貨記号・NAVERの未販売本の表示などのバグ修正（内訳はロードマップのR1表）。
 
-### ✅ アプリ初期化（BookBankApp.swift）
+### R2: v1.4.0 — 検索改修＋本棚内検索 ✅（2026-07-09・App Store公開）
 
-**実装内容**:
-- SwiftData ModelContainer設定
-- Passbook, UserBook, Subscriptionの3モデルを管理
-- 初回起動時にデフォルトの「総合口座」を自動作成
+- 書籍検索の非同期基盤を整理（検索の世代管理・エラー時の再試行UI・3プロバイダのページング統一）
+- **本棚内検索を新設**: フィルター行が検索フィールドに変形し、所有本をタイトル・著者で
+  ライブ絞り込み（`ShelfSearchMatcher`。仕様は `docs/bookshelf-search-spec.md`）
 
-**コード抜粋**:
-```swift
-init() {
-    let schema = Schema([
-        Passbook.self,
-        UserBook.self,
-        Subscription.self
-    ])
-    modelContainer = try ModelContainer(for: schema, ...)
-    initializeDefaultData()
-}
-```
+### R3: v1.5.0 — UUID導入 ✅（2026-07-09）
 
----
+クラウド移行の土台。全4モデルに `uuid` を追加（移行前バックアップ→バックフィル→整合性検証の
+防御層つき）。読了リストの並び順をUUID配列へ移行（設計メモ `docs/r3-uuid-migration-notes.md`）。
 
-### ✅ 口座一覧画面（ContentView.swift）
+### N0スパイク ✅ クローズ（2026-07-11〜19・リリースなし）
 
-**実装内容**:
-- NavigationStack導入
-- @Queryで全Passbookを取得（sortOrder順）
-- 各口座をタップで通帳画面に遷移
+ノードグラフ（R5）の方式検証。実本棚約400冊＋5言語テストデータで評価し、合否基準をクリア・
+パラメータ確定。成果物（評価ハーネス `tools/n0-spike/`・辞書・`docs/n0-spike-results.md`）は
+R5着手まで凍結。
 
-**表示項目**:
-- 口座名
-- 登録書籍数
-- 総額
+### R4: v1.6.0 — リポジトリ抽象化 ✅（2026-08-07）
 
----
+全Viewの `@Query` をリポジトリプロトコル（`Repositories/`・DTO）経由に置き換え、
+**View層からの `@Model` 参照をゼロに**。見た目・挙動を変えない内部改修で、R6で背後を
+Firestore実装に差し替えるための土台（設計メモ `docs/r4-repository-abstraction-notes.md`）。
 
-### ✅ 通帳画面（PassbookDetailView.swift）
+### R4.5: v1.6.x — メモつながり T1（進行中・2026-08-07〜）
 
-**実装内容**:
-- 総合口座の詳細表示
-- その口座に紐づくUserBookの一覧表示
-- iOS標準の`.listStyle(.insetGrouped)`スタイル
-- 空状態の処理（「まだ本が登録されていません」）
-- 本の詳細画面への遷移
-
-**表示項目**:
-- 上部: 口座名、合計金額、登録書籍数
-- リスト: 2カラムレイアウト（左：日付・タイトル・著者、右：金額）
-- 日付フォーマット: YYYY.MM.DD
+- **共有IDのuuid化** ✅（2026-08-07）: 再共有のたびに別URLが発行される不具合の解消
+- **メモつながり `[[ ]]`** ✅ 実装完了（2026-08-11〜12）: メモに `[[ラベル]]` と書くと、
+  同じラベルを書いた本同士がつながる。スキーマ変更ゼロ（メモ文字列のみ）。
+  メモ編集ツールバー（つなぐ・太字・引用・ページ番号・書式クリア・ひとつ戻す）、
+  編集画面のライブ装飾（記号を隠す）、詳細画面のつながりチップ行、本棚の絞り込み、
+  検索モードのつながり一覧（設計メモ `docs/memo-tagging-design.md`）
+- **検収（ステップ9'）進行中**——上の「現在のフェーズ」参照
 
 ---
 
-### ✅ 本棚画面（BookshelfView.swift）
+## 未実装機能（リリース割り当て済み）
 
-**実装内容**:
-- 全書籍を4カラムグリッド表示
-- iOS写真アプリスタイル（2pxギャップ、2px角丸）
-- レスポンシブ対応（画面幅の25%）
-- お気に入りマーク表示
-- 本の詳細画面への遷移
+正は `docs/implementation-roadmap.md`（依存関係・完了条件つき）。以下は実施順の要約で、
+食い違いが出たらロードマップを優先し本表を直す。
 
-**表示項目**:
-- 表紙画像（アスペクト比2:3）
-- お気に入りマーク（右上）
-- 薄いドロップシャドウ
-
----
-
-### ✅ 本の検索画面（BookSearchView.swift）
-
-**実装内容**:
-- 楽天Books API連携で実際の本を検索
-- タイトル・著者名の両方で検索（並行実行してマージ）
-- 発売日順（新しい順）でソート
-- 無限スクロール（ページング機能）
-- 検索結果から選択して連続登録可能
-- 入金トースト通知（¥XXX 入金しました！）
-- 登録済み本のグレーアウト + 「登録済み」バッジ表示
-- 「未登録のみを表示」フィルター機能
-- 検索結果が0件の場合、「手動で登録する」ボタンを表示
-- 右上のペンシルアイコンからも手動登録が可能
-
-**表示項目**:
-- 検索バー（タイトルまたは著者名）
-- 検索結果リスト（表紙画像、タイトル、著者、価格）
-- 空状態のメッセージ
-
----
-
-### ✅ 手動登録画面（AddBookView.swift）
-
-**実装内容**:
-- タイトル（必須 *）
-- 著者名（任意）
-- 価格（必須 * - 読書銀行のコンセプトに必須）
-- メモ（任意）
-- お気に入りフラグ
-- 保存後、自動的に通帳画面に戻る
-
-**バリデーション**:
-- タイトルと価格の両方が入力されていないと保存不可
-
----
-
-### ✅ 本の詳細画面（UserBookDetailView.swift）
-
-**実装内容**:
-- 表紙画像（ドロップシャドウ、角丸なし、サイズ200px）
-- お気に入りボタン（画像右上にオーバーレイ）
-- 削除ボタン（価格の右、グレーで控えめ）
-- 基本情報（タイトル、著者、価格）
-- 詳細情報（登録日、出版社、出版年、発行形態、ページ数）
-- メモ機能（全画面モーダルで編集）
-
-**表示項目**:
-- 表紙画像（薄いドロップシャドウ）
-- タイトル・著者・価格
-- 登録日（YYYY.MM.DD形式）
-- 出版社・出版年
-- 発行形態・ページ数
-- メモ（12pt、120px高さ）
-
----
-
-### ✅ メモ編集モーダル（MemoEditorView.swift）
-
-**実装内容**:
-- 全画面モーダル形式
-- ナビゲーションバー（キャンセル・完了ボタン）
-- 全画面TextEditor
-- プレースホルダー「メモを入力...」
-- 自動フォーカス
-- 変更確認アラート（変更がある場合のみ）
-
-**動作**:
-- 「完了」ボタンで保存して閉じる
-- 「キャンセル」ボタンで変更を破棄（確認あり）
-- 下スワイプでも閉じられる
-
----
-
-### ✅ 集計画面（StatisticsView.swift）
-
-**実装内容**:
-- Swift Chartsで年別の読書統計をグラフ表示
-- TabViewで年をスワイプ切り替え
-- 上段：金額の折れ線グラフ（緑色・直線・ポイントマーカー付き）
-- 下段：冊数の棒グラフ（緑色半透明・細い棒・角丸）
-- Y軸は右側配置、X軸は日本語表記（1月〜12月）
-- 未来の月は非表示、過去の年は全月表示
-
-**表示項目**:
-- 年表示（固定）
-- 金額グラフ（月別推移）
-- 冊数グラフ（月別推移）
-- ページインジケーター（ドット）
-- 読書レポートへのリンク
-
-**デバッグ機能**:
-- デバッグビルド時に過去3年分のテストデータを自動生成
-- テスト口座3つ（技術書、漫画、小説）
-- 各月1-3冊のランダムデータ
-
----
-
-## 未実装機能（次のステップ）
-
-### 🔜 最優先
-
-1. **ソート機能（通帳画面）**
-   - 日付順、価格順、タイトル順
-
-3. **グラフ表示**
-   - Swift Chartsで月別累計グラフ
-
-4. **統計画面**
-   - 読んだ本の総数、平均価格など
-
-5. **ISBN検索API連携**
-   - OpenBD APIで本の情報を自動取得
-
-6. **データエクスポート/インポート**
-   - CSV形式でバックアップ
-
-7. **設定画面**
-   - テーマカラー変更、通知設定など
-
----
-
-## ファイル一覧
-
-### コア
-
-```
-BookBank/
-├── BookBankApp.swift              # アプリエントリーポイント、SwiftData設定、RootView
-├── ContentView.swift               # （未使用）
-├── Views/
-│   ├── OnboardingView.swift       # オンボーディング画面
-│   ├── MainTabView.swift          # タブバー（通帳・本棚・集計の3つ）
-│   ├── PassbookSelectorView.swift # 口座選択画面
-│   ├── PassbookDetailView.swift   # 通帳画面（総合口座・カスタム口座対応）
-│   ├── BookshelfView.swift        # 本棚画面（口座別）
-│   ├── OverallBookshelfView.swift # 総合口座の本棚画面
-│   ├── StatisticsView.swift       # 集計画面（年別グラフ表示）
-│   ├── AddPassbookView.swift      # 口座追加画面
-│   ├── BookSearchView.swift       # 本の検索画面（口座選択機能付き）
-│   ├── AddBookView.swift          # 手動登録画面（口座選択機能付き）
-│   ├── UserBookDetailView.swift   # 本の詳細画面
-│   ├── MemoEditorView.swift       # メモ編集モーダル
-│   └── Components/
-│       ├── ThemedBackgroundView.swift  # 共通背景コンポーネント
-│       └── LiquidGlassButton.swift     # リキッドグラスボタン
-└── Services/
-    ├── RakutenBooksService.swift  # 楽天Books API通信
-    └── RakutenBooksModels.swift   # APIレスポンスモデル
-```
-
-### モデル
-
-```
-BookBank/Models/
-├── Passbook.swift                 # 口座モデル
-├── UserBook.swift                 # ユーザー登録書籍モデル
-└── Subscription.swift             # サブスクリプションモデル
-```
-
----
-
-## 開発の進め方
-
-### 現在のフェーズ: DAY54-70（実装初期フェーズ）
-
-**進捗**:
-- ✅ DAY54: Xcodeプロジェクト作成
-- ✅ DAY55: アプリ構造設計（SwiftData設定）
-- ✅ DAY56: データモデル実装
-- 🔜 DAY57-: UI実装、機能追加
-
----
-
-## 注意事項
-
-### SwiftDataの使い方
-
-**@Query でデータ取得**:
-```swift
-@Query(sort: \Passbook.sortOrder) private var passbooks: [Passbook]
-```
-
-**データ保存**:
-```swift
-context.insert(newPassbook)
-try context.save()
-```
-
-**リレーションのフィルタリング**:
-```swift
-private var userBooks: [UserBook] {
-    allUserBooks.filter { 
-        $0.passbook?.persistentModelID == passbook.persistentModelID 
-    }
-}
-```
-
----
-
-## Git構成
-
-- **リポジトリ**: `BookBank-100days-log`（日報・設計ドキュメント・Xcodeプロジェクト）
-- **管理方法**: 1つのリポジトリで統合管理（2026-01-15にサブモジュール構成から変更）
-
-**コミット時**:
-```bash
-# プロジェクトルートで
-cd /Users/37/AYAME-Cursor/BookBank-100days-log
-git add .
-git commit -m "メッセージ"
-git push origin main
-```
-
----
-
-## 参考リンク
-
-- [SwiftData Documentation](https://developer.apple.com/documentation/swiftdata)
-- [SwiftUI Documentation](https://developer.apple.com/documentation/swiftui)
-- [Swift Charts Documentation](https://developer.apple.com/documentation/charts)
-- [OpenBD API](https://openbd.jp/)
+| 順 | リリース | 内容 |
+|----|---------|------|
+| 1 | **R6 v2.0.0 クラウド移行** | Firebase Auth（ログイン）・Firestore・移行ウィザード・アカウント削除・エンタイトルメント同期（WebからUnlimitedを判定するため）・解析基盤・M2（ノード増枠）スキーマ |
+| 2 | **R8 Web v1** | iOS同等フル機能のWeb版（日本語UIのみ・文言は初日からi18n外部化。v1.1で韓国語版） |
+| 3 | **R9 v2.1.0 課金刷新** | RevenueCat化・月額プラン新設・買い切り販売停止（既存購入者の権利は引き継ぐ） |
+| 4 | **R5 ノードβ→本リリース** | ノードグラフ（本と本のつながりの可視化。N0で方式検証済み）・M1冊数枠（無料10冊）・T2つながりエッジ・**つながりラベルの一覧＋リネーム/統合**（R4.5からの申し送り・必須要件） |
+| 5 | **AF アフィリエイト** | publicShelves（β→本リリース） |
+| 6 | **R7 発見D1 → R10 D2+M3** | 匿名集計の裏側（D1）→ 点線レコメンド＋チケット（D2+M3。D1から1〜2ヶ月の蓄積後） |
+| 7 | **R11 Web課金** | RevenueCat Web Billing・特定商取引法に基づく表記 |
+| - | **EM1/EM2 読了リスト公開・埋め込み** | R6完了後ならいつでも可。時期はWeb v1公開後の隙間で判断 |
+| - | **残バグ（低優先）** | A-9（形態フィルター中の補完取りこぼし）・B-5（Google価格の丸め誤差） |
 
 ---
 
