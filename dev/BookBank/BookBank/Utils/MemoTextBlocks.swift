@@ -163,14 +163,19 @@ enum MemoQuotePage {
         return text as String
     }
 
-    /// 出典ページの行が本文の末尾にあるとき、その下に足す空行の位置（無ければ `nil`）。
-    /// ページ行はキャレットを `p.` の後ろへ押し戻すので、末尾にあると**そこから先へ出られない**——
-    /// テンキーには改行キーも文字へ戻る鍵も無いため、行き先の行そのものを用意しておく
+    /// **ページ番号で終わるメモ**に足す空行の位置（無ければ `nil`）。
+    /// テンキーには改行キーも文字へ戻る鍵も無いので、番号が末尾にあると先へ進む手がかりが無い——
+    /// 行き先の行そのものを用意しておく。保存時に落とすのでメモには残らない。
+    /// 出典ページの行（キャレットを `p.` の後ろへ押し戻すので、なおのこと出られない）に加えて、
+    /// **文中のページ番号（`本文p.42`）でも足す**（**2026-08-12 オーナー報告**——
+    /// 末尾に入れた直後、同じ行を触っても行き先が無く、番号の中に留まって見えた）
     static func trailingBlankLineInsertion(in memo: String) -> Int? {
         let length = (memo as NSString).length
+        guard length > 0 else { return nil }
         let hasTrailingPageLine = MemoTextBlocks.quotePageLineRanges(in: memo)
             .contains { NSMaxRange($0) == length }
-        return hasTrailingPageLine ? length : nil
+        let endsWithPageMarker = MemoPageMarker.enclosing(memo.endIndex, in: memo) != nil
+        return hasTrailingPageLine || endsWithPageMarker ? length : nil
     }
 
     /// 編集画面に載せる形。出典ページの案内と、その下の行き先の行を用意する

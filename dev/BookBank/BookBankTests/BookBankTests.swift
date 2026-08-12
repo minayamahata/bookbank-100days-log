@@ -595,6 +595,10 @@ struct BookBankTests {
         #expect(toggled("本文p.", at: 4).text == "本文")
         // 出典ページの行は数字だけ落として枠は残す（`p.` を外すと数字だけの行が残ってしまう）
         #expect(toggled("> 引用\np.83\n", at: 8).text == "> 引用\np.\n")
+        // ただし**引用の直後の行だけ**。単独の行に打ったページ番号は文中と同じ扱いにする
+        // （2026-08-12 オーナー報告——打った数字のほうが消えていた）
+        #expect(toggled("p.42", at: 4).text == "42")
+        #expect(toggled("本文\np.42", at: 7).text == "本文\n42")
     }
 
     /// 引用の解除は「触れている行がすべて引用のとき」だけ。一部なら付ける側の操作
@@ -942,6 +946,13 @@ struct BookBankTests {
             "続きがあるなら足さない"
         )
         #expect(MemoQuotePage.trailingBlankLineInsertion(in: "ふつうの本文") == nil)
+
+        // 文中のページ番号でも、末尾にあるなら行き先を用意する（2026-08-12 オーナー報告——
+        // 末尾に入れた直後、同じ行を触っても行き先が無く、番号の中に留まって見えた）
+        #expect(MemoQuotePage.trailingBlankLineInsertion(in: "本文p.42") == 6)
+        #expect(MemoQuotePage.trailingBlankLineInsertion(in: "本文p.") == 4, "数字を打つ前でも足す")
+        #expect(MemoQuotePage.trailingBlankLineInsertion(in: "本文p.42\n") == nil, "足したら止まる")
+        #expect(MemoQuotePage.trailingBlankLineInsertion(in: "本文p.42のところ") == nil)
 
         #expect(MemoQuotePage.preparedForEditing("> 引用") == "> 引用\np.\n", "案内と行き先をまとめて用意")
         #expect(MemoQuotePage.preparedForEditing("> 引用\np.42\n本文") == "> 引用\np.42\n本文")

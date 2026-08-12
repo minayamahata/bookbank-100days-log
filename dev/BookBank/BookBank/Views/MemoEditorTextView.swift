@@ -643,17 +643,22 @@ struct MemoEditorTextView: UIViewRepresentable {
             let line = nsText.lineRange(for: NSRange(location: min(location, nsText.length), length: 0))
             let manager = textView.layoutManager
             let glyphs = manager.glyphRange(forCharacterRange: line, actualCharacterRange: nil)
+            var band = CGRect.null
             var used = CGRect.null
-            manager.enumerateLineFragments(forGlyphRange: glyphs) { _, usedRect, _, _, _ in
+            manager.enumerateLineFragments(forGlyphRange: glyphs) { rect, usedRect, _, _, _ in
+                band = band.union(rect)
                 used = used.union(usedRect)
             }
-            guard !used.isNull else { return false }
+            guard !band.isNull, !used.isNull else { return false }
 
             let inset = textView.textContainerInset
-            // 行送りの空きまで含めると下の広い余白と地続きになるので、文字のある高さだけで見る
-            let band = used.offsetBy(dx: inset.left, dy: inset.top).insetBy(dx: 0, dy: -4)
+            // 上下は**行に割り当てられた帯**で見る（文字の高さだけだと、狙って触っても外れる）。
+            // ページ番号で終わるメモには下に空行を用意してあるので、帯を広く取っても
+            // 「行より下の広い余白」とは混ざらない——そこは空行の帯になる
+            band = band.offsetBy(dx: inset.left, dy: inset.top)
+            used = used.offsetBy(dx: inset.left, dy: inset.top)
             guard band.minY <= point.y, point.y <= band.maxY else { return false }
-            return point.x < band.minX || point.x > band.maxX
+            return point.x < used.minX || point.x > used.maxX
         }
 
         /// ページ番号から離れたら通常のキーボードへ戻す（数字キーボードのまま取り残さない）

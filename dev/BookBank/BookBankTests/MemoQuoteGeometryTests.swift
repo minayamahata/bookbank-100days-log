@@ -233,9 +233,11 @@ struct MemoQuoteGeometryTests {
         func escape(memo: String, caret: Int, point: (CGRect) -> CGPoint) throws -> (
             escaped: Bool, numeric: Bool, caret: Int
         ) {
+            // 編集画面に載る形（ページ番号で終わるメモには行き先の空行が付く）で測る
+            let prepared = MemoQuotePage.preparedForEditing(memo)
             let numeric = Flag(true)
             let editor = MemoEditorTextView(
-                text: .constant(memo),
+                text: .constant(prepared),
                 selectedRange: .constant(NSRange(location: caret, length: 0)),
                 prefersNumericKeyboard: Binding(
                     get: { numeric.value }, set: { numeric.value = $0 }
@@ -244,7 +246,7 @@ struct MemoQuoteGeometryTests {
                 bridge: MemoEditorBridge()
             )
             let coordinator = editor.makeCoordinator()
-            let (textView, manager, storage) = makeTextView(text: memo)
+            let (textView, manager, storage) = makeTextView(text: prepared)
             coordinator.quoteLayoutManager = manager
             coordinator.textStorage = storage
             textView.selectedRange = NSRange(location: caret, length: 0)
@@ -267,7 +269,8 @@ struct MemoQuoteGeometryTests {
         #expect(sameLine.numeric == false, "テンキーから抜ける（ここから改行できる）")
         #expect(sameLine.caret == 6, "キャレットはページ番号の直後")
 
-        // 行より下の広い余白は現状維持（キャレットを動かさずキーボードだけ戻す側の担当）
+        // 行より下（行き先の空行やその下の余白）は現状維持——キャレットを動かさず
+        // キーボードだけ戻す側の担当
         let below = try escape(memo: "本文p.42", caret: 6) {
             CGPoint(x: $0.maxX + 40, y: $0.maxY + 40)
         }
@@ -285,6 +288,16 @@ struct MemoQuoteGeometryTests {
             CGPoint(x: $0.maxX + 40, y: $0.midY)
         }
         #expect(midLine.escaped == false)
+
+        // 触ったこと自体を受け取れる状態か——キャレットが既に行末に在ると位置が動かず、
+        // 選択の変化を待つ作りではこの場面を拾えない（それで抜けられなくなっていた）
+        let (editorTextView, _) = try Self.makeEditor(memo: "本文p.42")
+        #expect(
+            editorTextView.gestureRecognizers?.contains {
+                $0 is UITapGestureRecognizer && $0.delegate is MemoEditorTextView.Coordinator
+            } == true
+        )
+        #expect(editorTextView.text == "本文p.42\n", "文中のページ番号でも行き先の空行を用意する")
 
         // 引用の出典ページ（右寄せの行）は、余白が番号の**左**にある
         let quotePage = try escape(memo: "> 引用\np.83", caret: 8) {

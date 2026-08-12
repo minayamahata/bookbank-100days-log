@@ -60,25 +60,29 @@ enum MemoFormatToggle {
         }
 
         let digits = text.index(marker.lowerBound, offsetBy: 2)..<marker.upperBound
+        // 引用の出典ページは行そのものが引用の一部なので、数字だけ落として枠は残す
+        // （`p.` を外すと数字だけの行が残り、その下に空のページ行が足し直される）。
+        // 数字がまだ無ければ何もしない——消しても同じ行がすぐ足し直されるだけ
+        if isQuotePageLine(marker, in: text) {
+            return Edit(replaced: digits, text: "", caretOffset: 0)
+        }
         if digits.isEmpty {
             return Edit(replaced: marker, text: "", caretOffset: 0)
-        }
-        if isPageOnlyLine(marker, in: text) {
-            return Edit(replaced: digits, text: "", caretOffset: 0)
         }
         let number = String(text[digits])
         return Edit(replaced: marker, text: number, caretOffset: number.count)
     }
 
-    /// その行がページ番号だけでできているか（引用の出典ページの行）
-    private static func isPageOnlyLine(
+    /// **引用の直後の**ページ番号だけの行か。「ページ番号だけの行」で見ると、引用と関係なく
+    /// 単独の行に打った `p.42` まで巻き込み、数字のほうが消えてしまう
+    /// （**2026-08-12 オーナー報告**）——引用のページ行かどうかは `MemoTextBlocks` に合わせる
+    private static func isQuotePageLine(
         _ marker: Range<String.Index>,
         in text: String
     ) -> Bool {
-        let lineStart = text[..<marker.lowerBound].lastIndex(where: \.isNewline)
-            .map { text.index(after: $0) } ?? text.startIndex
-        let lineEnd = text[marker.upperBound...].firstIndex(where: \.isNewline) ?? text.endIndex
-        return MemoQuotePage.digits(inPageOnlyLine: String(text[lineStart..<lineEnd])) != nil
+        let location = NSRange(marker, in: text).location
+        return MemoTextBlocks.quotePageLineRanges(in: text)
+            .contains { NSLocationInRange(location, $0) }
     }
 
     /// 引用。触れている行がすべて引用なら外し、そうでなければ行頭に `> ` を入れる
