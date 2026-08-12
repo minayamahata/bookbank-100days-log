@@ -328,6 +328,11 @@ struct MemoEditorTextView: UIViewRepresentable {
     /// 引用の中の文字色。本文より少し薄い黒（濃いめのグレー）で、書籍詳細と共有する
     static let quoteTextColor = UIColor.label.withAlphaComponent(0.75)
 
+    /// 書いている最中のつながりに敷く背景の濃さ（文字と同じテーマ色を薄くする）。
+    /// **2026-08-12 オーナー指示**——記号を隠したので、色だけではどこまでが中身か分からない。
+    /// 編集画面だけの手当てで、書籍詳細は文字色のままにする（背景は「いま書いている」印）
+    static let linkBackgroundAlpha: CGFloat = 0.1
+
     /// 太字の太さ。`bold` では本文との差が弱いので一段上げる（**2026-08-12 オーナー指示**）。
     /// 書籍詳細（`MemoFormattedText`）と共有する
     static let boldWeight: UIFont.Weight = .heavy
@@ -871,6 +876,18 @@ struct MemoEditorTextView: UIViewRepresentable {
                 }
             }
 
+            // いま中にいるつながりは、テーマ色を薄く敷いて範囲を見せる
+            // （**2026-08-12 オーナー指示**——記号が見えないので、色だけではどこまでが
+            // ひとまとまりなのか分からない）
+            let writingLink = Self.linkRange(enclosing: caret, in: text)
+            if let writingLink {
+                storage.addAttribute(
+                    .backgroundColor,
+                    value: accent.withAlphaComponent(MemoEditorTextView.linkBackgroundAlpha),
+                    range: writingLink
+                )
+            }
+
             // まだ中身が空の `[[]]`（「つなぐ」を押した直後の形）も記号を隠す
             // （2026-08-12 オーナー指示——`[[ ]]` はMarkdownを知らない人には意味が分からない）。
             // 何を書く場所なのかは、キャレットが中にある間だけ案内で伝える
@@ -880,15 +897,60 @@ struct MemoEditorTextView: UIViewRepresentable {
             )
 
             storage.endEditing()
-            textView.typingAttributes = baseAttributes
+            textView.typingAttributes = typingAttributes(
+                base: baseAttributes, writingLink: writingLink,
+                in: text, caret: caret, storage: storage, accent: accent
+            )
             textView.setNeedsDisplay()
         }
 
-        /// 変換中の文字がつながりの括弧の中にあるあいだは、その範囲だけテーマ色にする
-        /// （**2026-08-12 オーナー指示**——確定するまで本文と同じ色のままで、つながりとして
-        /// 入力できているのか分からなかった）。
+        /// これから打つ文字に当てる属性。**つながりの括弧の中では色を先に決めておく**
+        /// （**2026-08-12 オーナー指示**——1打目から色を出す。入力後に当て直す形だと、
+        /// 日本語では変換を確定するまで色が変わらず、確定後も一拍遅れて見えた）。
+        /// IMEの変換中の文字もこの属性で入るので、打ち始めた瞬間から色と背景が付く
+        private func typingAttributes(
+            base: [NSAttributedString.Key: Any],
+            writingLink: NSRange?,
+            in text: String,
+            caret: NSRange,
+            storage: NSTextStorage,
+            accent: UIColor
+        ) -> [NSAttributedString.Key: Any] {
+            guard writingLink != nil else { return base }
+            var attributes = base
+
+            // 行の見た目（引用なら小さめの文字・字下げ）は保つ
+            let nsText = text as NSString
+            let line = nsText.lineRange(for: NSRange(location: min(caret.location, nsText.length), length: 0))
+            if line.length > 0, line.location < storage.length,
+               let style = storage.attribute(.paragraphStyle, at: line.location, effectiveRange: nil) {
+                attributes[.paragraphStyle] = style
+            }
+            let isQuoteLine = line.length >= 2
+                && nsText.substring(with: NSRange(location: line.location, length: 2)) == "> "
+            let font = UIFont.preferredFont(forTextStyle: isQuoteLine ? .callout : .body)
+
+            attributes[.font] = UIFont.systemFont(ofSize: font.pointSize, weight: .semibold)
+            attributes[.foregroundColor] = accent
+            attributes[.backgroundColor] = accent
+                .withAlphaComponent(MemoEditorTextView.linkBackgroundAlpha)
+            return attributes
+        }
+
+        /// キャレットが中にいるつながり（中身が空の `[[]]` も含む）の範囲
+        private static func linkRange(enclosing caret: NSRange, in text: String) -> NSRange? {
+            guard caret.length == 0,
+                  let index = Range(caret, in: text)?.lowerBound,
+                  let pair = MemoLinkParser.enclosingPair(in: text, at: index)
+            else { return nil }
+            return NSRange(pair, in: text)
+        }
+
+        /// 変換中の文字がつながりの括弧の中にあるあいだは、その範囲をテーマ色にする
+        /// （**2026-08-12 オーナー指示**）。ふだんは打つ前に決めた属性（`typingAttributes`）で
+        /// 色が付くが、確定済みの文字を選び直して再変換したときはここが受け持つ。
         ///
-        /// 装飾を当て直すのではなく**色の属性を足すだけ**にするのが要点——`setAttributes` で
+        /// 装飾を当て直すのではなく**属性を足すだけ**にするのが要点——`setAttributes` で
         /// 全体を置き換えると、IMEが変換中の文字に付けている下線まで消える。日本語入力の
         /// 変換中は他の装飾に触らないという防御（4.6節）は、この一点をくり抜いて残す
         private func colorMarkedTextInsideLink(in textView: UITextView, accent: UIColor) {
@@ -899,12 +961,18 @@ struct MemoEditorTextView: UIViewRepresentable {
 
             let text = textView.text ?? ""
             guard let start = Range(NSRange(location: location, length: 0), in: text)?.lowerBound,
-                  MemoLinkParser.enclosingPair(in: text, at: start) != nil
+                  let pair = MemoLinkParser.enclosingPair(in: text, at: start)
             else { return }
 
-            textView.textStorage.addAttribute(
+            let storage = textView.textStorage
+            storage.addAttribute(
                 .foregroundColor, value: accent,
                 range: NSRange(location: location, length: length)
+            )
+            storage.addAttribute(
+                .backgroundColor,
+                value: accent.withAlphaComponent(MemoEditorTextView.linkBackgroundAlpha),
+                range: NSRange(pair, in: text)
             )
         }
 

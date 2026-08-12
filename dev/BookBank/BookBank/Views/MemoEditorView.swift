@@ -251,28 +251,23 @@ struct MemoEditorView: View {
         )
     }
 
-    /// 選択中ならそれを `[[ ]]` で囲み、無選択なら空の括弧を挿す。
-    /// どちらもキャレットは `]]` の手前に置く（記号は隠すので、案内だけが見える＝4.6節）
+    /// つながりのトグル（組み立ては `MemoFormatToggle`）
     private func insertLinkBrackets() {
-        let range = currentSelectionRange
-        let selected = String(editedText[range])
-        replaceRange(range, with: "[[\(selected)]]", caretOffset: 2 + selected.count)
+        apply(MemoFormatToggle.link(in: editedText, selecting: currentSelectionRange))
     }
 
-    /// 選択中ならそれを `**` で囲んで直後へ、無選択なら `****` を挿してキャレットを中へ
+    /// 太字のトグル
     private func wrapSelectionInBold() {
-        let range = currentSelectionRange
-        let selected = String(editedText[range])
-        let caretOffset = selected.isEmpty ? 2 : selected.count + 4
-        replaceRange(range, with: "**\(selected)**", caretOffset: caretOffset)
+        apply(MemoFormatToggle.bold(in: editedText, selecting: currentSelectionRange))
     }
 
-    /// 行頭に `> ` を入れ、あわせて出典ページの行を用意する（組み立ては `MemoQuoteInsertion`）
+    /// 引用のトグル
     private func insertQuote() {
-        let insertion = MemoQuoteInsertion.make(in: editedText, selecting: currentSelectionRange)
-        replaceRange(
-            insertion.replaced, with: insertion.text, caretOffset: insertion.caretOffset
-        )
+        apply(MemoFormatToggle.quote(in: editedText, selecting: currentSelectionRange))
+    }
+
+    private func apply(_ edit: MemoFormatToggle.Edit) {
+        replaceRange(edit.replaced, with: edit.text, caretOffset: edit.caretOffset)
     }
 
     /// `p.` を挿してキャレットを直後へ（数字はユーザーが打つ）。文字の挿入だけの入力補助。

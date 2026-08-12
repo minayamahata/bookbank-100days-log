@@ -470,6 +470,64 @@ struct BookBankTests {
         #expect(MemoLinkParser.enclosingPair(in: empty, at: caret) != nil)
     }
 
+    // MARK: - MemoHiddenMarkers / MemoFormatToggle（ツールバーの当て方・設計メモ 4.5節）
+
+    /// 隠れている記号は選択範囲から外す（**2026-08-12 オーナー報告**——引用の行頭から
+    /// 選んで「つなぐ」を押すと、見えていない `> ` まで囲まれて引用が解除されていた）
+    @Test func memoHiddenMarkersLeaveTheSelectionToTheVisibleCharacters() {
+        func trimmed(_ text: String, _ range: ClosedRange<Int>) -> String {
+            let start = text.index(text.startIndex, offsetBy: range.lowerBound)
+            let end = text.index(text.startIndex, offsetBy: range.upperBound)
+            return String(text[MemoHiddenMarkers.trimming(start..<end, in: text)])
+        }
+
+        // 引用行を行頭から選ぶ（`> ` が入ってしまう）
+        #expect(trimmed("> 引用の行", 0...4) == "引用")
+        // 太字・つながりの記号も同じ。中に挟まった記号はそのまま（まとまりごと囲みたいはず）
+        #expect(trimmed("**太字**のあと", 0...4) == "太字")
+        #expect(trimmed("[[京都]]の話", 0...6) == "京都")
+        // 記号しか選んでいなければ空になる（囲む文字が無い＝挿入と同じ扱い）
+        #expect(trimmed("> 引用の行", 0...2).isEmpty)
+    }
+
+    /// 押すたびに付いたり外れたりする（**2026-08-12 オーナー指示**——「つなぐ」の連打で
+    /// `[[]]` が入れ子になり、記号が画面に出ていた）
+    @Test func memoFormatTogglesRemoveTheFormatWhenTheCaretIsInside() {
+        func edited(_ text: String, at offset: Int, _ toggle: (String, Range<String.Index>) -> MemoFormatToggle.Edit) -> String {
+            let caret = text.index(text.startIndex, offsetBy: offset)
+            let edit = toggle(text, caret..<caret)
+            var result = text
+            result.replaceSubrange(edit.replaced, with: edit.text)
+            return result
+        }
+
+        // つながり: 中にいれば外す。空の括弧（押した直後の形）は跡形なく消える
+        #expect(edited("ああ[[京都]]いい", at: 5, MemoFormatToggle.link) == "ああ京都いい")
+        #expect(edited("[[]]", at: 2, MemoFormatToggle.link).isEmpty)
+        // 外にいれば従来どおり挿す
+        #expect(edited("ああ", at: 2, MemoFormatToggle.link) == "ああ[[]]")
+        // 太字も同じ
+        #expect(edited("ああ**太字**いい", at: 5, MemoFormatToggle.bold) == "ああ太字いい")
+        #expect(edited("ああ", at: 2, MemoFormatToggle.bold) == "ああ****")
+        // 引用は行ごと外す。空の出典ページの行は置き場を失うので一緒に落とす
+        #expect(edited("> 引用の行\np.", at: 4, MemoFormatToggle.quote) == "引用の行")
+        // 数字が入っている出典ページは残す（ユーザーが打ったものを消さない）
+        #expect(edited("> 引用の行\np.42", at: 4, MemoFormatToggle.quote) == "引用の行\np.42")
+    }
+
+    /// 引用の解除は「触れている行がすべて引用のとき」だけ。一部なら付ける側の操作
+    @Test func memoQuoteToggleRemovesOnlyWhenEveryTouchedLineIsQuoted() {
+        let text = "> 一行目\n> 二行目\nふつうの行"
+        let start = text.index(text.startIndex, offsetBy: 2)
+        let end = text.index(text.startIndex, offsetBy: 10)
+        let removal = try! #require(MemoQuoteInsertion.removal(in: text, selecting: start..<end))
+        #expect(removal.text == "一行目\n二行目")
+
+        // ふつうの行までかかっていれば外さない
+        let overflowing = text.index(text.startIndex, offsetBy: 13)
+        #expect(MemoQuoteInsertion.removal(in: text, selecting: start..<overflowing) == nil)
+    }
+
     // MARK: - MemoActiveFormats（ツールバーのアクティブ表示・設計メモ 4.5節）
 
     /// キャレットの位置から「いまどの装飾の中にいるか」を出す。記号を隠したぶん、

@@ -31,16 +31,9 @@ struct MemoActiveFormats: Equatable, Sendable {
         )
     }
 
-    /// `**` のペアの中身にいるか（記号そのものの上も中と見なす）
+    /// `**` のペアの中身にいるか（中身の両端も中と見なす）
     private static func isInsideBold(_ caret: String.Index, in text: String) -> Bool {
-        let links = MemoLinkParser.parse(text).map(\.range)
-        let markers = MemoLinkText.pairedBoldMarkers(in: text, excluding: links).sorted()
-        for pairStart in stride(from: 0, to: markers.count - 1, by: 2) {
-            let contentStart = text.index(markers[pairStart], offsetBy: 2)
-            let contentEnd = markers[pairStart + 1]
-            if caret >= contentStart && caret <= contentEnd { return true }
-        }
-        return false
+        MemoLinkText.enclosingBoldPair(in: text, at: caret) != nil
     }
 
     /// 行頭が `> ` の行にいるか（引用は行単位の仕組みなので、行のどこにいても中）

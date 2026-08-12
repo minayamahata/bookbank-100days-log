@@ -309,4 +309,29 @@ enum MemoLinkText {
 
         return paired
     }
+
+    /// ペアが成立している `**` のまとまり。`range` は記号を含む全体、`body` は中身。
+    /// 記号を隠したあとの編集（トグル・アクティブ表示・選択範囲の手当て）はここを見る
+    static func boldPairs(
+        in text: String
+    ) -> [(range: Range<String.Index>, body: Range<String.Index>)] {
+        let links = MemoLinkParser.parse(text).map(\.range)
+        let markers = pairedBoldMarkers(in: text, excluding: links).sorted()
+        return stride(from: 0, to: markers.count - 1, by: 2).map { pair in
+            let opening = markers[pair]
+            let closing = markers[pair + 1]
+            return (
+                range: opening..<text.index(closing, offsetBy: 2),
+                body: text.index(opening, offsetBy: 2)..<closing
+            )
+        }
+    }
+
+    /// `caret` に効いている `**` のまとまり（中身の両端も中と見なす＝そこで打てば太字になる）
+    static func enclosingBoldPair(
+        in text: String,
+        at caret: String.Index
+    ) -> (range: Range<String.Index>, body: Range<String.Index>)? {
+        boldPairs(in: text).first { $0.body.lowerBound <= caret && caret <= $0.body.upperBound }
+    }
 }

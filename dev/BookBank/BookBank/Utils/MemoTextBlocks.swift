@@ -295,6 +295,39 @@ enum MemoQuoteInsertion {
         let caretOffset: Int
     }
 
+    /// 引用の解除（トグルの戻り側・**2026-08-12 オーナー指示**——押すたびに付いたり外れたりが自然）。
+    /// 選択が触れている行が**すべて**引用のときだけ外す（一部だけなら付ける側の操作と見なす）。
+    /// あわせて、直後の出典ページの行が空なら落とす——引用でなくなると置き場を失い、`p.` が
+    /// そのまま本文に残ってしまう。数字が入っている行は残す（ユーザーが打ったものを消さない）
+    static func removal(in text: String, selecting range: Range<String.Index>) -> Result? {
+        let lineStart = text[..<range.lowerBound].lastIndex(where: \.isNewline)
+            .map { text.index(after: $0) } ?? text.startIndex
+        let lineEnd = text[range.upperBound...].firstIndex(where: \.isNewline) ?? text.endIndex
+        guard lineStart < lineEnd else { return nil }
+
+        let lines = text[lineStart..<lineEnd].components(separatedBy: "\n")
+        guard lines.allSatisfy({ $0.hasPrefix("> ") }) else { return nil }
+        let unquoted = lines.map { String($0.dropFirst(2)) }.joined(separator: "\n")
+
+        var replaced = lineStart..<lineEnd
+        if lineEnd < text.endIndex {
+            let nextStart = text.index(after: lineEnd)
+            let nextEnd = text[nextStart...].firstIndex(where: \.isNewline) ?? text.endIndex
+            if MemoQuotePage.digits(inPageOnlyLine: String(text[nextStart..<nextEnd]))?.isEmpty
+                == true {
+                replaced = lineStart..<nextEnd
+            }
+        }
+
+        return Result(
+            replaced: replaced,
+            text: unquoted,
+            caretOffset: range.isEmpty
+                ? max(0, text.distance(from: lineStart, to: range.lowerBound) - 2)
+                : unquoted.count
+        )
+    }
+
     static func make(in text: String, selecting range: Range<String.Index>) -> Result {
         let selected = String(text[range])
 
