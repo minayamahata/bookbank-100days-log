@@ -477,6 +477,23 @@ struct BookBankTests {
         #expect(MemoActiveFormats.at(overlongCaret, in: overlong).link == false)
     }
 
+    // MARK: - MemoIMELinkStyling（日本語IMEまわり・設計メモ 4.6節）
+
+    /// レビューで固定する測定3点——変換中の装飾が壊れない約束
+    @Test func memoIMELinkStylingKeepsTheThreeIMEContracts() {
+        // 1. つながりの中では打つ前にテーマ色を決める（typingAttributes）
+        #expect(MemoIMELinkStyling.prefersLinkTypingAttributes(isInsideLink: true))
+        #expect(!MemoIMELinkStyling.prefersLinkTypingAttributes(isInsideLink: false))
+
+        // 2. 変換中は全体の装飾当て直しをしない（下線を消さない）
+        #expect(MemoIMELinkStyling.shouldRefreshFullDecoration(hasMarkedText: false))
+        #expect(!MemoIMELinkStyling.shouldRefreshFullDecoration(hasMarkedText: true))
+
+        // 3. 再変換中の色付けは属性を足すだけ（つながりの中のとき）
+        #expect(MemoIMELinkStyling.shouldAugmentMarkedText(isInsideLink: true))
+        #expect(!MemoIMELinkStyling.shouldAugmentMarkedText(isInsideLink: false))
+    }
+
     // MARK: - MemoHiddenMarkers / MemoFormatToggle（ツールバーの当て方・設計メモ 4.5節）
 
     /// 隠れている記号は選択範囲から外す（**2026-08-12 オーナー報告**——引用の行頭から

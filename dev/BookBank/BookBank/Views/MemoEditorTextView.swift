@@ -800,7 +800,8 @@ struct MemoEditorTextView: UIViewRepresentable {
         /// 表示（4.6節）と同じ規則で属性を当てる。文字列は変更しない。
         /// 日本語IMEの変換中（markedText あり）は触らない——変換の下線や候補が壊れるため
         func applyStyling(to textView: UITextView, accent: UIColor) {
-            guard textView.markedTextRange == nil else {
+            let hasMarkedText = textView.markedTextRange != nil
+            guard MemoIMELinkStyling.shouldRefreshFullDecoration(hasMarkedText: hasMarkedText) else {
                 colorMarkedTextInsideLink(in: textView, accent: accent)
                 return
             }
@@ -1023,7 +1024,8 @@ struct MemoEditorTextView: UIViewRepresentable {
             storage: NSTextStorage,
             accent: UIColor
         ) -> [NSAttributedString.Key: Any] {
-            guard writingLink != nil else { return base }
+            guard MemoIMELinkStyling.prefersLinkTypingAttributes(isInsideLink: writingLink != nil)
+            else { return base }
             var attributes = base
 
             // 行の見た目（引用なら小さめの文字・字下げ）は保つ
@@ -1067,8 +1069,11 @@ struct MemoEditorTextView: UIViewRepresentable {
             guard length > 0 else { return }
 
             let text = textView.text ?? ""
-            guard let start = Range(NSRange(location: location, length: 0), in: text)?.lowerBound,
-                  let pair = MemoLinkParser.enclosingPair(in: text, at: start)
+            guard let start = Range(NSRange(location: location, length: 0), in: text)?.lowerBound
+            else { return }
+            let pair = MemoLinkParser.enclosingPair(in: text, at: start)
+            guard MemoIMELinkStyling.shouldAugmentMarkedText(isInsideLink: pair != nil),
+                  let pair
             else { return }
 
             let storage = textView.textStorage
