@@ -95,8 +95,9 @@ SwiftDataのインメモリ容器を使うテストクラスがテストホス�
   ユニットテストで固定できる
 - 配置: Models / Repositories / Utils / Views
 - 命名: 型は PascalCase、変数・関数・定数は camelCase
-- SwiftData: 取得は `@Query`、保存は `context.insert` → `try context.save()`、
-  リレーションの比較は `persistentModelID` で行う
+- SwiftData: 取得・保存はリポジトリ（`Repositories/`）経由。`@Model` を直接扱うのは
+  リポジトリ実装・移行コード・テスト／Preview に限る（R4で確立。View層は `@Query` を使わず
+  DTOのみを扱う）。モデルを直接扱う側では、リレーションの比較は `persistentModelID` で行う
 - 書いたら確認: 既存のモデル定義を尊重しているか／エラーハンドリング／空状態の表示／lint
 
 ## 見た目の決まり
