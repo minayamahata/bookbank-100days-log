@@ -1,12 +1,12 @@
 # BookBank 本棚内検索 仕様書
 
 作成日: 2026-07-07
-更新日: 2026-07-08（実装確定に伴い 3.1/3.2/3.4/5/7/8 を更新）
-ステータス: 実装済み（R2 同乗・S）
-関連文書: `DESIGN_SYSTEM.md` / `docs/implementation-roadmap.md`（リリース位置づけは第10章）
+更新日: 2026-08-13（R4.5 ステップ8'の変更を反映——0件時のボタン文言を既存キー `book.register`「本を登録する」へ変更し `bookshelf.search.online_cta` を削除・検索モード中は右下の＋ボタンを隠す・検索モードにつながり一覧と橋渡しチップが同乗〈仕様は `docs/memo-tagging-design.md` 4.7節が正〉）／2026-07-08（実装確定に伴い 3.1/3.2/3.4/5/7/8 を更新）
+ステータス: 実装済み（R2 同乗・S。R4.5でつながり機能との接続を追加）
+関連文書: `DESIGN_SYSTEM.md` / `docs/implementation-roadmap.md`（リリース位置づけは第10章）/ `docs/memo-tagging-design.md`（4.7節: 検索モードに同乗するつながり一覧・橋渡し）
 
 > **AI実装エージェントへ**: `docs/agent-implementation-guide.md` を先に読むこと。
-> **確定判断（初版からの上書き）**: (1) 検索対象はタイトル・著者のみ（メモ・シリーズ名・出版社は初期スコープ外）。(2) 0件時はオンライン検索（登録）への導線を出す（初版の「誘導しない」を上書き）。E-B（フィルター行インライン展開）・1文字ごとの即時絞り込みは初版どおり採用。
+> **確定判断（初版からの上書き）**: (1) 検索対象はタイトル・著者のみ（メモ・シリーズ名・出版社は初期スコープ外）。(2) 0件時はオンライン検索（登録）への導線を出す（初版の「誘導しない」を上書き。文言は2026-08-12に「本を登録する」へ変更＝3.4節）。E-B（フィルター行インライン展開）・1文字ごとの即時絞り込みは初版どおり採用。
 
 ---
 
@@ -98,7 +98,7 @@
 - **本棚グリッド（4カラム・`BookCoverView`）をそのまま絞り込む**。行レイアウトへの切替はしない（1.1節）
 - 検索フィールド直下に件数を表示: 「12冊」（`bookshelf.search.result_count`・`%lld`）。`.caption`・`bookshelfControlColor.opacity(0.7)`
 - メモマッチバッジは**本スコープ外**（メモを検索対象にしないため。メモ検索実装時に併せて導入）
-- 0件時（確定）: `magnifyingglass` 60px＋「見つかりませんでした」（`bookshelf.search.empty_title`）＋「タイトル・著者から検索できます」（`bookshelf.search.empty_message`）に加え、**オンライン検索（登録）への導線**を出す（`bookshelf.search.online_cta`「オンラインで検索して登録」→ `BookSearchDestination(passbook: registrationPassbook)` へ遷移）。登録先口座が無い場合（`registrationPassbook == nil`）は導線を出さない。※本項は仕様初版の「登録検索への誘導はしない」を上書きする確定判断
+- 0件時（確定）: `magnifyingglass` 60px＋「見つかりませんでした」（`bookshelf.search.empty_title`）＋「タイトル・著者から検索できます」（`bookshelf.search.empty_message`）に加え、**登録への導線**を出す（既存キー `book.register`「本を登録する」→ `BookSearchDestination(passbook: registrationPassbook)` へ遷移）。登録先口座が無い場合（`registrationPassbook == nil`）は導線を出さない。※本項は仕様初版の「登録検索への誘導はしない」を上書きする確定判断。文言は当初「オンラインで検索して登録」（専用キー `bookshelf.search.online_cta`）だったが、**2026-08-12（R4.5 ステップ8'の実機確認）に「本を登録する」へ変更し専用キーは削除**——右下の＋ボタンと役割が重なるため、＋ボタンを検索モード中は隠す判断（3.5節）とセット
 - 結果タップ → `UserBookDetailView`（既存の `NavigationLink` のまま）。詳細から戻ると**検索状態は維持**されている
 
 ### 3.5 スコープと画面状態
@@ -106,6 +106,8 @@
 - 検索対象は**表示中の口座の本**（総合口座なら全冊、個別口座ならその口座のみ）。現行 `passbookBooks` の定義に従う
 - 口座切替（C-2のパスリセット）・タブ切替で検索モードは**リセット**（テキストクリア＋通常行へ）
 - カレンダー表示モード中は検索ボタンを表示しない（カレンダーは日付軸の探索であり、テキスト検索と混ぜない）
+- **検索モード中は右下の＋ボタン（登録）を隠す**（2026-08-12・R4.5 ステップ8'）——0件画面の「本を登録する」ボタンと役割が重複するため。判定はキーボードの有無ではなく検索モードそのもの（`BookshelfChromeState.isSearching`）で行う。キーボードだけ条件にすると、スクロールでキーボードを閉じた0件画面で＋が再表示され重複が戻る（検索モードはキーボードを閉じても続く＝本節の仕様）。キャンセルで通常の本棚に戻れば＋は従来どおり出る
+- **R4.5でつながり機能が検索モードに同乗**（2026-08-12）: クエリが空のあいだは検索フィールドの下につながりの一覧（件数付き・多い順・上位20件＋もっと見る）、クエリ入力中は一致するつながりのチップを検索結果の上に出す。一致判定は本仕様の `ShelfSearchMatcher` をそのまま使う。**仕様の正は `docs/memo-tagging-design.md` 4.7節**（ここには写さない）
 
 ---
 
@@ -136,7 +138,7 @@ stateDiagram-v2
 | `bookshelf.search.result_count` | %lld冊 | %lld books |
 | `bookshelf.search.empty_title` | 見つかりませんでした | No results |
 | `bookshelf.search.empty_message` | タイトル・著者から検索できます | Search by title or author |
-| `bookshelf.search.online_cta` | オンラインで検索して登録 | Search online to register |
+| ~~`bookshelf.search.online_cta`~~ | ~~オンラインで検索して登録~~ → **2026-08-12 削除**。0件時の導線は既存キー `book.register`「本を登録する」を再利用（3.4節） | |
 | `common.cancel`（既存） | キャンセル | Cancel |
 
 ko / zh-Hans / zh-Hant も同時追加済み（既存キーのトーンに合わせて翻訳）。
@@ -156,7 +158,7 @@ ko / zh-Hans / zh-Hant も同時追加済み（既存キーのトーンに合わ
 
 | 変更対象 | 内容 |
 |---------|------|
-| `Views/BookshelfView.swift` | `@State isSearching` / `shelfSearchText` / `@FocusState` の追加。`filterSection` の条件分岐（通常行⇔検索行）。`userBooks` に検索語フィルターを合成。0件時のオンライン導線。カレンダー切替時のリセット（口座切替は既存の `.id` リセットで担保） |
+| `Views/BookshelfView.swift` | `@State isSearching` / `shelfSearchText` / `@FocusState` の追加。`filterSection` の条件分岐（通常行⇔検索行）。`userBooks` に検索語フィルターを合成。0件時の登録導線。カレンダー切替時のリセット（口座切替は既存の `.id` リセットで担保） |
 | 新規 `Utils/ShelfSearchMatcher.swift` | 正規化（カナ同一視・幅/ケース/濁点無視）・AND部分一致。**純関数・ユニットテスト対象**（実装済み） |
 | `Localizable.xcstrings` | 5章のキー追加（実装済み） |
 
@@ -169,7 +171,7 @@ ko / zh-Hans / zh-Hant も同時追加済み（既存キーのトーンに合わ
 2. AND複数語: 「村上 1Q84」でタイトル＋著者の横断マッチ（実施済み）
 3. フィルター（お気に入り）＋検索の合成
 4. カレンダー切替でのリセット、詳細から戻った時の維持
-5. 0件表示（オンライン導線）・件数表示・空文字（全件表示に戻る）
+5. 0件表示（登録導線）・件数表示・空文字（全件表示に戻る）
 
 ---
 
