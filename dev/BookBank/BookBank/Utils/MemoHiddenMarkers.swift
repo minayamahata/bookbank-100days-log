@@ -12,7 +12,9 @@
 //  1. **選択範囲は見えている文字に揃える**（両端から隠れた記号を外す＝`trimming`）
 //  2. **キャレットは隠れた記号の中に置かない**（記号の先へ送る＝`caretIndex`）。行頭の `> ` は
 //     「記号の前」も見た目が同じ位置なので、そこも記号の中とみなして文字の側へ送る——
-//     そうしないと打った文字が `> ` の前に入り、引用そのものが壊れる
+//     そうしないと打った文字が `> ` の前に入り、引用そのものが壊れる。
+//     ただし**行頭に記号が続くときは装飾の外側に置く**（`> [[京都]]…` の行頭は `[[` の前）——
+//     送り先が次の装飾の内側になると、行頭に見える位置がつながりの中になってしまう
 //
 
 import Foundation
@@ -105,11 +107,12 @@ enum MemoHiddenMarkers {
     /// 逆に `[[` や `**` は「記号の前」が見た目にも別の位置（前の文字との境目）なので、
     /// 記号の中にいるときだけ送る
     static func caretIndex(snapping caret: String.Index, in text: String) -> String.Index {
+        let markers = markers(in: text)
         var index = caret
         var moved = true
         while moved {
             moved = false
-            for marker in markers(in: text) {
+            for marker in markers {
                 let inside = marker.isLineLeading
                     ? (marker.range.lowerBound <= index && index < marker.range.upperBound)
                     : (marker.range.lowerBound < index && index < marker.range.upperBound)
@@ -119,7 +122,40 @@ enum MemoHiddenMarkers {
                 }
             }
         }
-        return index
+
+        // 行頭から記号しか無いところまでは、装飾の**外側**（記号の前）へ戻す
+        // （**2026-08-12 オーナー報告A**——引用の冒頭がつながりだと、`> ` を飛ばした先が
+        // そのまま `[[` の中になり、行頭に見える位置がつながりの内側だった。
+        // そこでEnterを押すと「括弧の外へ出る」規則が先に効いて、引用の上に行を足せない）
+        guard !isInsideEmptyPair(index, in: text) else { return index }
+        let head = lineHead(before: index, in: text)
+        guard head < index else { return index }
+
+        var scan = head
+        while scan < index {
+            guard markers.contains(where: { $0.range.contains(scan) }) else { return index }
+            scan = text.index(after: scan)
+        }
+        return head
+    }
+
+    /// その行でキャレットが取れるいちばん前の位置。引用行は `> ` の先（前は行頭ではない）
+    private static func lineHead(before index: String.Index, in text: String) -> String.Index {
+        let start = text[..<index].lastIndex(where: \.isNewline)
+            .map { text.index(after: $0) } ?? text.startIndex
+        guard text[start...].hasPrefix("> ") else { return start }
+        return text.index(start, offsetBy: 2)
+    }
+
+    /// 中身が空の `[[]]`／`****` の括弧のあいだか。ボタンを押した直後にキャレットが立つ
+    /// 場所なので、行頭にあっても外へ出さない（出すと押しても何も書けなくなる）
+    private static func isInsideEmptyPair(_ index: String.Index, in text: String) -> Bool {
+        let links = MemoLinkParser.emptyPairs(in: text)
+            .map { text.index($0.lowerBound, offsetBy: 2) }
+        let bolds = MemoLinkText.boldPairs(in: text)
+            .filter { $0.body.isEmpty }
+            .map { $0.body.lowerBound }
+        return links.contains(index) || bolds.contains(index)
     }
 
     /// `UITextView` から渡ってくる位置（UTF-16）で受ける `caretIndex`

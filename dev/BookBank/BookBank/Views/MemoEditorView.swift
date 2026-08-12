@@ -70,7 +70,7 @@ struct MemoEditorView: View {
                 // 元の高さのまま宙に浮いて見えるため（2026-08-11 オーナー指摘）。
                 // つながりを書いている間も畳まない（2026-08-12 オーナー指示・かわりに
                 // 「つなぐ」を光らせて、いまどの装飾の中にいるかを伝える）
-                if !prefersNumericKeyboard {
+                CollapsibleBottomBar(isCollapsed: prefersNumericKeyboard) {
                     editorToolbar
                 }
             }

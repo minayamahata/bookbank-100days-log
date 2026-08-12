@@ -225,6 +225,54 @@ struct MemoQuoteGeometryTests {
         #expect(bridge.canUndo, "「ひとつ戻す」で戻せる")
     }
 
+    /// 画面下の帯（ツールバー）は畳んでも階層から外さない（**2026-08-12 オーナー報告B**——
+    /// テンキーから抜けたとき、戻ってきたツールバーが左上・ナビゲーションバーに重なる位置へ
+    /// 小さく描かれた）。畳めば高さ0、戻せば元の高さに戻ることを測っておく——
+    /// `if` で出し入れする実装に戻すと、この帯は「畳んだ状態」を持てなくなる
+    @Test func collapsedBottomBarKeepsItsPlaceInTheLayout() {
+        func measured(isCollapsed: Bool) -> CGSize {
+            let bar = CollapsibleBottomBar(isCollapsed: isCollapsed) {
+                Color.red.frame(height: 50)
+            }
+            return UIHostingController(rootView: bar)
+                .sizeThatFits(in: CGSize(width: 393, height: CGFloat.greatestFiniteMagnitude))
+        }
+
+        #expect(measured(isCollapsed: false).height == 50, "出しているときは中身の高さ")
+        #expect(measured(isCollapsed: true).height == 0, "畳んだら高さだけ0にする（外さない）")
+    }
+
+    /// 引用の冒頭がつながりでも、行頭でEnterを押せば上に空行ができる
+    /// （**2026-08-12 オーナー報告A**——`> ` を飛ばした先がそのまま `[[` の中になり、
+    /// 行頭に見える位置がつながりの内側だった。そこでEnterを押すと「括弧の外へ出る」規則が
+    /// 先に効いて、引用の上に行を足せなかった）
+    @Test func quoteThatStartsWithALinkStillOpensALineAbove() throws {
+        let memo = "> [[負け]]るのは\np."
+        let (textView, manager) = try Self.makeEditor(memo: memo)
+
+        // 見た目の行頭（文字の直前）を触ると、キャレットはつながりの**外**に立つ
+        let quoteLine = manager.lineFragmentUsedRect(
+            forGlyphAt: manager.glyphIndexForCharacter(at: 0), effectiveRange: nil
+        ).offsetBy(dx: 0, dy: textView.textContainerInset.top)
+        let position = try #require(
+            textView.closestPosition(to: CGPoint(x: quoteLine.minX + 1, y: quoteLine.midY))
+        )
+        let tapped = textView.offset(from: textView.beginningOfDocument, to: position)
+        let caret = MemoHiddenMarkers.caretLocation(snapping: tapped, in: textView.text)
+        #expect(caret == 2, "行頭は `> ` の先・`[[` の前（つながりの中に入らない）")
+
+        // そこでEnterを押すと引用の上に空行ができる（つながりの外へ出る規則より先）
+        textView.selectedRange = NSRange(location: caret, length: 0)
+        let allowed = textView.delegate?.textView?(
+            textView,
+            shouldChangeTextIn: NSRange(location: caret, length: 0),
+            replacementText: "\n"
+        ) ?? true
+        #expect(allowed == false)
+        #expect(textView.text == "\n" + "> [[負け]]るのは\np.\n", "引用の上に空行ができる")
+        #expect(textView.selectedRange.location == 0, "キャレットは作った空行に入る")
+    }
+
     /// 引用の隣の空行は触れる幅を残す（**2026-08-12 オーナー報告**——引用の上の空行を
     /// タップするとカーソルが引用に入ってしまい、作った空行に書けなかった）。
     /// 囲みの内側の余白（18pt）は引用の行の領域なので、そこを触れば引用に入るのが正しい。
@@ -232,7 +280,13 @@ struct MemoQuoteGeometryTests {
     @Test func blankLinesNextToAQuoteStayTappable() throws {
         let lineHeight = UIFont.preferredFont(forTextStyle: .body).lineHeight
 
-        for memo in ["\n> 引用の行\np.", "> 引用の行\np.\n\nあとの行", "> 一\np.\n\n> 二\np."] {
+        for memo in [
+            "\n> 引用の行\np.",
+            // 引用の冒頭がつながり（**2026-08-12 オーナー報告A**——この形でだけ空行へ戻れなかった）
+            "\n> [[負け]]るのは\np.",
+            "> 引用の行\np.\n\nあとの行",
+            "> 一\np.\n\n> 二\np."
+        ] {
             let (textView, manager) = try Self.makeEditor(memo: memo)
             let nsText = textView.text as NSString
 
