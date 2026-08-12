@@ -139,6 +139,7 @@ struct MemoEditorView: View {
             toolbarGap
             toolbarButton(
                 "memo.toolbar.page", icon: "icn_pagenum",
+                enabled: canTogglePageMarker,
                 isActive: active.page, action: togglePageMarker
             )
             toolbarGap
@@ -272,10 +273,16 @@ struct MemoEditorView: View {
     /// ページ番号の中で押したときは外す側に回る（**2026-08-12 オーナー指示**・`MemoFormatToggle`）
     private func togglePageMarker() {
         let range = currentSelectionRange
+        guard let edit = MemoFormatToggle.page(in: editedText, selecting: range) else { return }
         let isInsertion = MemoPageMarker.enclosing(range.lowerBound, in: editedText) == nil
-        apply(MemoFormatToggle.page(in: editedText, selecting: range))
+        apply(edit)
         // 外したときはテンキーのままにしない（キャレットが数字から離れる）
         prefersNumericKeyboard = isInsertion
+    }
+
+    /// ページ番号の中にいれば外せる。外にいて英数字の直後なら挿せない（解析と同じ境界）
+    private var canTogglePageMarker: Bool {
+        MemoFormatToggle.page(in: editedText, selecting: currentSelectionRange) != nil
     }
 
     /// キャレットがいま入っている装飾（判定は `MemoActiveFormats`）。

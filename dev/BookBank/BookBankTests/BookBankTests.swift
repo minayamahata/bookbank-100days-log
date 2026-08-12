@@ -572,9 +572,10 @@ struct BookBankTests {
     /// `p.` が重なって入っていた）。外し方は他のトグルに揃えて記号だけ、ただし
     /// 数字未入力は押し間違いなので丸ごと、出典ページの行は数字だけ落とす
     @Test func memoPageToggleRemovesTheNumberAsAWhole() {
-        func toggled(_ text: String, at offset: Int) -> (text: String, caret: Int) {
+        func toggled(_ text: String, at offset: Int) -> (text: String, caret: Int)? {
             let caret = text.index(text.startIndex, offsetBy: offset)
-            let edit = MemoFormatToggle.page(in: text, selecting: caret..<caret)
+            guard let edit = MemoFormatToggle.page(in: text, selecting: caret..<caret)
+            else { return nil }
             var result = text
             result.replaceSubrange(edit.replaced, with: edit.text)
             let start = text.distance(from: text.startIndex, to: edit.replaced.lowerBound)
@@ -582,22 +583,26 @@ struct BookBankTests {
         }
 
         // 中にいなければ挿す（従来どおり・キャレットは `p.` の直後）
-        #expect(toggled("本文", at: 2).text == "本文p.")
-        #expect(toggled("本文", at: 2).caret == 4)
+        #expect(toggled("本文", at: 2)?.text == "本文p.")
+        #expect(toggled("本文", at: 2)?.caret == 4)
         // 押した直後にもう一度押せば元に戻る（押し間違いの取り消し。
         // このために**テンキー中もツールバーを畳まない**・設計メモ 4.5節）
-        let inserted = toggled("本文", at: 2)
-        #expect(toggled(inserted.text, at: inserted.caret).text == "本文")
+        let inserted = try! #require(toggled("本文", at: 2))
+        #expect(toggled(inserted.text, at: inserted.caret)?.text == "本文")
         // 外す側は**数字ごと消す**（2026-08-12 オーナー指示——当初は記号だけ外していたが、
         // 数字だけが本文に取り残されて意味を成さない。ページ番号は `p.` と数字で1つの意味）
-        #expect(toggled("本文p.42のところ", at: 5).text == "本文のところ")
-        #expect(toggled("本文p.42のところ", at: 5).caret == 2, "消した場所に置く")
-        #expect(toggled("本文p.", at: 4).text == "本文")
-        #expect(toggled("p.42", at: 4).text == "")
-        #expect(toggled("本文\np.42", at: 7).text == "本文\n")
+        #expect(toggled("本文p.42のところ", at: 5)?.text == "本文のところ")
+        #expect(toggled("本文p.42のところ", at: 5)?.caret == 2, "消した場所に置く")
+        #expect(toggled("本文p.", at: 4)?.text == "本文")
+        #expect(toggled("p.42", at: 4)?.text == "")
+        #expect(toggled("本文\np.42", at: 7)?.text == "本文\n")
         // 出典ページの行だけは数字を落として `p.` を残す——行そのものが引用に付随して
         // 自動で足し直されるため、丸ごと消しても同じ行がすぐ戻る
-        #expect(toggled("> 引用\np.83\n", at: 8).text == "> 引用\np.\n")
+        #expect(toggled("> 引用\np.83\n", at: 8)?.text == "> 引用\np.\n")
+        // 英数字の直後は解析でも不成立なので挿さない（区切りを補わずボタン無効側）
+        #expect(toggled("stop", at: 4) == nil)
+        #expect(MemoPageMarker.canInsert(at: "stop".endIndex, in: "stop") == false)
+        #expect(MemoPageMarker.canInsert(at: "本文".endIndex, in: "本文"))
     }
 
     /// 引用の解除は「触れている行がすべて引用のとき」だけ。一部なら付ける側の操作

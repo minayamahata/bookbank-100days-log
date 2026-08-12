@@ -54,17 +54,21 @@ enum MemoFormatToggle {
     /// 書式クリアが数字ごと落とす方針とも揃う）。例外は1つ:
     /// - **引用の出典ページの行は数字だけ落として `p.` は残す**——行そのものが引用に付随して
     ///   自動で足し直されるため。数字がまだ無ければ何もしない
-    static func page(in text: String, selecting range: Range<String.Index>) -> Edit {
-        guard let marker = MemoPageMarker.enclosing(range.lowerBound, in: text) else {
-            let target = MemoHiddenMarkers.trimming(range, in: text)
-            return Edit(replaced: target, text: "p.", caretOffset: 2)
+    ///
+    /// 英数字の直後には挿せない（解析と同じ境界・`canInsert`）。不成立な `p.` を足しても
+    /// バッジにもアクティブにもならないので、区切りを補わず `nil` を返す
+    static func page(in text: String, selecting range: Range<String.Index>) -> Edit? {
+        if let marker = MemoPageMarker.enclosing(range.lowerBound, in: text) {
+            let digits = text.index(marker.lowerBound, offsetBy: 2)..<marker.upperBound
+            if isQuotePageLine(marker, in: text) {
+                return Edit(replaced: digits, text: "", caretOffset: 0)
+            }
+            return Edit(replaced: marker, text: "", caretOffset: 0)
         }
 
-        let digits = text.index(marker.lowerBound, offsetBy: 2)..<marker.upperBound
-        if isQuotePageLine(marker, in: text) {
-            return Edit(replaced: digits, text: "", caretOffset: 0)
-        }
-        return Edit(replaced: marker, text: "", caretOffset: 0)
+        let target = MemoHiddenMarkers.trimming(range, in: text)
+        guard MemoPageMarker.canInsert(at: target.lowerBound, in: text) else { return nil }
+        return Edit(replaced: target, text: "p.", caretOffset: 2)
     }
 
     /// **引用の直後の**ページ番号だけの行か。「ページ番号だけの行」で見ると、引用と関係なく

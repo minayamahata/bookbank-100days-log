@@ -433,6 +433,13 @@ enum MemoPageMarker {
         return start..<caret
     }
 
+    /// ここに `p.` を挿してもページ番号として成立するか（解析側と同じ直前境界）。
+    /// 英数字の直後では不成立なので、ツールバーは挿さずボタンを無効にする
+    static func canInsert(at caret: String.Index, in text: String) -> Bool {
+        caret == text.startIndex
+            || !isASCIIAlphanumeric(text[text.index(before: caret)])
+    }
+
     /// キャレットの居るページ番号が**その行の最後**にあるとき、その直後（＝行末）の位置。
     /// 同じ行の余白を触ったときの行き先で、テンキーから抜ける口になる（設計メモ 4.6節）——
     /// テンキーには改行キーが無いので、番号がメモの末尾にあると先へ進めなくなる。
