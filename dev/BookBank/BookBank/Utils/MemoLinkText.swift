@@ -86,8 +86,9 @@ struct MemoFormattedText: View {
     let accentColor: Color
 
     var body: some View {
+        let blocks = MemoTextBlocks.parse(memo)
         VStack(alignment: .leading, spacing: 6) {
-            ForEach(Array(MemoTextBlocks.parse(memo).enumerated()), id: \.offset) { _, block in
+            ForEach(Array(blocks.enumerated()), id: \.offset) { index, block in
                 switch block {
                 case .paragraph(let content):
                     // Enterで分けた行は1行ずつ積んで空きを入れる——折り返しの行と同じ行送りだと
@@ -117,10 +118,9 @@ struct MemoFormattedText: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(18)
                         .background(Color(.quaternarySystemFill))
-                        // 囲みの下は広めに空ける（編集画面と同じ・ブロック間の6と合わせて18）
-                        .padding(
-                            .bottom, MemoQuoteBackgroundLayoutManager.gapBelowBox - 6
-                        )
+                        // 出典ページが続くなら詰めたまま（同じかたまりに見せる）。
+                        // 続かないなら、囲みの下が引用のまとまりの下になる
+                        .padding(.bottom, Self.gapBelow(index, in: blocks))
                 case .quotePage(let digits):
                     // 出典ページは囲みの枠外・右下。装飾は付けず小さくするだけ（オーナー指示）。
                     // 未入力の行は保存時に消えるのでここには来ない
@@ -128,10 +128,20 @@ struct MemoFormattedText: View {
                         Text(verbatim: "p.\(digits)")
                             .font(.footnote)
                             .frame(maxWidth: .infinity, alignment: .trailing)
+                            .padding(.bottom, Self.gapBelow(index, in: blocks))
                     }
                 }
             }
         }
+    }
+
+    /// 引用のまとまりの下だけ広く空ける（編集画面と同じ30。ブロック間の6ぶんを差し引く）。
+    /// まとまりの終わりは出典ページ、無ければ囲み。メモの末尾なら空けない（下は余白しかない）
+    private static func gapBelow(_ index: Int, in blocks: [MemoTextBlock]) -> CGFloat {
+        let next = index + 1 < blocks.count ? blocks[index + 1] : nil
+        guard let next else { return 0 }
+        if case .quotePage(let digits) = next, !digits.isEmpty { return 0 }
+        return MemoQuoteBackgroundLayoutManager.gapBelowQuote - 6
     }
 
     /// 行頭がページ番号なら、バッジの内側の余白ぶんの字下げ。それ以外は0

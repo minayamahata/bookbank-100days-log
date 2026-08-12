@@ -480,20 +480,29 @@ struct MemoQuoteGeometryTests {
         #expect(inlineBox.minX - previousEnd <= inset + margin, "離れすぎない")
     }
 
-    /// 囲みの**下**は広めに空ける（**2026-08-12 オーナー指示**で6→18。上は6のまま）——
-    /// 出典ページの行が囲みに貼り付いて見えていた
-    @Test func quoteBoxKeepsAWiderGapBelow() throws {
+    /// 空けるのは引用の**まとまりの下**——囲みと出典ページのあいだは詰めたまま、
+    /// 出典ページの下を広く空ける（**2026-08-12 オーナー指示**で18→30）
+    @Test func quoteKeepsAWiderGapBelowItsPageLine() throws {
         let (textView, manager) = try Self.makeEditor(memo: "まえの行\n> 引用\np.83\nあとの行")
         let box = try #require(manager.quoteBoxes().first)
         let nsText = textView.text as NSString
 
         let page = nsText.range(of: "p.83")
-        let pageTop = manager.lineFragmentUsedRect(
+        let pageRect = manager.lineFragmentUsedRect(
             forGlyphAt: manager.glyphIndexForCharacter(at: page.location), effectiveRange: nil
+        )
+        #expect(
+            pageRect.minY - box.maxY < MemoQuoteBackgroundLayoutManager.gapBelowQuote,
+            "囲みと出典ページは同じかたまりとして詰まっている"
+        )
+
+        let tail = nsText.range(of: "あとの行")
+        let tailTop = manager.lineFragmentUsedRect(
+            forGlyphAt: manager.glyphIndexForCharacter(at: tail.location), effectiveRange: nil
         ).minY
         #expect(
-            pageTop - box.maxY >= MemoQuoteBackgroundLayoutManager.gapBelowBox - 0.5,
-            "囲みの下と出典ページのあいだは18"
+            tailTop - pageRect.maxY >= MemoQuoteBackgroundLayoutManager.gapBelowQuote - 0.5,
+            "出典ページの下は30空ける"
         )
 
         let headBottom = manager.lineFragmentUsedRect(
@@ -504,7 +513,7 @@ struct MemoQuoteGeometryTests {
             "囲みの上の空きは残る"
         )
         #expect(
-            box.minY - headBottom < MemoQuoteBackgroundLayoutManager.gapBelowBox,
+            box.minY - headBottom < MemoQuoteBackgroundLayoutManager.gapBelowQuote,
             "広げるのは下だけ（上は6のまま）"
         )
     }

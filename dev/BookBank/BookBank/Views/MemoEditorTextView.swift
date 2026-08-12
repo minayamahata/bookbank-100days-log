@@ -21,9 +21,11 @@ final class MemoQuoteBackgroundLayoutManager: NSLayoutManager {
     static let padding: CGFloat = 18
     /// 囲みと隣の行のあいだ（書籍詳細のブロック間と同じ）
     static let gapToNeighbor: CGFloat = 6
-    /// 囲みの**下**と次の行（ふつうは出典ページ）のあいだ。上の6のままだと囲みに
-    /// 貼り付いて見える（**2026-08-12 オーナー指示**で6→18。書籍詳細と共有する）
-    static let gapBelowBox: CGFloat = 18
+    /// 引用の**まとまり**（囲み＋出典ページ）の下と、その次の行のあいだ。
+    /// 空けるのは囲みの直下ではなく出典ページの下——囲みと出典ページは1つのかたまりで、
+    /// あいだが開くと離れて見える（**2026-08-12 オーナー指示**で18→30。書籍詳細と共有する）。
+    /// 出典ページが無い引用は、囲みの下がまとまりの下になる
+    static let gapBelowQuote: CGFloat = 30
 
     /// 単体のページ番号（`p.42`）のバッジ。角丸とグレーの背景は文字の背景色属性では作れないので、
     /// 引用の囲みと同じくここで描く（2026-08-11 オーナー指示。文字色はテーマ色のまま）
@@ -997,8 +999,9 @@ struct MemoEditorTextView: UIViewRepresentable {
                 let style = NSMutableParagraphStyle()
                 style.alignment = .right
                 style.minimumLineHeight = pageLineFont.lineHeight
-                style.paragraphSpacingBefore = MemoQuoteBackgroundLayoutManager.gapBelowBox
-                style.paragraphSpacing = MemoQuoteBackgroundLayoutManager.gapToNeighbor
+                // 囲みとのあいだは詰めたまま（同じかたまりに見せる）。空けるのは下側
+                style.paragraphSpacingBefore = MemoQuoteBackgroundLayoutManager.gapToNeighbor
+                style.paragraphSpacing = MemoQuoteBackgroundLayoutManager.gapBelowQuote
                 storage.addAttribute(.paragraphStyle, value: style, range: line)
                 storage.addAttribute(.font, value: pageLineFont, range: line)
                 guard MemoQuotePage.digits(inPageOnlyLine: nsText.substring(with: line))?.isEmpty
@@ -1260,9 +1263,11 @@ struct MemoEditorTextView: UIViewRepresentable {
                 // 囲みに面していない側は段落の空きのまま（本文どうしの行送りを変えない）
                 style.paragraphSpacing = MemoEditorTextView.paragraphSpacing
                 if !isBlank {
-                    // 囲みの下側は広め（上は6のまま——広げるのは下だけ・2026-08-12 オーナー指示）
+                    // 囲みの下側は広め（上は6のまま——広げるのは下だけ・2026-08-12 オーナー指示）。
+                    // 出典ページがある引用では、この行の手前に出典ページが挟まるので
+                    // そちらの段落スタイルが上書きする（空きは出典ページの下に付く）
                     if gap.before {
-                        style.paragraphSpacingBefore = MemoQuoteBackgroundLayoutManager.gapBelowBox
+                        style.paragraphSpacingBefore = MemoQuoteBackgroundLayoutManager.gapBelowQuote
                     }
                     if gap.after {
                         style.paragraphSpacing = MemoQuoteBackgroundLayoutManager.gapToNeighbor
