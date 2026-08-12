@@ -65,12 +65,12 @@ struct MemoEditorView: View {
             }
             .padding(.horizontal, 20)
             .safeAreaInset(edge: .bottom) {
-                // ツールバーは編集中は常に出す（設計メモ 4.5節）。畳むのは2つの場面だけ——
-                // 出典ページの入力中（テンキー）は、キーボードが背の低いものに替わる一瞬
-                // ツールバーが元の高さのまま宙に浮いて見えるため（2026-08-11 オーナー指摘）。
-                // つながりを書いている間は、いま書いているのがつながりのラベルであって
-                // 他のボタンを押す場面ではないため（2026-08-12 オーナー指示）
-                if !prefersNumericKeyboard, !isWritingLink {
+                // ツールバーは編集中は常に出す（設計メモ 4.5節）。畳むのは出典ページの
+                // 入力中（テンキー）だけ——キーボードが背の低いものに替わる一瞬、ツールバーが
+                // 元の高さのまま宙に浮いて見えるため（2026-08-11 オーナー指摘）。
+                // つながりを書いている間も畳まない（2026-08-12 オーナー指示・かわりに
+                // 「つなぐ」を光らせて、いまどの装飾の中にいるかを伝える）
+                if !prefersNumericKeyboard {
                     editorToolbar
                 }
             }
@@ -113,22 +113,37 @@ struct MemoEditorView: View {
     /// ボタンは記号を挿入するだけ（独自のリッチテキスト形式を持たない）。
     /// **アイコン＋ラベル**で出し、役割ごとに区切り線で分ける（2026-08-11 オーナー指示）——
     /// 図像だけでは操作の意味が伝わらないため、ラベルは残す。
-    /// 「つなぐ」は書籍メモのみ——月メモはT1のスコープ外（`allowsLinks == false`・4.3節）
+    /// 「つなぐ」は書籍メモのみ——月メモはT1のスコープ外（`allowsLinks == false`・4.3節）。
+    /// キャレットが入っている装飾のボタンは色を変えて光らせる（2026-08-12 オーナー指示・
+    /// 記号を隠したぶん、いまどの装飾の中にいるかを画面から読み取れないため）
     private var editorToolbar: some View {
         // 横スクロールはしない。ボタンはラベルの幅に合わせ、余りを均等な間隔に配る——
         // 幅を等分すると、ラベルが短いボタン（太字・引用）の周りだけ隙間が広く見える
-        HStack(spacing: 0) {
+        let active = activeFormats
+        return HStack(spacing: 0) {
             if allowsLinks {
-                toolbarButton("memo.toolbar.link", icon: "icn_node", action: insertLinkBrackets)
+                toolbarButton(
+                    "memo.toolbar.link", icon: "icn_node",
+                    isActive: active.link, action: insertLinkBrackets
+                )
                 toolbarGap
                 toolbarDivider
                 toolbarGap
             }
-            toolbarButton("memo.toolbar.bold", icon: "icon_bold", action: wrapSelectionInBold)
+            toolbarButton(
+                "memo.toolbar.bold", icon: "icon_bold",
+                isActive: active.bold, action: wrapSelectionInBold
+            )
             toolbarGap
-            toolbarButton("memo.toolbar.quote", icon: "icon_quote", action: insertQuote)
+            toolbarButton(
+                "memo.toolbar.quote", icon: "icon_quote",
+                isActive: active.quote, action: insertQuote
+            )
             toolbarGap
-            toolbarButton("memo.toolbar.page", icon: "icn_pagenum", action: insertPageMarker)
+            toolbarButton(
+                "memo.toolbar.page", icon: "icn_pagenum",
+                isActive: active.page, action: insertPageMarker
+            )
             toolbarGap
             toolbarDivider
             toolbarGap
@@ -163,6 +178,7 @@ struct MemoEditorView: View {
         _ label: LocalizedStringKey,
         icon: String,
         enabled: Bool = true,
+        isActive: Bool = false,
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
@@ -176,7 +192,9 @@ struct MemoEditorView: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
             }
-            .foregroundColor(.primary)
+            // 光らせる色は本文の装飾と同じテーマ色にする——つながりの文字色と揃うので、
+            // ボタンと本文のどちらを見ても同じ意味に読める
+            .foregroundColor(isActive ? accentColor : .primary)
             .opacity(enabled ? 1 : 0.35)
             .padding(.vertical, 6)
             .contentShape(Rectangle())
@@ -265,14 +283,13 @@ struct MemoEditorView: View {
         prefersNumericKeyboard = true
     }
 
-    /// つながりのラベルを書いている途中か（キャレットが `[[ ]]` の中にある）。
-    /// この間はツールバーを畳む（2026-08-12 オーナー指示）。抜けるのは括弧の外を触るか、
-    /// 改行を押したとき（改行は `]]` の先への移動として扱う＝`MemoEditorTextView`）
-    private var isWritingLink: Bool {
+    /// キャレットがいま入っている装飾（判定は `MemoActiveFormats`）。
+    /// 範囲を選んでいるときは光らせない——選択の中に装飾の内と外が混ざりうるため
+    private var activeFormats: MemoActiveFormats {
         guard selectedRange.length == 0,
               let caret = Range(selectedRange, in: editedText)?.lowerBound
-        else { return false }
-        return MemoLinkParser.enclosingPair(in: editedText, at: caret) != nil
+        else { return .none }
+        return MemoActiveFormats.at(caret, in: editedText)
     }
 
     /// 変更があるかチェック。比べるのは保存する形——編集のために足した案内や空行では

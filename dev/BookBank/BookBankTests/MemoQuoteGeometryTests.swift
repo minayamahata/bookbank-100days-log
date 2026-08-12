@@ -157,6 +157,42 @@ struct MemoQuoteGeometryTests {
         #expect(render(hint: hint) != render(hint: nil), "案内が描かれている")
     }
 
+    /// つながりの案内も本文の文字ではなく描画であることを固定する（**2026-08-12 オーナー指摘13**——
+    /// 「つなぐ」を押すとキーボード上部の予測変換バーに表示が出る件の切り分け）。
+    /// 本文に入るのは括弧の4文字だけで、案内は一切混ざらない
+    @Test func linkHintIsDrawnAndNeverEntersTheMemoText() {
+        let text = "[[]]"
+        let (textView, layoutManager, _) = makeTextView(text: text)
+        let pair = (text as NSString).range(of: text)
+        textView.textStorage.addAttributes(
+            [.font: UIFont.systemFont(ofSize: 0.01), .foregroundColor: UIColor.clear],
+            range: pair
+        )
+        layoutManager.linkHintRange = pair
+        layoutManager.ensureLayout(for: textView.textContainer)
+
+        let everything = layoutManager.glyphRange(
+            forCharacterRange: NSRange(location: 0, length: (text as NSString).length),
+            actualCharacterRange: nil
+        )
+        func render(hint: NSAttributedString?) -> Data? {
+            layoutManager.linkHint = hint
+            return UIGraphicsImageRenderer(size: CGSize(width: 300, height: 200))
+                .image { _ in layoutManager.drawBackground(forGlyphRange: everything, at: .zero) }
+                .pngData()
+        }
+
+        let hint = NSAttributedString(
+            string: "つながりを入力",
+            attributes: [
+                .font: UIFont.preferredFont(forTextStyle: .footnote),
+                .foregroundColor: UIColor.tertiaryLabel
+            ]
+        )
+        #expect(render(hint: hint) != render(hint: nil), "案内が描かれている")
+        #expect(textView.text == text, "案内は本文の文字にならない（バーに出るのは記号への反応）")
+    }
+
     /// 「ひとつ戻す」はiOS標準の取り消し機構に相乗りする。取り消すと復元された範囲が選択される
     /// （書式クリアを戻すと全選択に見えた）ので、キャレットに畳んでいることを固定する
     @Test func undoCollapsesTheRestoredSelection() throws {

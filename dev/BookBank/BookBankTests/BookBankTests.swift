@@ -470,6 +470,49 @@ struct BookBankTests {
         #expect(MemoLinkParser.enclosingPair(in: empty, at: caret) != nil)
     }
 
+    // MARK: - MemoActiveFormats（ツールバーのアクティブ表示・設計メモ 4.5節）
+
+    /// キャレットの位置から「いまどの装飾の中にいるか」を出す。記号を隠したぶん、
+    /// これがユーザーにとって唯一の手がかりになる（2026-08-12 オーナー指示）
+    @Test func memoActiveFormatsLightUpTheFormatUnderTheCaret() {
+        func formats(_ text: String, at offset: Int) -> MemoActiveFormats {
+            MemoActiveFormats.at(text.index(text.startIndex, offsetBy: offset), in: text)
+        }
+
+        // つながりの中（記号の上でも中と見なす）
+        #expect(formats("ああ[[京都]]いい", at: 5).link)
+        #expect(formats("ああ[[京都]]いい", at: 8).link == false)
+        // 太字は中身の端も中——そこで打てば太字になる
+        #expect(formats("ああ**太字**いい", at: 4).bold)
+        #expect(formats("ああ**太字**いい", at: 6).bold)
+        #expect(formats("ああ**太字**いい", at: 10).bold == false)
+        // ペアが閉じていない `**` はただの文字なので光らない
+        #expect(formats("ああ**太字いい", at: 5).bold == false)
+        // 引用は行単位。行のどこにいても中で、次の行へ出れば外
+        #expect(formats("> 引用の行\nふつうの行", at: 4).quote)
+        #expect(formats("> 引用の行\nふつうの行", at: 8).quote == false)
+        // 出典ページは `p.` の直後から数字の末尾まで（続けて数字を打てる位置）
+        #expect(formats("p.42", at: 4).page)
+        #expect(formats("p.42", at: 0).page == false)
+    }
+
+    /// 装飾は重なる（引用の中のつながり・太字）。光るボタンも重なってよい
+    @Test func memoActiveFormatsOverlapInsideAQuote() {
+        let text = "> [[京都]]の**話**\np.42"
+        func formats(at offset: Int) -> MemoActiveFormats {
+            MemoActiveFormats.at(text.index(text.startIndex, offsetBy: offset), in: text)
+        }
+
+        let inLink = formats(at: 5)
+        #expect(inLink.link && inLink.quote)
+        let inBold = formats(at: 12)
+        #expect(inBold.bold && inBold.quote)
+        #expect(inBold.link == false)
+        // 出典ページの行は引用の囲みの外（別の行として扱う）
+        let inPage = formats(at: text.count)
+        #expect(inPage.page && !inPage.quote)
+    }
+
     // MARK: - MemoLinkIndex（本棚の絞り込みの土台・ステップ8'）
 
     /// 集計に必要なのは `id` と `memo` だけなので、他は既定値で埋める

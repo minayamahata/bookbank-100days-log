@@ -276,8 +276,16 @@ final class MemoEditorBridge {
               let target = textView.textRange(from: start, to: end)
         else { return false }
 
+        // 入力機構へ「こちらで書き換えた」と知らせてから触る（2026-08-12）。黙って書き換えると
+        // 日本語キーボードが古い本文を握ったままになり、挿した記号（`]`）が予測変換バーに
+        // 候補として並ぶ——「つなぐ」を押すとキーボードの上に見慣れない表示が出る原因
+        textView.inputDelegate?.textWillChange(textView)
         textView.replace(target, withText: insertion)
+        textView.inputDelegate?.textDidChange(textView)
+
+        textView.inputDelegate?.selectionWillChange(textView)
         textView.selectedRange = NSRange(location: caretLocation, length: 0)
+        textView.inputDelegate?.selectionDidChange(textView)
         // 差し替えの通知が来ない経路があっても編集画面と食い違わないよう、こちらから反映させる
         textView.delegate?.textViewDidChange?(textView)
         refresh()
@@ -681,7 +689,10 @@ struct MemoEditorTextView: UIViewRepresentable {
         /// 表示（4.6節）と同じ規則で属性を当てる。文字列は変更しない。
         /// 日本語IMEの変換中（markedText あり）は触らない——変換の下線や候補が壊れるため
         func applyStyling(to textView: UITextView, accent: UIColor) {
-            guard textView.markedTextRange == nil else { return }
+            guard textView.markedTextRange == nil else {
+                colorMarkedTextInsideLink(in: textView, accent: accent)
+                return
+            }
             let text = textView.text ?? ""
             let storage = textView.textStorage
             let fullRange = NSRange(location: 0, length: storage.length)
@@ -871,6 +882,30 @@ struct MemoEditorTextView: UIViewRepresentable {
             storage.endEditing()
             textView.typingAttributes = baseAttributes
             textView.setNeedsDisplay()
+        }
+
+        /// 変換中の文字がつながりの括弧の中にあるあいだは、その範囲だけテーマ色にする
+        /// （**2026-08-12 オーナー指示**——確定するまで本文と同じ色のままで、つながりとして
+        /// 入力できているのか分からなかった）。
+        ///
+        /// 装飾を当て直すのではなく**色の属性を足すだけ**にするのが要点——`setAttributes` で
+        /// 全体を置き換えると、IMEが変換中の文字に付けている下線まで消える。日本語入力の
+        /// 変換中は他の装飾に触らないという防御（4.6節）は、この一点をくり抜いて残す
+        private func colorMarkedTextInsideLink(in textView: UITextView, accent: UIColor) {
+            guard let marked = textView.markedTextRange else { return }
+            let location = textView.offset(from: textView.beginningOfDocument, to: marked.start)
+            let length = textView.offset(from: marked.start, to: marked.end)
+            guard length > 0 else { return }
+
+            let text = textView.text ?? ""
+            guard let start = Range(NSRange(location: location, length: 0), in: text)?.lowerBound,
+                  MemoLinkParser.enclosingPair(in: text, at: start) != nil
+            else { return }
+
+            textView.textStorage.addAttribute(
+                .foregroundColor, value: accent,
+                range: NSRange(location: location, length: length)
+            )
         }
 
         /// 中身が空の `[[]]` の記号を隠し、案内を描く位置を返す（無ければ `nil`）。
