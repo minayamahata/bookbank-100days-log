@@ -92,6 +92,15 @@ struct BookshelfView: View {
             books = books.filter { $0.memo != nil && !($0.memo?.isEmpty ?? true) }
         }
 
+        // つながり絞り込み（ステップ8'）。既存の絞り込み・本棚内検索とAND合成する。
+        // 状態は口座切替をまたいで維持される（BookshelfChromeState・2026-08-12 オーナー確定）
+        if let linkFilter {
+            books = books.filter { book in
+                guard let memo = book.memo, !memo.isEmpty else { return false }
+                return MemoLinkParser.parse(memo).contains { $0.key == linkFilter.key }
+            }
+        }
+
         // 本棚内検索（タイトル・著者のローカル絞り込み）。既存フィルターとAND合成する。
         // 数百〜千冊でもタイトル+著者の正規化は軽量なため、毎キーストロークのインライン計算で十分。
         if isSearching {
@@ -109,6 +118,17 @@ struct BookshelfView: View {
     /// 本棚内検索が有効な絞り込みを行っているか（モードON かつ 入力あり）
     private var isShelfSearchActive: Bool {
         isSearching && !shelfSearchText.trimmingCharacters(in: .whitespaces).isEmpty
+    }
+
+    /// つながりでの絞り込み（本棚タブ全体で共有・口座切替をまたいで維持）
+    private var linkFilter: MemoLinkSelection? {
+        bookshelfChromeState.linkFilter
+    }
+
+    /// 表示中の口座のつながり集計（多い順）。検索モードの一覧と一致チップに使う。
+    /// メモリ上の都度構築で足りる規模（設計メモ 3.3節）なので、検索モードのときだけ呼ぶ
+    private var linkIndex: MemoLinkIndex {
+        MemoLinkIndex.build(from: passbookBooks)
     }
     
     /// カスタム口座のリスト
@@ -240,9 +260,21 @@ struct BookshelfView: View {
                         // フィルターセクション（通常のピル行 ⇔ 検索フィールド行）
                         filterSection
 
-                        // 検索中は件数を検索フィールド直下に表示
-                        if isShelfSearchActive {
-                            searchResultCount
+                        // つながりで絞り込み中だけ出る解除チップ。
+                        // 3タブ・本棚内検索とAND併用中も出したままにして、解除の口を失わない
+                        if linkFilter != nil {
+                            linkFilterChipRow
+                        }
+
+                        if isSearching {
+                            if isShelfSearchActive {
+                                // 入力あり: 一致するつながりのチップ（検索結果の上・決定事項3）＋件数
+                                linkMatchRow
+                                searchResultCount
+                            } else {
+                                // 入力前: つながりの一覧（表記ゆれに気づく場所・設計メモ4.1節）
+                                linkListSection
+                            }
                         }
 
                         // 本棚グリッド
@@ -486,6 +518,132 @@ struct BookshelfView: View {
         .padding(.bottom, 8)
     }
 
+    // MARK: - Link Filter（つながり絞り込み・ステップ8'）
+
+    /// つながりの印（メモ編集ツールバーの「つなぐ」と同じ図像）。
+    /// チップの言葉だけでは著者・タイトルの一致と見分けがつかないため添える
+    /// （2026-08-12 オーナー指示——文言だと5言語で幅が伸びるのでアイコンで示す）
+    private func linkChipIcon(size: CGFloat = 12) -> some View {
+        Image("icn_node")
+            .renderingMode(.template)
+            .resizable()
+            .scaledToFit()
+            .frame(width: size, height: size)
+    }
+
+    /// 絞り込み中チップの文字色。塗りが `bookshelfControlColor` なのでその反転色
+    private var linkChipSelectedTextColor: Color {
+        if isOverallAccount && colorScheme == .light { return .white }
+        return .black
+    }
+
+    /// 絞り込み中だけ出る解除チップの行。ベタ塗り＝選択中、✕で解除。
+    /// 解除しても口座モードには触れない（総合口座のまま・2026-08-12 オーナー確定）
+    private var linkFilterChipRow: some View {
+        HStack {
+            if let linkFilter {
+                Button(action: { bookshelfChromeState.linkFilter = nil }) {
+                    HStack(spacing: 6) {
+                        linkChipIcon()
+                        Text(linkFilter.display)
+                            .lineLimit(1)
+                        Image(systemName: "xmark")
+                            .font(.system(size: 9, weight: .semibold))
+                    }
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(linkChipSelectedTextColor)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 7)
+                    .background(Capsule().fill(bookshelfControlColor))
+                    .contentShape(Capsule())
+                }
+                .buttonStyle(.plain)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 20)
+        .padding(.bottom, 12)
+    }
+
+    /// 候補チップ（線のみ・件数つき）。タップでそのつながりの絞り込みへ切り替える
+    private func linkSuggestionChip(_ link: MemoLinkIndex.Link, showsIcon: Bool) -> some View {
+        Button(action: { applyLinkFilter(MemoLinkSelection(key: link.key, display: link.display)) }) {
+            HStack(spacing: 6) {
+                if showsIcon {
+                    linkChipIcon()
+                }
+                Text(link.display)
+                    .lineLimit(1)
+                Text(link.bookCount.formatted())
+                    .font(.system(size: 10, weight: .medium))
+                    .opacity(0.7)
+            }
+            .font(.system(size: 13))
+            .foregroundColor(bookshelfControlColor)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 7)
+            .overlay(Capsule().strokeBorder(bookshelfControlColor.opacity(0.4), lineWidth: 1))
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// 検索の入力前に出す、つながりの一覧（多い順・件数つき）。
+    /// 全部のつながりを見られる場所で、表記ゆれ（[[京都]] と [[きょうと]]）に
+    /// 気づく場所を兼ねる（設計メモ 4.1節）。つながりが1つも無ければ何も出ない
+    @ViewBuilder
+    private var linkListSection: some View {
+        let links = linkIndex.links
+        if !links.isEmpty {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 6) {
+                    linkChipIcon(size: 11)
+                    Text("bookshelf.links.header")
+                }
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(bookshelfControlColor.opacity(0.7))
+
+                ChipFlowLayout(spacing: 8, lineSpacing: 8) {
+                    ForEach(links, id: \.key) { link in
+                        linkSuggestionChip(link, showsIcon: false)
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 20)
+            .padding(.bottom, 20)
+        }
+    }
+
+    /// 検索語に一致するつながりのチップ（検索結果の上・決定事項3）。
+    /// 一致は部分一致＋本棚内検索と同じ正規化、複数一致は多い順に横1行
+    /// （2026-08-12 オーナー確定）。先頭のアイコンが「著者・タイトルの一致ではなく
+    /// つながり」であることの見分けになる
+    @ViewBuilder
+    private var linkMatchRow: some View {
+        let matches = linkIndex.links(matching: shelfSearchText)
+        if !matches.isEmpty {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(matches, id: \.key) { link in
+                        linkSuggestionChip(link, showsIcon: true)
+                    }
+                }
+                .padding(.horizontal, 20)
+            }
+            .padding(.bottom, 10)
+        }
+    }
+
+    /// つながりの絞り込みへ切り替える。検索モード中なら検索文字をクリアして
+    /// 通常表示へ戻す（決定事項3「押すと検索文字はクリアされ、絞り込みに切り替わる」）
+    private func applyLinkFilter(_ selection: MemoLinkSelection) {
+        bookshelfChromeState.linkFilter = selection
+        if isSearching {
+            exitShelfSearch()
+        }
+    }
+
     /// 検索モードに入る（フィールドを展開してフォーカス）
     private func enterShelfSearch() {
         withAnimation(.easeInOut(duration: 0.2)) {
@@ -560,6 +718,10 @@ struct BookshelfView: View {
             if userBooks.isEmpty {
                 if isShelfSearchActive {
                     searchEmptyState
+                } else if linkFilter != nil {
+                    // つながり絞り込みで0件（お気に入り等とのANDや、メモの書き換えで起こる）。
+                    // 「本を登録しましょう」では誤解を招くため専用の文言を出す
+                    linkFilterEmptyState
                 } else if hasLoadedUserBooks {
                     VStack(spacing: 8) {
                         Text("bookshelf.register_prompt")
@@ -592,6 +754,17 @@ struct BookshelfView: View {
         .padding(.bottom, 100)
     }
     
+    /// つながり絞り込みで0件のときの空状態
+    private var linkFilterEmptyState: some View {
+        Text("bookshelf.link_filter.empty")
+            .font(.subheadline)
+            .foregroundColor(bookshelfControlColor.opacity(0.7))
+            .multilineTextAlignment(.center)
+            .frame(maxWidth: .infinity)
+            .padding(.top, 40)
+            .padding(.horizontal, 40)
+    }
+
     /// 本棚内検索で0件のときの空状態。オンライン検索（登録）への導線を出す（仕様3.4）。
     private var searchEmptyState: some View {
         VStack(spacing: 12) {
@@ -655,4 +828,5 @@ struct BookshelfView: View {
     }
     .bookBankPreviewEnvironment()
     .environment(BookshelfChromeState())
+    .environment(AppShellState())
 }

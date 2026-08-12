@@ -788,6 +788,35 @@ struct BookBankTests {
         #expect(index.links.map(\.key) == ["きょうと", "京都"], "同数なら綴り順に並ぶ")
     }
 
+    @Test func memoLinkIndexReturnsBookIdsForFiltering() {
+        let books = [
+            sampleLinkedBook(id: "1", memo: "[[京都]] [[古本]]"),
+            sampleLinkedBook(id: "2", memo: "[[京都]]"),
+            sampleLinkedBook(id: "3", memo: "[[奈良]]")
+        ]
+        let index = MemoLinkIndex.build(from: books)
+
+        #expect(index.bookIds(for: "京都") == ["1", "2"])
+        #expect(index.bookIds(for: "存在しない") == [], "未知のキーは空")
+    }
+
+    @Test func memoLinkIndexMatchesQueryPartially() {
+        // 検索語との一致は部分一致＋本棚内検索と同じ正規化（2026-08-12 オーナー確定）。
+        // かな寄せで [[きょうと]] と [[キョウト]] が「きょうと」の両方に出るのは意図した挙動で、
+        // 表記ゆれに気づく機会にもなる（つながりの同一性＝NFKC・かな寄せなしには触れない）
+        let books = [
+            sampleLinkedBook(id: "1", memo: "[[仕事]] [[仕事術]]"),
+            sampleLinkedBook(id: "2", memo: "[[仕事]] [[きょうと]]"),
+            sampleLinkedBook(id: "3", memo: "[[キョウト]]")
+        ]
+        let index = MemoLinkIndex.build(from: books)
+
+        #expect(index.links(matching: "仕").map(\.key) == ["仕事", "仕事術"], "部分一致・多い順のまま")
+        #expect(index.links(matching: "きょうと").map(\.key) == ["きょうと", "キョウト"], "かな寄せで両方見つかる")
+        #expect(index.links(matching: "奈良").isEmpty, "一致なしは空")
+        #expect(index.links(matching: "").map(\.key) == index.links.map(\.key), "空クエリは全件（入力前の一覧）")
+    }
+
     @Test func memoLinkTextPrefersLinkAppearanceOverBold() throws {
         // 太字と重なってもつながりの見た目を優先（設計メモ 4.6節・2026-08-12 確定）
         let bold = Font.body.weight(MemoLinkText.boldWeight)

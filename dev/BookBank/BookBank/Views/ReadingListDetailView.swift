@@ -1139,6 +1139,7 @@ struct ReorderBooksView: View {
         ReadingListDetailView(list: PreviewSupport.sampleReadingList())
     }
     .bookBankPreviewEnvironment()
+    .environment(AppShellState())
 }
 
 // MARK: - More Actions Sheet

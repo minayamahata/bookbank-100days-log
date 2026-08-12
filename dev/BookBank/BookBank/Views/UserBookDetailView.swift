@@ -13,6 +13,7 @@ struct UserBookDetailView: View {
     @Environment(\.floatingButtonState) private var floatingButtonState
     @Environment(LanguageManager.self) private var languageManager
     @Environment(AppRepositories.self) private var repos
+    @Environment(AppShellState.self) private var appShellState
 
     /// 表示対象の本（値型のコピー）。
     /// 生の `@Model` を保持しないため、表示中に元レコードが削除されても getter がトラップしない
@@ -100,6 +101,14 @@ struct UserBookDetailView: View {
             return .white
         }
         return themeColor
+    }
+
+    /// このメモに書かれたつながり（出現順・同じキーは1つ）。
+    /// 表示はこのメモに書かれたままの綴り。チップ行（設計メモ 4.4節）に使う
+    private var memoLinks: [MemoLink] {
+        guard let memo = book.memo, !memo.isEmpty else { return [] }
+        var seenKeys = Set<String>()
+        return MemoLinkParser.parse(memo).filter { seenKeys.insert($0.key).inserted }
     }
 
     var body: some View {
@@ -480,12 +489,61 @@ struct UserBookDetailView: View {
                 }
             }
             .buttonStyle(.plain)
+
+            // つながりチップ行（設計メモ 4.4節）。メモ本文の着色は「表示」、操作はこのチップが担う。
+            // つながりが1つも無い本では行ごと出ない＝使わない人の詳細画面は現状のまま
+            if !memoLinks.isEmpty {
+                memoLinkChipRow
+            }
         }
         .padding(.horizontal, 24)
         .padding(.bottom, 40)
     }
 
+    /// メモの下のつながりチップ行。タップで本棚（総合口座）へ移動し、同じつながりで絞り込む。
+    /// つながりの印（icn_node）は行頭に1つだけ置き、チップ自体は無地にする
+    /// ——1冊に複数のつながりがあると、チップごとのアイコンはうるさいため
+    private var memoLinkChipRow: some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image("icn_node")
+                .renderingMode(.template)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 13, height: 13)
+                .foregroundColor(.secondary)
+                .padding(.top, 8)
+
+            ChipFlowLayout(spacing: 8, lineSpacing: 8) {
+                ForEach(memoLinks, id: \.key) { link in
+                    Button(action: { filterBookshelf(by: link) }) {
+                        Text(link.display)
+                            .font(.system(size: 13))
+                            .lineLimit(1)
+                            .foregroundColor(linkColor)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .overlay(
+                                Capsule().strokeBorder(Color.primary.opacity(0.15), lineWidth: 1)
+                            )
+                            .contentShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.top, 12)
+    }
+
     // MARK: - Actions
+
+    /// つながりチップから本棚へ。総合口座モードに切り替えて全冊から絞り込む
+    /// （2026-08-12 オーナー確定——つながりは口座をまたぐのが普通なので、口座で切らない）
+    private func filterBookshelf(by link: MemoLink) {
+        appShellState.filterBookshelf(
+            by: MemoLinkSelection(key: link.key, display: link.display)
+        )
+    }
 
     /// お気に入りの切替（現行どおり `updatedAt` は更新しない・前提12）
     private func toggleFavorite() {
@@ -577,4 +635,5 @@ struct DetailInfoRow: View {
         }
     }
     .bookBankPreviewEnvironment()
+    .environment(AppShellState())
 }

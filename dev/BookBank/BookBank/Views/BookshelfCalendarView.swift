@@ -535,4 +535,5 @@ struct BookshelfCalendarView<Header: View>: View {
     }
     .bookBankPreviewEnvironment()
     .environment(BookshelfChromeState())
+    .environment(AppShellState())
 }

@@ -14,6 +14,7 @@ class AppShellState {
     var onOverallSelected: (() -> Void)?
     var onShowBookshelf: (() -> Void)?
     var onShowCalendar: (() -> Void)?
+    var onFilterBookshelfByLink: ((MemoLinkSelection) -> Void)?
 
     func selectPassbook(_ passbook: PassbookDTO) {
         onPassbookSelected?(passbook)
@@ -29,6 +30,11 @@ class AppShellState {
 
     func showCalendar() {
         onShowCalendar?()
+    }
+
+    /// 詳細画面のつながりチップから、本棚をそのつながりで絞り込んだ状態で開く（ステップ8'）
+    func filterBookshelf(by link: MemoLinkSelection) {
+        onFilterBookshelfByLink?(link)
     }
 }
 
@@ -46,6 +52,12 @@ class PassbookSheetChromeState {
 class BookshelfChromeState {
     /// 本棚タブがカレンダー表示中か
     var isCalendar = false
+
+    /// つながりでの絞り込み（nil = 絞り込みなし・同時に選べるのは1つ）。
+    /// `BookshelfView` のローカル状態ではなくここに置くのは、口座切替（`.id` による
+    /// View再生成）をまたいで維持するため——絞り込んだまま口座を切り替えると
+    /// 「口座 AND つながり」になる（2026-08-12 オーナー確定）
+    var linkFilter: MemoLinkSelection?
 }
 
 private struct FloatingButtonStateKey: EnvironmentKey {
@@ -188,6 +200,17 @@ struct MainTabView: View {
                 appShellState.onShowCalendar = {
                     bookshelfNavPath = NavigationPath()
                     bookshelfChromeState.isCalendar = true
+                    selectedTab = 2
+                }
+                // つながりチップ→本棚。総合口座モードへ切り替えて全冊から絞る
+                // （2026-08-12 オーナー確定——つながりの価値は口座をまたいで本が出てくること。
+                // 口座が切り替わったことは左上の口座セレクタの「総合口座」表示で分かる。
+                // 絞り込みを解除しても総合のまま＝自動で元の口座へは戻さない）
+                appShellState.onFilterBookshelfByLink = { link in
+                    bookshelfChromeState.linkFilter = link
+                    isOverallMode = true
+                    resetContentNavigationPaths()
+                    bookshelfChromeState.isCalendar = false
                     selectedTab = 2
                 }
                 validateSelectedPassbook()
