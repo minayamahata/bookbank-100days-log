@@ -214,6 +214,7 @@ enum MemoLinkText {
                 flush()
                 var highlighted = AttributedString(link.display)
                 highlighted.foregroundColor = color
+                // 太字と重なってもつながりのフォントを使う（設計メモ 4.6節）
                 highlighted.font = .subheadline.weight(.semibold)
                 result += highlighted
                 index = link.range.upperBound

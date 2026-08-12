@@ -737,6 +737,18 @@ struct BookBankTests {
         #expect(index.links.map(\.key) == ["きょうと", "京都"], "同数なら綴り順に並ぶ")
     }
 
+    @Test func memoLinkTextPrefersLinkAppearanceOverBold() throws {
+        // 太字と重なってもつながりの見た目を優先（設計メモ 4.6節・2026-08-12 確定）
+        let bold = Font.body.weight(MemoLinkText.boldWeight)
+        let attributed = MemoLinkText.highlighted("**[[京都]]**", color: .blue, boldFont: bold)
+        #expect(String(attributed.characters) == "京都")
+
+        let run = try #require(attributed.runs.first)
+        #expect(run.foregroundColor == .blue)
+        #expect(run.font == Font.subheadline.weight(.semibold))
+        #expect(run.font != bold, "太字の heavy よりつながりのセミボールドが勝つ")
+    }
+
     @Test func memoLinkHighlightHidesBracketsAndKeepsRestIntact() {
         // 記号を隠すため表示文字列は原文と一致しない。不変条件は
         // 「解釈対象の記号以外の文字は一切加工しない」（設計メモ 4.6節）
