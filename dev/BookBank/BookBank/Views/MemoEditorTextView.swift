@@ -436,6 +436,8 @@ struct MemoEditorTextView: UIViewRepresentable {
         /// ひとつ前の位置変更のときの本文の長さ。位置が動いた理由が入力かタップかを見分けるために持つ
         /// （入力なら長さが変わる。テンキーからの抜け方の判定に使う）
         private var lengthAtLastSelectionChange = -1
+        /// 引用の上に空行を足している最中。入れた改行が同じ規則に再入するのを防ぐ
+        private var isOpeningLineAboveQuote = false
 
         init(_ parent: MemoEditorTextView) {
             self.parent = parent
@@ -496,6 +498,7 @@ struct MemoEditorTextView: UIViewRepresentable {
                 return
             }
             snapCaretPastPageMarker(textView)
+            snapCaretOutOfHiddenMarkers(textView)
             if parent.selectedRange != textView.selectedRange {
                 parent.selectedRange = textView.selectedRange
             }
@@ -510,6 +513,19 @@ struct MemoEditorTextView: UIViewRepresentable {
             let selection = textView.selectedRange
             guard selection.length == 0 else { return }
             let snapped = MemoQuotePage.caretLocation(
+                snapping: selection.location, in: textView.text ?? ""
+            )
+            guard snapped != selection.location else { return }
+            textView.selectedRange = NSRange(location: snapped, length: 0)
+        }
+
+        /// 隠れた記号の中にはキャレットを置かない（判定は `MemoHiddenMarkers`）。
+        /// 行頭をタップしても `> ` の前ではなく文字の側に入るので、打った文字が引用の外へ
+        /// こぼれない。変換中は動かさない——IMEが握っている位置を横から変えることになる
+        private func snapCaretOutOfHiddenMarkers(_ textView: UITextView) {
+            let selection = textView.selectedRange
+            guard selection.length == 0, textView.markedTextRange == nil else { return }
+            let snapped = MemoHiddenMarkers.caretLocation(
                 snapping: selection.location, in: textView.text ?? ""
             )
             guard snapped != selection.location else { return }
@@ -608,6 +624,27 @@ struct MemoEditorTextView: UIViewRepresentable {
                 return false
             }
 
+            // 引用のまとまりの先頭でEnterを押したら、引用の上に空行を足す（引用が下がる）。
+            // 行頭に見える位置は隠れた `> ` の先なので、そのまま通すと改行が引用の内側に入り、
+            // 上に行を足せなかった（2026-08-12 オーナー報告）。改行は `> ` の前へ入れる
+            if replacement == "\n", range.length == 0, !isOpeningLineAboveQuote,
+               textView.markedTextRange == nil,
+               let opening = MemoHiddenMarkers.quoteOpening(
+                   forReturnAt: range.location, in: textView.text ?? ""
+               ) {
+                // 「ひとつ戻す」で戻せるよう、書き換えはテキストビュー経由で行う。
+                // 入れた改行がこの規則に再入しないよう、印を立ててから呼ぶ
+                isOpeningLineAboveQuote = true
+                defer { isOpeningLineAboveQuote = false }
+                // キャレットは引用の文字に付いていく（下がった引用の行頭のまま）
+                _ = parent.bridge.replace(
+                    NSRange(location: opening, length: 0),
+                    with: "\n",
+                    caretLocation: range.location + 1
+                )
+                return false
+            }
+
             // 引用の中の改行は、その引用の出典ページへの移動として扱う（2026-08-12 オーナー指示）
             if replacement == "\n", textView.markedTextRange == nil,
                let destination = MemoQuotePage.pageCaretLocation(
@@ -683,7 +720,10 @@ struct MemoEditorTextView: UIViewRepresentable {
             let prefix = NSRange(location: lineRange.location, length: 2)
             if lineRange.length >= 2, nsText.substring(with: prefix) == "> ",
                index == lineRange.location || index == lineRange.location + 1 {
-                return [prefix]
+                // 引用でなくなると、続く空の出典ページの行は置き場を失う（`p.` が本文に残る）。
+                // ツールバーで引用を外したときと同じ後始末をする（4.5節）
+                guard let page = emptyPageLine(after: lineRange, in: nsText) else { return [prefix] }
+                return [prefix, page]
             }
 
             return nil
@@ -1019,6 +1059,17 @@ struct MemoEditorTextView: UIViewRepresentable {
                 }
             }
             return hint
+        }
+
+        /// `line` の次が数字未入力の出典ページの行なら、その行（手前の改行を含む）
+        private func emptyPageLine(after line: NSRange, in nsText: NSString) -> NSRange? {
+            let next = NSMaxRange(line)
+            guard next < nsText.length else { return nil }
+            let pageLine = nsText.lineRange(for: NSRange(location: next, length: 0))
+            let content = nsText.substring(with: pageLine)
+                .trimmingCharacters(in: .newlines)
+            guard MemoQuotePage.digits(inPageOnlyLine: content)?.isEmpty == true else { return nil }
+            return NSRange(location: next - 1, length: content.count + 1)
         }
 
         private func isBlank(_ text: String) -> Bool {

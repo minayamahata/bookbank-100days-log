@@ -490,6 +490,47 @@ struct BookBankTests {
         #expect(trimmed("> 引用の行", 0...2).isEmpty)
     }
 
+    /// キャレットは隠れた記号の中に置かない（**2026-08-12 オーナー指示**——場面ごとの
+    /// 個別対応をやめ、記号をまたぐときの振る舞いを1か所で決める）
+    @Test func memoHiddenMarkersKeepTheCaretOutOfTheSymbols() {
+        func snapped(_ text: String, _ offset: Int) -> Int {
+            MemoHiddenMarkers.caretLocation(snapping: offset, in: text)
+        }
+
+        // 行頭の `> ` は「記号の前」も見た目が同じ位置なので、どちらから来ても文字の側へ送る
+        #expect(snapped("> 引用", 0) == 2)
+        #expect(snapped("> 引用", 1) == 2)
+        #expect(snapped("> 引用", 3) == 3)
+        // `[[ ]]` と `**` は記号の中にいるときだけ送る（記号の前は前の文字との境目＝正しい位置）
+        #expect(snapped("ああ[[京都]]", 2) == 2)
+        #expect(snapped("ああ[[京都]]", 3) == 4)
+        #expect(snapped("ああ[[京都]]", 7) == 8)
+        // 括弧のあいだ（「つなぐ」「太字」を押した直後にキャレットが立つ場所）は動かさない
+        #expect(snapped("[[]]", 2) == 2)
+        #expect(snapped("****", 2) == 2)
+    }
+
+    /// 引用のまとまりの先頭でだけ、上に行を足す口を開ける（2026-08-12 オーナー報告——
+    /// メモの先頭が引用だと、その上に行を足せなかった）
+    @Test func memoQuoteOpensALineAboveTheBlockHead() {
+        let text = "> 一行目\n> 二行目\np."
+        #expect(MemoHiddenMarkers.quoteOpening(forReturnAt: 2, in: text) == 0)
+        #expect(MemoHiddenMarkers.quoteOpening(forReturnAt: 0, in: text) == 0)
+        // 行の途中では開けない（引用の中の改行は出典ページへの移動）
+        #expect(MemoHiddenMarkers.quoteOpening(forReturnAt: 4, in: text) == nil)
+        // まとまりの途中の行の行頭でも開けない（囲みが割れる。上へは1つ上の行から行ける）
+        #expect(MemoHiddenMarkers.quoteOpening(forReturnAt: 8, in: text) == nil)
+        // 前に普通の行がある引用でも、先頭行なら開ける
+        #expect(MemoHiddenMarkers.quoteOpening(forReturnAt: 8, in: "ふつうの行\n> 引用") == 6)
+        #expect(MemoHiddenMarkers.quoteOpening(forReturnAt: 2, in: "ふつうの行") == nil)
+    }
+
+    /// メモの末尾が引用でも、その下に書く行を必ず用意しておく（出典ページの行の下の空行）
+    @Test func memoEndingWithAQuoteKeepsALineBelow() {
+        #expect(MemoQuotePage.preparedForEditing("> 引用") == "> 引用\np.\n")
+        #expect(MemoQuotePage.preparedForEditing("> 引用\np.42") == "> 引用\np.42\n")
+    }
+
     /// 押すたびに付いたり外れたりする（**2026-08-12 オーナー指示**——「つなぐ」の連打で
     /// `[[]]` が入れ子になり、記号が画面に出ていた）
     @Test func memoFormatTogglesRemoveTheFormatWhenTheCaretIsInside() {

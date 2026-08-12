@@ -193,6 +193,38 @@ struct MemoQuoteGeometryTests {
         #expect(textView.text == text, "案内は本文の文字にならない（バーに出るのは記号への反応）")
     }
 
+    /// メモの先頭が引用のとき、見た目の行頭でEnterを押したら**引用の上に**空行ができる
+    /// （**2026-08-12 オーナー報告**——行頭に見える位置は隠れた `> ` の先なので、そのまま
+    /// 通すと改行が引用の内側に入り、上に行を足せなかった）。
+    /// 書き換えはテキストビュー経由なので「ひとつ戻す」でも戻せる
+    @Test func returnAtTheHeadOfAQuoteOpensALineAbove() {
+        let memo = "> 引用の行\np."
+        let bridge = MemoEditorBridge()
+        let editor = MemoEditorTextView(
+            text: .constant(memo),
+            selectedRange: .constant(NSRange(location: 2, length: 0)),
+            prefersNumericKeyboard: .constant(false),
+            accentColor: .blue,
+            bridge: bridge
+        )
+        let coordinator = editor.makeCoordinator()
+        let textView = UITextView(frame: CGRect(x: 0, y: 0, width: 300, height: 400))
+        textView.text = memo
+        textView.selectedRange = NSRange(location: 2, length: 0)
+        bridge.textView = textView
+
+        let allowed = coordinator.textView(
+            textView,
+            shouldChangeTextIn: NSRange(location: 2, length: 0),
+            replacementText: "\n"
+        )
+
+        #expect(allowed == false, "改行は自分で入れる（そのまま通すと引用の内側に入る）")
+        #expect(textView.text == "\n" + memo, "引用の上に空行ができ、引用は下がる")
+        #expect(textView.selectedRange.location == 3, "キャレットは下がった引用の行頭に付いていく")
+        #expect(bridge.canUndo, "「ひとつ戻す」で戻せる")
+    }
+
     /// 「ひとつ戻す」はiOS標準の取り消し機構に相乗りする。取り消すと復元された範囲が選択される
     /// （書式クリアを戻すと全選択に見えた）ので、キャレットに畳んでいることを固定する
     @Test func undoCollapsesTheRestoredSelection() throws {
