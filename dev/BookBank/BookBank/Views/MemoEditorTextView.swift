@@ -208,12 +208,17 @@ final class MemoQuoteBackgroundLayoutManager: NSLayoutManager {
 /// 標準では行に割り当てられた領域いっぱいに伸びるため、引用の余白（段落の前後空き）を入れると
 /// カーソルだけが極端に長くなる（実測: 22ptの文字に対して52pt）。文字の高さに合わせて描き直す
 final class MemoCaretAlignedTextView: UITextView {
+    /// テンキーで番号を打っているあいだだけ、バッジ直後のカーソルを枠の中へ寄せる
+    /// （2026-08-12 オーナー報告——外に立つと入力中の場所に見えない）。
+    /// テンキーから抜けたら寄せない——字送りで作った余白（背景の右外）に立ち、
+    /// **枠から出たことが目で分かる**（同日オーナー指示。位置は同じで、見せ方だけ変わる）
+    var pullsCaretIntoPageBadge = false
+
     override func caretRect(for position: UITextPosition) -> CGRect {
         var rect = super.caretRect(for: position)
         let location = self.offset(from: beginningOfDocument, to: position)
-        // ページ番号の直後は、バッジの余白のために広げた字送りの分だけ左へ戻す——
-        // 戻さないとバッジの外にカーソルが立ち、入力中の場所に見えない（2026-08-12 オーナー報告）
-        if endsPageBadge(at: location) {
+        // ページ番号の直後は、バッジの余白のために広げた字送りの分だけ左へ戻す
+        if pullsCaretIntoPageBadge, endsPageBadge(at: location) {
             rect.origin.x -= MemoQuoteBackgroundLayoutManager.pageBadgeSpacing
         }
 
@@ -431,6 +436,18 @@ struct MemoEditorTextView: UIViewRepresentable {
             }
         }
 
+        // テンキーの出入りに合わせて、バッジ直後のカーソルの見せ方を切り替える
+        if let aligned = textView as? MemoCaretAlignedTextView,
+           aligned.pullsCaretIntoPageBadge != prefersNumericKeyboard {
+            aligned.pullsCaretIntoPageBadge = prefersNumericKeyboard
+            // カーソルの矩形を引き直させる（位置は変えず、選択を当て直すだけ）
+            context.coordinator.isApplyingRequestedState = true
+            let selection = textView.selectedTextRange
+            textView.selectedTextRange = nil
+            textView.selectedTextRange = selection
+            context.coordinator.isApplyingRequestedState = false
+        }
+
         context.coordinator.applyStyling(to: textView, accent: UIColor(accentColor))
     }
 
@@ -478,16 +495,21 @@ struct MemoEditorTextView: UIViewRepresentable {
 
             let caret = textView.selectedRange
             let storage = textView.textStorage
-            storage.beginEditing()
-            for offset in offsets.sorted(by: >) {
-                storage.replaceCharacters(in: NSRange(location: offset, length: 0), with: "\np.")
+            // キーボードの切り替えと同時に走るため、進行中のアニメーションに巻き込まれて
+            // 足した行がぬるっと現れる（2026-08-12 オーナー報告）。即座に出す
+            UIView.performWithoutAnimation {
+                storage.beginEditing()
+                for offset in offsets.sorted(by: >) {
+                    storage.replaceCharacters(in: NSRange(location: offset, length: 0), with: "\np.")
+                }
+                if tail != nil {
+                    storage.replaceCharacters(
+                        in: NSRange(location: storage.length, length: 0), with: "\n"
+                    )
+                }
+                storage.endEditing()
+                textView.layoutIfNeeded()
             }
-            if tail != nil {
-                storage.replaceCharacters(
-                    in: NSRange(location: storage.length, length: 0), with: "\n"
-                )
-            }
-            storage.endEditing()
 
             // キャレットより前に入った分だけ後ろへずらす（行末に入るので同位置なら動かさない）
             let insertedBefore = offsets.count(where: { $0 < caret.location }) * 3

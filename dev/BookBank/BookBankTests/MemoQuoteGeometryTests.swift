@@ -480,6 +480,31 @@ struct MemoQuoteGeometryTests {
         #expect(inlineBox.minX - previousEnd <= inset + margin, "離れすぎない")
     }
 
+    /// バッジ直後のカーソルは、テンキーで打っているあいだは枠の中、抜けたら枠の右外に立つ
+    /// （**2026-08-12 オーナー指示**——タップで抜けても枠の中に見えたままで、
+    /// Enterを押して初めて抜けたと分かる状態だった。位置は同じで、見せ方だけを切り替える）
+    @Test func caretStepsOutOfThePageBadgeAfterLeavingTheNumberPad() throws {
+        let (textView, manager) = try Self.makeEditor(memo: "本文p.42")
+        let aligned = try #require(textView as? MemoCaretAlignedTextView)
+        let position = try #require(
+            textView.position(from: textView.beginningOfDocument, offset: 6)
+        )
+        let badge = try #require(manager.pageBadgeBoxes().first)
+
+        aligned.pullsCaretIntoPageBadge = true
+        let typing = textView.caretRect(for: position)
+        #expect(typing.minX < badge.maxX, "番号を打っているあいだは枠の中")
+
+        aligned.pullsCaretIntoPageBadge = false
+        let escaped = textView.caretRect(for: position)
+        #expect(escaped.minX >= badge.maxX, "抜けたら背景の右外（字送りの余白）に立つ")
+        #expect(
+            abs((escaped.minX - typing.minX) - MemoQuoteBackgroundLayoutManager.pageBadgeSpacing)
+                < 0.5,
+            "違いは字送りの寄せだけ（文書の中の位置は同じ）"
+        )
+    }
+
     private static func makeEditor(
         memo: String
     ) throws -> (UITextView, MemoQuoteBackgroundLayoutManager) {

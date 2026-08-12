@@ -48,11 +48,12 @@ enum MemoFormatToggle {
     }
 
     /// ページ番号。付ける側は `p.` を挿すだけ（数字はユーザーが打つ）。
-    /// 外す側は他のトグルに揃えて**記号だけ外す**（**2026-08-12 オーナー指示**——
-    /// 光っているのにもう一度押すと `p.` が重なって入っていた）。例外が2つある:
-    /// - **数字がまだ入っていない `p.` は丸ごと消す**——押し間違いの取り消しになる
-    /// - **出典ページの行（ページ番号だけの行）は数字だけ落とす**——行そのものが引用の一部で、
-    ///   `p.` を外すと数字だけの行が残り、その下に空のページ行が足し直される
+    /// 外す側は**数字ごと消す**（**2026-08-12 オーナー指示**——当初は他のトグルに揃えて
+    /// 記号だけ外していたが、数字だけが本文に取り残されて意味を成さない。つながりや太字は
+    /// 記号を外せば意味のある文字が残るのに対し、ページ番号は `p.` と数字で1つの意味。
+    /// 書式クリアが数字ごと落とす方針とも揃う）。例外は1つ:
+    /// - **引用の出典ページの行は数字だけ落として `p.` は残す**——行そのものが引用に付随して
+    ///   自動で足し直されるため。数字がまだ無ければ何もしない
     static func page(in text: String, selecting range: Range<String.Index>) -> Edit {
         guard let marker = MemoPageMarker.enclosing(range.lowerBound, in: text) else {
             let target = MemoHiddenMarkers.trimming(range, in: text)
@@ -60,17 +61,10 @@ enum MemoFormatToggle {
         }
 
         let digits = text.index(marker.lowerBound, offsetBy: 2)..<marker.upperBound
-        // 引用の出典ページは行そのものが引用の一部なので、数字だけ落として枠は残す
-        // （`p.` を外すと数字だけの行が残り、その下に空のページ行が足し直される）。
-        // 数字がまだ無ければ何もしない——消しても同じ行がすぐ足し直されるだけ
         if isQuotePageLine(marker, in: text) {
             return Edit(replaced: digits, text: "", caretOffset: 0)
         }
-        if digits.isEmpty {
-            return Edit(replaced: marker, text: "", caretOffset: 0)
-        }
-        let number = String(text[digits])
-        return Edit(replaced: marker, text: number, caretOffset: number.count)
+        return Edit(replaced: marker, text: "", caretOffset: 0)
     }
 
     /// **引用の直後の**ページ番号だけの行か。「ページ番号だけの行」で見ると、引用と関係なく

@@ -571,7 +571,7 @@ struct BookBankTests {
     /// ページ番号もトグル（**2026-08-12 オーナー指示**——光っているのにもう一度押すと
     /// `p.` が重なって入っていた）。外し方は他のトグルに揃えて記号だけ、ただし
     /// 数字未入力は押し間違いなので丸ごと、出典ページの行は数字だけ落とす
-    @Test func memoPageToggleTakesOffTheMarkerAndKeepsTheNumber() {
+    @Test func memoPageToggleRemovesTheNumberAsAWhole() {
         func toggled(_ text: String, at offset: Int) -> (text: String, caret: Int) {
             let caret = text.index(text.startIndex, offsetBy: offset)
             let edit = MemoFormatToggle.page(in: text, selecting: caret..<caret)
@@ -588,17 +588,16 @@ struct BookBankTests {
         // このために**テンキー中もツールバーを畳まない**・設計メモ 4.5節）
         let inserted = toggled("本文", at: 2)
         #expect(toggled(inserted.text, at: inserted.caret).text == "本文")
-        // 数字が入っていれば記号だけ外す（つながり・太字と同じ）
-        #expect(toggled("本文p.42のところ", at: 5).text == "本文42のところ")
-        #expect(toggled("本文p.42のところ", at: 5).caret == 4, "残した数字の後ろに置く")
-        // 数字がまだ無ければ丸ごと消す（押し間違いの取り消し）
+        // 外す側は**数字ごと消す**（2026-08-12 オーナー指示——当初は記号だけ外していたが、
+        // 数字だけが本文に取り残されて意味を成さない。ページ番号は `p.` と数字で1つの意味）
+        #expect(toggled("本文p.42のところ", at: 5).text == "本文のところ")
+        #expect(toggled("本文p.42のところ", at: 5).caret == 2, "消した場所に置く")
         #expect(toggled("本文p.", at: 4).text == "本文")
-        // 出典ページの行は数字だけ落として枠は残す（`p.` を外すと数字だけの行が残ってしまう）
+        #expect(toggled("p.42", at: 4).text == "")
+        #expect(toggled("本文\np.42", at: 7).text == "本文\n")
+        // 出典ページの行だけは数字を落として `p.` を残す——行そのものが引用に付随して
+        // 自動で足し直されるため、丸ごと消しても同じ行がすぐ戻る
         #expect(toggled("> 引用\np.83\n", at: 8).text == "> 引用\np.\n")
-        // ただし**引用の直後の行だけ**。単独の行に打ったページ番号は文中と同じ扱いにする
-        // （2026-08-12 オーナー報告——打った数字のほうが消えていた）
-        #expect(toggled("p.42", at: 4).text == "42")
-        #expect(toggled("本文\np.42", at: 7).text == "本文\n42")
     }
 
     /// 引用の解除は「触れている行がすべて引用のとき」だけ。一部なら付ける側の操作
