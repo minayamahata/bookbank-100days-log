@@ -58,7 +58,7 @@ enum MemoFormatToggle {
     /// 英数字の直後には挿せない（解析と同じ境界・`canInsert`）。不成立な `p.` を足しても
     /// バッジにもアクティブにもならないので、区切りを補わず `nil` を返す
     static func page(in text: String, selecting range: Range<String.Index>) -> Edit? {
-        if let marker = MemoPageMarker.enclosing(range.lowerBound, in: text) {
+        if let marker = MemoPageMarker.enclosingOutsideLinks(range.lowerBound, in: text) {
             let digits = text.index(marker.lowerBound, offsetBy: 2)..<marker.upperBound
             if isQuotePageLine(marker, in: text) {
                 return Edit(replaced: digits, text: "", caretOffset: 0)
@@ -67,6 +67,8 @@ enum MemoFormatToggle {
         }
 
         let target = MemoHiddenMarkers.trimming(range, in: text)
+        // つながりの中ではページ番号の操作をしない（表示がバッジにしないのと同じ解釈）
+        guard MemoLinkParser.enclosingPair(in: text, at: target.lowerBound) == nil else { return nil }
         guard MemoPageMarker.canInsert(at: target.lowerBound, in: text) else { return nil }
         return Edit(replaced: target, text: "p.", caretOffset: 2)
     }

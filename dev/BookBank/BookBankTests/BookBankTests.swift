@@ -645,6 +645,14 @@ struct BookBankTests {
         // 数字がまだ無い `p.` も中——ここで押したら外れる（トグルと同じ範囲で判定する）
         #expect(formats("本文p.", at: 4).page)
         #expect(formats("stop.", at: 5).page == false, "英数字に続く `p.` はページ番号ではない")
+        // つながりのラベル内は表示と同じくページ番号とみなさない（設計メモ 4.5／4.6節）
+        #expect(formats("[[p.5]]", at: 4).page == false)
+        #expect(formats("[[p.5]]", at: 4).link)
+        let inside = "[[p.5]]".index("[[p.5]]".startIndex, offsetBy: 4)
+        #expect(
+            MemoFormatToggle.page(in: "[[p.5]]", selecting: inside..<inside) == nil,
+            "アクティブが消えているのにトグルだけページとして外す／挿す、が起きない"
+        )
     }
 
     /// 装飾は重なる（引用の中のつながり・太字）。光るボタンも重なってよい

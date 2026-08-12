@@ -274,7 +274,7 @@ struct MemoEditorView: View {
     private func togglePageMarker() {
         let range = currentSelectionRange
         guard let edit = MemoFormatToggle.page(in: editedText, selecting: range) else { return }
-        let isInsertion = MemoPageMarker.enclosing(range.lowerBound, in: editedText) == nil
+        let isInsertion = MemoPageMarker.enclosingOutsideLinks(range.lowerBound, in: editedText) == nil
         apply(edit)
         // 外したときはテンキーのままにしない（キャレットが数字から離れる）
         prefersNumericKeyboard = isInsertion

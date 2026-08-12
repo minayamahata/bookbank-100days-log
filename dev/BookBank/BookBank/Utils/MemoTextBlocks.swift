@@ -433,6 +433,17 @@ enum MemoPageMarker {
         return start..<caret
     }
 
+    /// 表示・アクティブ・トグルで共有する「ページ番号として扱う範囲」。
+    /// つながりのラベル内はページ番号にしない（`[[p.5]]` はつながりであって出典ページではない）
+    static func enclosingOutsideLinks(_ caret: String.Index, in text: String) -> Range<String.Index>? {
+        guard let marker = enclosing(caret, in: text) else { return nil }
+        let linkRanges = MemoLinkParser.parse(text).map(\.range)
+        if linkRanges.contains(where: { $0.contains(marker.lowerBound) }) {
+            return nil
+        }
+        return marker
+    }
+
     /// ここに `p.` を挿してもページ番号として成立するか（解析側と同じ直前境界）。
     /// 英数字の直後では不成立なので、ツールバーは挿さずボタンを無効にする
     static func canInsert(at caret: String.Index, in text: String) -> Bool {
