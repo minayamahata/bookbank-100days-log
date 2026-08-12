@@ -568,6 +568,31 @@ struct BookBankTests {
         #expect(edited("> 引用の行\np.42", at: 4, MemoFormatToggle.quote) == "引用の行\np.42")
     }
 
+    /// ページ番号もトグル（**2026-08-12 オーナー指示**——光っているのにもう一度押すと
+    /// `p.` が重なって入っていた）。外し方は他のトグルに揃えて記号だけ、ただし
+    /// 数字未入力は押し間違いなので丸ごと、出典ページの行は数字だけ落とす
+    @Test func memoPageToggleTakesOffTheMarkerAndKeepsTheNumber() {
+        func toggled(_ text: String, at offset: Int) -> (text: String, caret: Int) {
+            let caret = text.index(text.startIndex, offsetBy: offset)
+            let edit = MemoFormatToggle.page(in: text, selecting: caret..<caret)
+            var result = text
+            result.replaceSubrange(edit.replaced, with: edit.text)
+            let start = text.distance(from: text.startIndex, to: edit.replaced.lowerBound)
+            return (result, start + edit.caretOffset)
+        }
+
+        // 中にいなければ挿す（従来どおり・キャレットは `p.` の直後）
+        #expect(toggled("本文", at: 2).text == "本文p.")
+        #expect(toggled("本文", at: 2).caret == 4)
+        // 数字が入っていれば記号だけ外す（つながり・太字と同じ）
+        #expect(toggled("本文p.42のところ", at: 5).text == "本文42のところ")
+        #expect(toggled("本文p.42のところ", at: 5).caret == 4, "残した数字の後ろに置く")
+        // 数字がまだ無ければ丸ごと消す（押し間違いの取り消し）
+        #expect(toggled("本文p.", at: 4).text == "本文")
+        // 出典ページの行は数字だけ落として枠は残す（`p.` を外すと数字だけの行が残ってしまう）
+        #expect(toggled("> 引用\np.83\n", at: 8).text == "> 引用\np.\n")
+    }
+
     /// 引用の解除は「触れている行がすべて引用のとき」だけ。一部なら付ける側の操作
     @Test func memoQuoteToggleRemovesOnlyWhenEveryTouchedLineIsQuoted() {
         let text = "> 一行目\n> 二行目\nふつうの行"
@@ -605,6 +630,9 @@ struct BookBankTests {
         // 出典ページは `p.` の直後から数字の末尾まで（続けて数字を打てる位置）
         #expect(formats("p.42", at: 4).page)
         #expect(formats("p.42", at: 0).page == false)
+        // 数字がまだ無い `p.` も中——ここで押したら外れる（トグルと同じ範囲で判定する）
+        #expect(formats("本文p.", at: 4).page)
+        #expect(formats("stop.", at: 5).page == false, "英数字に続く `p.` はページ番号ではない")
     }
 
     /// 装飾は重なる（引用の中のつながり・太字）。光るボタンも重なってよい

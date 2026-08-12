@@ -142,7 +142,7 @@ struct MemoEditorView: View {
             toolbarGap
             toolbarButton(
                 "memo.toolbar.page", icon: "icn_pagenum",
-                isActive: active.page, action: insertPageMarker
+                isActive: active.page, action: togglePageMarker
             )
             toolbarGap
             toolbarDivider
@@ -271,11 +271,14 @@ struct MemoEditorView: View {
     }
 
     /// `p.` を挿してキャレットを直後へ（数字はユーザーが打つ）。文字の挿入だけの入力補助。
-    /// 続けて数字を打つので、キーボードもテンキーへ切り替える（2026-08-11 オーナー指示）
-    private func insertPageMarker() {
+    /// 続けて数字を打つので、キーボードもテンキーへ切り替える（2026-08-11 オーナー指示）。
+    /// ページ番号の中で押したときは外す側に回る（**2026-08-12 オーナー指示**・`MemoFormatToggle`）
+    private func togglePageMarker() {
         let range = currentSelectionRange
-        replaceRange(range, with: "p.", caretOffset: 2)
-        prefersNumericKeyboard = true
+        let isInsertion = MemoPageMarker.enclosing(range.lowerBound, in: editedText) == nil
+        apply(MemoFormatToggle.page(in: editedText, selecting: range))
+        // 外したときはテンキーのままにしない（キャレットが数字から離れる）
+        prefersNumericKeyboard = isInsertion
     }
 
     /// キャレットがいま入っている装飾（判定は `MemoActiveFormats`）。

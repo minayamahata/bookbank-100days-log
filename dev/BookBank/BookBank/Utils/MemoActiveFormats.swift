@@ -43,10 +43,9 @@ struct MemoActiveFormats: Equatable, Sendable {
         return text[lineStart...].hasPrefix("> ")
     }
 
-    /// `p.数字` の中、または数字を打ち進められる末尾にいるか
+    /// `p.数字` の中、または数字を打ち進められる末尾にいるか（数字未入力の `p.` も含む）。
+    /// 範囲の求め方はトグルと共有する——光っているのに押しても外れない、が起きないように
     private static func isInsidePageNumber(_ caret: String.Index, in text: String) -> Bool {
-        MemoPageMarker.ranges(in: text).contains { range in
-            caret > range.lowerBound && caret <= range.upperBound
-        }
+        MemoPageMarker.enclosing(caret, in: text) != nil
     }
 }

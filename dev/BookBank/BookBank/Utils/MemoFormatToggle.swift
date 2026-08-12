@@ -47,6 +47,40 @@ enum MemoFormatToggle {
         )
     }
 
+    /// ページ番号。付ける側は `p.` を挿すだけ（数字はユーザーが打つ）。
+    /// 外す側は他のトグルに揃えて**記号だけ外す**（**2026-08-12 オーナー指示**——
+    /// 光っているのにもう一度押すと `p.` が重なって入っていた）。例外が2つある:
+    /// - **数字がまだ入っていない `p.` は丸ごと消す**——押し間違いの取り消しになる
+    /// - **出典ページの行（ページ番号だけの行）は数字だけ落とす**——行そのものが引用の一部で、
+    ///   `p.` を外すと数字だけの行が残り、その下に空のページ行が足し直される
+    static func page(in text: String, selecting range: Range<String.Index>) -> Edit {
+        guard let marker = MemoPageMarker.enclosing(range.lowerBound, in: text) else {
+            let target = MemoHiddenMarkers.trimming(range, in: text)
+            return Edit(replaced: target, text: "p.", caretOffset: 2)
+        }
+
+        let digits = text.index(marker.lowerBound, offsetBy: 2)..<marker.upperBound
+        if digits.isEmpty {
+            return Edit(replaced: marker, text: "", caretOffset: 0)
+        }
+        if isPageOnlyLine(marker, in: text) {
+            return Edit(replaced: digits, text: "", caretOffset: 0)
+        }
+        let number = String(text[digits])
+        return Edit(replaced: marker, text: number, caretOffset: number.count)
+    }
+
+    /// その行がページ番号だけでできているか（引用の出典ページの行）
+    private static func isPageOnlyLine(
+        _ marker: Range<String.Index>,
+        in text: String
+    ) -> Bool {
+        let lineStart = text[..<marker.lowerBound].lastIndex(where: \.isNewline)
+            .map { text.index(after: $0) } ?? text.startIndex
+        let lineEnd = text[marker.upperBound...].firstIndex(where: \.isNewline) ?? text.endIndex
+        return MemoQuotePage.digits(inPageOnlyLine: String(text[lineStart..<lineEnd])) != nil
+    }
+
     /// 引用。触れている行がすべて引用なら外し、そうでなければ行頭に `> ` を入れる
     /// （出典ページの行の用意・後始末も含めて `MemoQuoteInsertion` が組み立てる）
     static func quote(in text: String, selecting range: Range<String.Index>) -> Edit {

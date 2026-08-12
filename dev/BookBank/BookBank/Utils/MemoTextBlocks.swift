@@ -407,6 +407,27 @@ enum MemoPageMarker {
         return result
     }
 
+    /// キャレットに効いているページ番号。数字を打ち進められる末尾も「中」と見なし、
+    /// **数字がまだ入っていない `p.`**（ボタンを押した直後）もここで拾う——
+    /// ツールバーのアクティブ表示とトグルで同じ範囲を使うため（設計メモ 4.5節）
+    static func enclosing(_ caret: String.Index, in text: String) -> Range<String.Index>? {
+        if let range = ranges(in: text).first(where: {
+            caret > $0.lowerBound && caret <= $0.upperBound
+        }) {
+            return range
+        }
+
+        guard text.distance(from: text.startIndex, to: caret) >= 2 else { return nil }
+        let start = text.index(caret, offsetBy: -2)
+        guard text[start] == "p" || text[start] == "P",
+              text[text.index(after: start)] == "."
+        else { return nil }
+        if start > text.startIndex, isASCIIAlphanumeric(text[text.index(before: start)]) {
+            return nil
+        }
+        return start..<caret
+    }
+
     private static func isASCIIDigit(_ character: Character) -> Bool {
         character.isASCII && character.isNumber
     }
