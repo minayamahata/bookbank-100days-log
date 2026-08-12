@@ -67,17 +67,25 @@ enum MemoLinkParser {
     }
 
     /// キャレットを囲んでいる `[[ ]]`（成立しているものも中身が空のものも含む）。
-    /// 括弧の中でEnterを押したときの行き先を決めるのに使う（設計メモ 4.5節）
+    /// 括弧の中でEnterを押したときの行き先を決めるのに使う（設計メモ 4.5節）。
+    /// 中身が31文字を超えるなど不成立の括弧は囲んでいない——表示がつながりにしないのに
+    /// アクティブだけ光る、を防ぐ。空の `[[]]`（つなぐ直後）は編集中の妥当な状態なので残す
     nonisolated static func enclosingPair(
         in text: String,
         at caret: String.Index
     ) -> Range<String.Index>? {
         closedPairs(in: text)
-            .first { $0.range.lowerBound < caret && caret < $0.range.upperBound }?
+            .first { pair in
+                guard pair.range.lowerBound < caret, caret < pair.range.upperBound else {
+                    return false
+                }
+                let key = normalize(String(text[pair.body]))
+                return key.isEmpty || isValidKey(key)
+            }?
             .range
     }
 
-    /// 閉じている `[[ ]]` を出現順に返す（中身の妥当性は見ない）。
+    /// 閉じている `[[ ]]` を出現順に返す（中身の妥当性は見ない——呼び出し側が選ぶ）。
     /// つながりの抽出（`parse`）と、記号を隠すための空の括弧の検出が同じ走査を共有する
     private nonisolated static func closedPairs(
         in text: String

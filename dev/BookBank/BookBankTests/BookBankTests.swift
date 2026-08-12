@@ -468,6 +468,13 @@ struct BookBankTests {
         let empty = "[[]]"
         let caret = empty.index(empty.startIndex, offsetBy: 2)
         #expect(MemoLinkParser.enclosingPair(in: empty, at: caret) != nil)
+
+        // 31文字超は parse と同様に不成立——囲んでいるとみなさない（アクティブが光らない）
+        let thirtyOne = String(repeating: "あ", count: 31)
+        let overlong = "[[\(thirtyOne)]]"
+        let overlongCaret = overlong.index(overlong.startIndex, offsetBy: 4)
+        #expect(MemoLinkParser.enclosingPair(in: overlong, at: overlongCaret) == nil)
+        #expect(MemoActiveFormats.at(overlongCaret, in: overlong).link == false)
     }
 
     // MARK: - MemoHiddenMarkers / MemoFormatToggle（ツールバーの当て方・設計メモ 4.5節）
