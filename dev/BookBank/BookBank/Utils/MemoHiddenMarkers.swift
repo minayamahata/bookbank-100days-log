@@ -80,6 +80,17 @@ enum MemoHiddenMarkers {
         markers(in: text).map(\.range)
     }
 
+    /// 画面に出していない記号を取り除いた素のテキスト。装飾を描けない場所
+    /// （本の編集画面のメモ欄プレビューなど）で、記号をそのまま見せないために使う
+    static func strippingMarkers(from text: String) -> String {
+        var result = text
+        // 前から消すと後ろの位置がずれるので、後ろの記号から消す
+        for range in ranges(in: text).sorted(by: { $0.lowerBound > $1.lowerBound }) {
+            result.removeSubrange(range)
+        }
+        return result
+    }
+
     /// 選択範囲から隠れた記号を外す。両端がそれぞれ内側へ寄るだけで、範囲の中に挟まった
     /// 記号は触らない（`[[京都]]` をまたぐ選択は、そのまとまりごと囲みたいはずなので）
     static func trimming(

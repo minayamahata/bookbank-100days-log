@@ -514,6 +514,17 @@ struct BookBankTests {
         #expect(trimmed("> 引用の行", 0...2).isEmpty)
     }
 
+    /// 記号を取り除いた素のテキスト（本の編集画面のメモ欄プレビューに使う）
+    @Test func memoHiddenMarkersCanBeStrippedForPlainPreviews() {
+        #expect(
+            MemoHiddenMarkers.strippingMarkers(from: "> 引用の行\n[[京都]]で**太字**を書く")
+                == "引用の行\n京都で太字を書く"
+        )
+        // 記号が無ければそのまま。装飾として成立していない記号（片側だけの `**` など）も残す
+        #expect(MemoHiddenMarkers.strippingMarkers(from: "ふつうの本文 p.42") == "ふつうの本文 p.42")
+        #expect(MemoHiddenMarkers.strippingMarkers(from: "**閉じていない") == "**閉じていない")
+    }
+
     /// 隠れた記号に触れた削除は、1文字でも範囲でもまとまりごと（設計メモ 4.6節）
     @Test func memoHiddenMarkersBulkDeleteKeepsMarkerPairsTogether() {
         let linked = "あ[[京都]]い"

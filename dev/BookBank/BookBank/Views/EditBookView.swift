@@ -19,8 +19,12 @@ struct EditBookView: View {
     /// 編集対象の本（値型のコピー。生の `@Model` は保持しない＝設計メモ 8.4節）
     @State private var book: BookDTO
 
-    init(book: BookDTO) {
+    /// 削除に成功したとき、このシートを閉じたあとに呼ぶ（詳細画面を閉じてもらう）
+    private let onDeleted: () -> Void
+
+    init(book: BookDTO, onDeleted: @escaping () -> Void = {}) {
         _book = State(initialValue: book)
+        self.onDeleted = onDeleted
     }
 
     @State private var allPassbooks: [PassbookDTO] = []
@@ -80,6 +84,7 @@ struct EditBookView: View {
     @State private var imageChanged = false
     @State private var registeredAt: Date = Date()
     @State private var selectedPassbookID: String?
+    @State private var isFavorite = false
     
     @State private var selectedPhotoItem: PhotosPickerItem?
     @State private var showPhotoPicker = false
@@ -87,6 +92,7 @@ struct EditBookView: View {
     @State private var showCameraDeniedAlert = false
     @State private var showDatePicker = false
     @State private var showMemoEditor = false
+    @State private var showDeleteAlert = false
     
     @FocusState private var focusedField: Field?
     
@@ -102,7 +108,8 @@ struct EditBookView: View {
         let priceChanged = priceText != (book.price.map { book.storedCurrency.inputString(fromMinor: $0) } ?? "")
         let dateChanged = !Calendar.current.isDate(registeredAt, inSameDayAs: book.registeredAt)
         let passbookChanged = selectedPassbookID != book.passbookId
-        return titleChanged || authorChanged || priceChanged || imageChanged || dateChanged || passbookChanged
+        let favoriteChanged = isFavorite != book.isFavorite
+        return titleChanged || authorChanged || priceChanged || imageChanged || dateChanged || passbookChanged || favoriteChanged
     }
     
     private var canSave: Bool {
@@ -266,7 +273,14 @@ struct EditBookView: View {
                     }
                 }
                 .listSectionSpacing(8)
-                
+
+                // お気に入り（詳細画面のカバー右下ボタンと同じ isFavorite を切り替える）
+                Section {
+                    Toggle("book.favorite", isOn: $isFavorite)
+                        .tint(themeColor)
+                }
+                .listSectionSpacing(8)
+
                 // メモ
                 Section {
                     Button {
@@ -277,7 +291,8 @@ struct EditBookView: View {
                                 .foregroundColor(.primary)
                             Spacer()
                             if let memo = book.memo, !memo.isEmpty {
-                                Text(memo)
+                                // 装飾を描けない1行プレビューなので、Markdownの記号は取り除いて見せる
+                                Text(MemoHiddenMarkers.strippingMarkers(from: memo))
                                     .foregroundColor(.secondary)
                                     .lineLimit(1)
                             } else {
@@ -289,6 +304,19 @@ struct EditBookView: View {
                                 .foregroundColor(.secondary)
                         }
                         .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                // 削除（詳細画面から移設・2026-08-13 オーナー指示）
+                Section {
+                    Button {
+                        showDeleteAlert = true
+                    } label: {
+                        Text("book.delete.action")
+                            .foregroundColor(.red)
+                            .frame(maxWidth: .infinity)
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                 }
@@ -324,6 +352,14 @@ struct EditBookView: View {
                 }
                 .ignoresSafeArea()
             }
+            .alert("book.delete.title", isPresented: $showDeleteAlert) {
+                Button("common.cancel", role: .cancel) { }
+                Button("common.delete", role: .destructive) {
+                    deleteBook()
+                }
+            } message: {
+                Text(L10n.format("book.delete.message", locale: languageManager.resolvedLocale, book.title))
+            }
             .alert("book.camera.denied.title", isPresented: $showCameraDeniedAlert) {
                 Button("book.camera.open_settings") {
                     if let url = URL(string: UIApplication.openSettingsURLString) {
@@ -352,6 +388,7 @@ struct EditBookView: View {
                 priceText = book.price.map { book.storedCurrency.inputString(fromMinor: $0) } ?? ""
                 registeredAt = book.registeredAt
                 selectedPassbookID = book.passbookId
+                isFavorite = book.isFavorite
                 if selectedImage == nil, !imageChanged,
                    let coverImage = LocalCoverDataCache.shared.image(for: book.id) {
                     // 通常はストリーム受領時にキャッシュ済みのため同期で取れる（初回フレーム差なし）
@@ -604,6 +641,20 @@ struct EditBookView: View {
         }
     }
 
+    private func deleteBook() {
+        let id = book.id
+        Task {
+            do {
+                try await repos.books.deleteBook(id: id)
+            } catch {
+                // 削除に失敗したら画面を閉じない（レビュー S4-13）
+                return
+            }
+            dismiss()
+            onDeleted()
+        }
+    }
+
     private func saveChanges() {
         var updated = book
         if isManual {
@@ -626,6 +677,8 @@ struct EditBookView: View {
         } else {
             cover = .unchanged
         }
+
+        updated.isFavorite = isFavorite
 
         // 登録日は未来日を許可しない（DatePicker でも制限しているが、旧データ含め保存時にも保証する）
         updated.registeredAt = min(registeredAt, Date())

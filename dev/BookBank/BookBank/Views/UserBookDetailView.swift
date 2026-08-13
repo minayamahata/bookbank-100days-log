@@ -33,7 +33,6 @@ struct UserBookDetailView: View {
     }
 
     @State private var showMemoEditor = false
-    @State private var showDeleteAlert = false
     @State private var showEditBook = false
 
     /// 詳細パネル（ボトムシート）のスナップ位置
@@ -312,8 +311,12 @@ struct UserBookDetailView: View {
                 showEditBook = true
             }) {
                 HStack(spacing: 6) {
-                    Image(systemName: "pencil")
-                        .font(.system(size: 14))
+                    // 展開時ナビバーの編集ボタンと同じアイコンに統一（icon-edit）
+                    Image("icon-edit")
+                        .renderingMode(.template)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 14, height: 14)
                     Text("common.edit")
                         .font(.subheadline)
                         .fontWeight(.medium)
@@ -330,17 +333,10 @@ struct UserBookDetailView: View {
             .opacity(1 - expansionProgress)
             .allowsHitTesting(expansionProgress <= 0.001)
         }
-        .alert("book.delete.title", isPresented: $showDeleteAlert) {
-            Button("common.cancel", role: .cancel) { }
-            Button("common.delete", role: .destructive) {
-                deleteBook()
-            }
-        } message: {
-            Text(L10n.format("book.delete.message", locale: languageManager.resolvedLocale, book.title))
-        }
         .tint(.primary)
         .sheet(isPresented: $showEditBook) {
-            EditBookView(book: book)
+            // 削除は編集画面の中にある。成功したら編集シートが閉じたあと、この詳細画面も閉じる
+            EditBookView(book: book, onDeleted: { dismiss() })
         }
         .sheet(isPresented: $showMemoEditor) {
             MemoEditorView(
@@ -492,7 +488,8 @@ struct UserBookDetailView: View {
             }
     }
 
-    /// 展開時ナビバー中央の書影（高さ28pt・2:3・角丸2pt。タップでシートを折りたたむ）
+    /// 展開時ナビバー中央の書影（高さ36pt・2:3・角丸2pt。タップでシートを折りたたむ）
+    /// ——ナビバーの標準高44pt内に収まるサイズなので、ヘッダーの高さは変わらない
     private var navigationBarCoverThumbnail: some View {
         LocalCoverImage(book: book) { coverImage in
             if let coverImage {
@@ -501,13 +498,13 @@ struct UserBookDetailView: View {
                     .aspectRatio(contentMode: .fill)
             } else if let imageURL = book.coverImageURL,
                       let url = URL(string: imageURL) {
-                CachedAsyncImage(url: url, width: 28 * 2 / 3, height: 28)
+                CachedAsyncImage(url: url, width: 36 * 2 / 3, height: 36)
             } else {
                 RoundedRectangle(cornerRadius: 2)
                     .fill(Color.gray.opacity(0.3))
             }
         }
-        .frame(width: 28 * 2 / 3, height: 28)
+        .frame(width: 36 * 2 / 3, height: 36)
         .clipShape(RoundedRectangle(cornerRadius: 2))
         .contentShape(Rectangle())
     }
@@ -644,6 +641,7 @@ struct UserBookDetailView: View {
         VStack(alignment: .leading, spacing: 6) {
             Text(book.title)
                 .font(.title2)
+                .fontWeight(.bold)
                 .multilineTextAlignment(.leading)
 
             if !book.displayAuthor.isEmpty {
@@ -667,7 +665,11 @@ struct UserBookDetailView: View {
         VStack(alignment: .leading, spacing: 8) {
             Divider()
                 .padding(.bottom, 24)
-            
+
+            Text("book.details.section")
+                .font(.headline)
+                .padding(.bottom, 8)
+
             VStack(alignment: .leading, spacing: 8) {
                 if let passbookName = bookPassbookDTO?.name {
                     DetailInfoRow(label: "account.registered", value: passbookName)
@@ -700,34 +702,56 @@ struct UserBookDetailView: View {
             .font(.subheadline)
             .padding(.bottom, 24)
 
+            // 詳細情報とメモの区切り
+            Divider()
+                .padding(.bottom, 24)
+
+            // メモ見出し行。囲いを外してタップ位置が分かりづらくなったため、
+            // 右端に編集アイコンを置く（カレンダーの月別メモボタンと同じ見た目）
+            HStack {
+                Text("book.memo")
+                    .font(.headline)
+
+                Spacer()
+
+                Button {
+                    showMemoEditor = true
+                } label: {
+                    Image("icn_log-edit")
+                        .renderingMode(.template)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 16, height: 16)
+                        .foregroundColor(colorScheme == .dark ? .white : .black)
+                        .padding(4)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.bottom, 8)
+
+            // メモ欄は囲い（角丸カード・境界線・背景色）なしで本文だけを置く。
+            // タップ領域は従来どおり最小高さ120ptを確保する
             Button(action: {
                 showMemoEditor = true
             }) {
-                ZStack(alignment: .topLeading) {
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(Color(.secondarySystemGroupedBackground))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12)
-                                .stroke(Color.primary.opacity(0.1), lineWidth: 1)
-                        )
-                        .frame(minHeight: 120)
-
+                Group {
                     if let memo = book.memo, !memo.isEmpty {
+                        // 本文は編集画面と同じ .body。subheadline にすると引用（subheadline固定）と
+                        // 同じ大きさになり、「引用は本文より少し小さい」の関係が消える
                         MemoFormattedText(memo: memo, accentColor: linkColor)
-                            .font(.subheadline)
+                            .font(.body)
                             .foregroundColor(.primary)
                             .multilineTextAlignment(.leading)
-                            .padding(20)
-                            .frame(maxWidth: .infinity, minHeight: 120, alignment: .topLeading)
                     } else {
                         Text("book.memo.empty")
                             .font(.subheadline)
                             .foregroundColor(.secondary)
                             .italic()
-                            .padding(12)
-                            .frame(maxWidth: .infinity, minHeight: 120, alignment: .topLeading)
                     }
                 }
+                .frame(maxWidth: .infinity, minHeight: 120, alignment: .topLeading)
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
 
@@ -736,20 +760,6 @@ struct UserBookDetailView: View {
             if !memoLinks.isEmpty {
                 memoLinkChipRow
             }
-
-            // 削除の導線（ツールバーから移設）。メモ欄との誤タップを避けるため上に広めの余白を取る
-            Button {
-                showDeleteAlert = true
-            } label: {
-                Text("book.delete.action")
-                    .font(.subheadline)
-                    .foregroundColor(.red)
-                    .padding(.vertical, 8)
-                    .frame(maxWidth: .infinity)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .padding(.top, 40)
         }
         .padding(.horizontal, 24)
         .padding(.bottom, 40)
@@ -825,19 +835,6 @@ struct UserBookDetailView: View {
             previous: previous
         ) {
             book = value
-        }
-    }
-
-    private func deleteBook() {
-        let id = book.id
-        Task {
-            do {
-                try await repos.books.deleteBook(id: id)
-            } catch {
-                // 削除に失敗したら画面を閉じない（レビュー S4-13）
-                return
-            }
-            dismiss()
         }
     }
 
