@@ -179,7 +179,7 @@ enum MemoLinkText {
 
     /// 1ブロックぶんの本文を装飾付きの `AttributedString` にする。
     ///
-    /// - `[[中身]]`: 記号を隠し、中身だけ `color`＋セミボールドで着色
+    /// - `[[中身]]`: 記号を隠し、中身だけ `color` で着色して下線を引く
     /// - `**中身**`: 記号を隠して太字。ペアが同じ行で閉じている場合のみ（`*` 1つの斜体は解釈しない）
     /// - `p.数字`: 文字はそのまま、`color`＋少し小さめのフォント＋ページ番号属性（バッジの目印）
     ///
@@ -220,8 +220,11 @@ enum MemoLinkText {
                 flush()
                 var highlighted = AttributedString(link.display)
                 highlighted.foregroundColor = color
-                // 太字と重なってもつながりのフォントを使う（設計メモ 4.6節）
-                highlighted.font = .subheadline.weight(.semibold)
+                // つながりの印は太字ではなく下線（2026-08-13 オーナー指示）——白テーマ×ダーク／
+                // 黒テーマ×ライトではテーマ色が本文と同色になり、セミボールドでは太字と区別が
+                // つかないため。フォントは指定せず周囲に合わせる。太字と重なっても
+                // つながりの見た目を優先する規則は変わらない（設計メモ 4.6節・boldFont を当てない）
+                highlighted.underlineStyle = .single
                 result += highlighted
                 index = link.range.upperBound
                 continue

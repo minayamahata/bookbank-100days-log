@@ -829,15 +829,17 @@ struct BookBankTests {
     }
 
     @Test func memoLinkTextPrefersLinkAppearanceOverBold() throws {
-        // 太字と重なってもつながりの見た目を優先（設計メモ 4.6節・2026-08-12 確定）
+        // 太字と重なってもつながりの見た目を優先（設計メモ 4.6節・2026-08-12 確定）。
+        // 印はセミボールドから下線へ変更（2026-08-13 オーナー指示——白/黒テーマで
+        // テーマ色が本文と同色になると、太字との区別がつかないため）
         let bold = Font.body.weight(MemoLinkText.boldWeight)
         let attributed = MemoLinkText.highlighted("**[[京都]]**", color: .blue, boldFont: bold)
         #expect(String(attributed.characters) == "京都")
 
         let run = try #require(attributed.runs.first)
         #expect(run.foregroundColor == .blue)
-        #expect(run.font == Font.subheadline.weight(.semibold))
-        #expect(run.font != bold, "太字の heavy よりつながりのセミボールドが勝つ")
+        #expect(run.underlineStyle == .single)
+        #expect(run.font == nil, "太字の heavy を当てず、フォントは周囲に合わせる")
     }
 
     @Test func memoLinkHighlightHidesBracketsAndKeepsRestIntact() {

@@ -971,15 +971,21 @@ struct MemoEditorTextView: UIViewRepresentable {
             }
             quoteLayoutManager?.pageHintRanges = emptyPageLines
 
-            // つながり: 中身をテーマ色＋セミボールド、括弧は隠す
+            // つながり: 中身をテーマ色＋下線、括弧は隠す（2026-08-13 オーナー指示——
+            // 太字はやめて書籍詳細と同じ見た目に統一。白/黒テーマでは太字と区別がつかないため）。
+            // フォントは行の大きさのまま regular を明示し、太字と重なっても
+            // つながりの見た目を優先する規則（設計メモ 4.6節）は保つ
             for link in links {
                 let range = NSRange(link.range, in: text)
                 let linkFont = UIFont.systemFont(
                     ofSize: Self.fontSize(at: range.location, in: storage, fallback: bodyFont),
-                    weight: .semibold
+                    weight: .regular
                 )
                 storage.addAttribute(.font, value: linkFont, range: range)
                 storage.addAttribute(.foregroundColor, value: accent, range: range)
+                storage.addAttribute(
+                    .underlineStyle, value: NSUnderlineStyle.single.rawValue, range: range
+                )
                 let opening = link.range.lowerBound..<text.index(link.range.lowerBound, offsetBy: 2)
                 let closing = text.index(link.range.upperBound, offsetBy: -2)..<link.range.upperBound
                 for brackets in [opening, closing] {
@@ -1042,8 +1048,9 @@ struct MemoEditorTextView: UIViewRepresentable {
                 && nsText.substring(with: NSRange(location: line.location, length: 2)) == "> "
             let font = UIFont.preferredFont(forTextStyle: isQuoteLine ? .subheadline : .body)
 
-            attributes[.font] = UIFont.systemFont(ofSize: font.pointSize, weight: .semibold)
+            attributes[.font] = UIFont.systemFont(ofSize: font.pointSize, weight: .regular)
             attributes[.foregroundColor] = accent
+            attributes[.underlineStyle] = NSUnderlineStyle.single.rawValue
             attributes[.backgroundColor] = accent
                 .withAlphaComponent(MemoEditorTextView.linkBackgroundAlpha)
             return attributes
