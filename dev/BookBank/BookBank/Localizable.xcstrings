@@ -6535,6 +6535,7 @@
       }
     },
     "memo.link.hint" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -6569,6 +6570,7 @@
       }
     },
     "memo.quote.page.hint" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
