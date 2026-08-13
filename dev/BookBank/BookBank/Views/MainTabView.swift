@@ -510,6 +510,19 @@ struct MainTabView: View {
                     }
                 }
             }
+
+            Divider()
+
+            // 口座一覧（口座タブ）への導線（2026-08-13 オーナー指示）
+            Button {
+                selectedTab = 0
+            } label: {
+                Label {
+                    Text("account.list.title")
+                } icon: {
+                    Image("icon-tab-account")
+                }
+            }
         } label: {
             HStack(spacing: 4) {
                 Group {
