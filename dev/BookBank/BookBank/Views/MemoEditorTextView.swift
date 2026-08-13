@@ -376,11 +376,14 @@ struct MemoEditorTextView: UIViewRepresentable {
             .font: UIFont.preferredFont(forTextStyle: .footnote),
             .foregroundColor: UIColor.tertiaryLabel
         ]
+        // 案内の文言は `L10n` で引く——`String(localized:)` は端末の言語で解決するため、
+        // アプリ内の言語設定（`LanguageManager`）が効かない。SwiftUI の `Text` は
+        // `environment(\.locale)` を見るので問題にならないが、ここは UIKit の層にある
         layoutManager.pageHint = NSAttributedString(
-            string: String(localized: "memo.quote.page.hint"), attributes: hintAttributes
+            string: L10n.string("memo.quote.page.hint"), attributes: hintAttributes
         )
         layoutManager.linkHint = NSAttributedString(
-            string: String(localized: "memo.link.hint"), attributes: hintAttributes
+            string: L10n.string("memo.link.hint"), attributes: hintAttributes
         )
         context.coordinator.textStorage = storage
         context.coordinator.quoteLayoutManager = layoutManager
