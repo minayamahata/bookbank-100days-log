@@ -98,6 +98,8 @@ struct MemoFormattedText: View {
                             Array(content.components(separatedBy: "\n").enumerated()), id: \.offset
                         ) { _, line in
                             inline(line)
+                                // 折り返したぶんの高さを必ず確保する（下記 `quote` と同じ理由）
+                                .fixedSize(horizontal: false, vertical: true)
                                 // 空行にも1行ぶんの高さを持たせる（空きの値は行送りと同じ）
                                 .frame(
                                     maxWidth: .infinity,
@@ -115,6 +117,10 @@ struct MemoFormattedText: View {
                     inline(content, boldFont: .subheadline.weight(MemoLinkText.boldWeight))
                         .font(.subheadline)
                         .foregroundStyle(Color(MemoEditorTextView.quoteTextColor))
+                        // 折り返したぶんの高さを必ず確保する。書籍詳細のパネルは高さを固定した
+                        // 入れ物の中にあり、上位から詰めた高さを提案されると引用が「…」で
+                        // 省略される（2026-08-13 オーナー報告）
+                        .fixedSize(horizontal: false, vertical: true)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(18)
                         .background(Color(.quaternarySystemFill))
