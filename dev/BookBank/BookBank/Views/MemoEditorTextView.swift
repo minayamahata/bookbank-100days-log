@@ -838,7 +838,7 @@ struct MemoEditorTextView: UIViewRepresentable {
             // `MemoQuoteBackgroundLayoutManager` が描く
             let nsText = text as NSString
             let quoteBlocks = MemoTextBlocks.quoteBlockRanges(in: text)
-            let quoteFont = UIFont.preferredFont(forTextStyle: .callout)
+            let quoteFont = UIFont.preferredFont(forTextStyle: .subheadline)
             for block in quoteBlocks {
                 nsText.enumerateSubstrings(
                     in: block, options: [.byLines, .substringNotRequired]
@@ -1040,7 +1040,7 @@ struct MemoEditorTextView: UIViewRepresentable {
             }
             let isQuoteLine = line.length >= 2
                 && nsText.substring(with: NSRange(location: line.location, length: 2)) == "> "
-            let font = UIFont.preferredFont(forTextStyle: isQuoteLine ? .callout : .body)
+            let font = UIFont.preferredFont(forTextStyle: isQuoteLine ? .subheadline : .body)
 
             attributes[.font] = UIFont.systemFont(ofSize: font.pointSize, weight: .semibold)
             attributes[.foregroundColor] = accent

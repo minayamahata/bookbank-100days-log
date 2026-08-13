@@ -112,8 +112,8 @@ struct MemoFormattedText: View {
                 case .quote(let content):
                     // 引用の文字は本文より少し小さく・少し薄い黒、囲みの内側に余白18（編集画面と同じ）。
                     // 太字も囲みの中の大きさに合わせる（編集画面はその行のフォントから拾っている）
-                    inline(content, boldFont: .callout.weight(MemoLinkText.boldWeight))
-                        .font(.callout)
+                    inline(content, boldFont: .subheadline.weight(MemoLinkText.boldWeight))
+                        .font(.subheadline)
                         .foregroundStyle(Color(MemoEditorTextView.quoteTextColor))
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(18)
