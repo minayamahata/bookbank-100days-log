@@ -1,13 +1,13 @@
 # バグレビュー一覧（2026-07-06 実施）
 
-更新日: 2026-07-19（グループH を新設: v1.5.0 クラッシュレポート3件を既知問題として登録。H-1 は R4 で構造的に解消・H-2/H-3 は静観・監視）
+更新日: 2026-08-13（**A-9 / B-5 をクローズ**——オーナー判断。R1（v1.3.1）以降 R2・R3・R4・R4.5 と5リリース見送っても実運用で問題になっておらず、実害なしと判断した。症状の記述は残す〈将来同じ症状に気づいたとき、既知か新規かを判別するため〉）／2026-07-19（グループH を新設: v1.5.0 クラッシュレポート3件を既知問題として登録。H-1 は R4 で構造的に解消・H-2/H-3 は静観・監視）
 
 v1.3.0 リリース後の全コードレビューで見つかった不具合の一覧。
 対象: iOS アプリ（`dev/BookBank/BookBank`）＋ Vercel プロキシ（別リポジトリ `bookbank-share`）。
 2026-07-19 より、リリース後のクラッシュレポート由来の既知問題（グループH）も本書で管理する。
 
 - **優先度**: 高＝金額の誤表示・データ不整合・クラッシュ級 ／ 中＝機能不全・状況次第で顕在化 ／ 低＝限定的・軽微
-- **状態**: ✅ 修正済み ／ ⬜ 未対応 ／ 👁 静観・監視（アクションせず再発件数を Organizer で監視。積み上がった時点で対処を判断）
+- **状態**: ✅ 修正済み ／ ⬜ 未対応 ／ 👁 静観・監視（アクションせず再発件数を Organizer で監視。積み上がった時点で対処を判断） ／ 🔒 クローズ（**直さないと判断した**。症状の記述は残すので、同じ症状に気づいたときは既知として扱う。実害の判断が変わったら開け直す）
 
 > **AI実装エージェントへ**: `docs/agent-implementation-guide.md` を先に読むこと。各バグの対応リリースは `docs/implementation-roadmap.md` 第3章の割り当て表に従う（推奨対応順より優先）。修正したら本書の状態列を更新すること。
 
@@ -25,7 +25,7 @@ v1.3.0 リリース後の全コードレビューで見つかった不具合の�
 | A-6 | 低 | ✅ 修正済み (2026-07-08) | 「もっと読み込む」失敗→再試行時、ISBN なし書籍（Google に多い）は重複排除が効かず `searchResults` に二重追加され得る。→ `loadMoreResults` の重複排除を既存 `RakutenBook.id`（ISBN、なければ `title\|author\|salesDate`）ベースの `SearchResultDeduplicator` に統一（`appendPageToFilteredResults` と同規則）。ユニットテスト4件追加（R2ステップ4） | `Views/BookSearchView.swift` `loadMoreResults` の重複排除 |
 | A-7 | 低 | ✅ 修正済み (2026-07-08) | 新しい検索開始時に `isLoadingMore` / `isAutoLoadingForFilters` をリセットしない（A-1 と同根）。→ `beginNewSearch()` に集約（`isSearchingByISBN` 残存も同時解消。R2ステップ1）。世代管理本体（A-1）はステップ2 | `Views/BookSearchView.swift` `performSearch` |
 | A-8 | 低 | ✅ 修正済み (2026-07-08) | Google の `hasMorePages` が `totalItems` を照合せず、総件数が 20 の倍数ちょうどのとき空ページを 1 回余分に取得する。→ A-5 と統一した View 側の総件数判定（累積生件数 < 総件数）で総件数到達時に停止。サービスは生件数 `rawItemCount` を事実として返すのみ（責務分離。R2ステップ6） | `Services/BookSearchService.swift` `SearchPagination` ＋ `Services/GoogleBooksService.swift` `performRequest` |
-| A-9 | 低 | ⬜ 保留 | 発行形態フィルター適用中、初期に形態不明（`displayFormat == nil`）だった本が背景の形態補完で該当形態と判明しても、表示に現れず取りこぼす（フィルター再適用・並べ替え変更・再検索まで出ない）。補完前後で該当件数が変わるため、フィルタ結果のちらつきにもつながる。**A-3（全件再ソートの廃止＝in-place化）を実施した際に顕在化した副作用**であり、原因も対処もA-3とは別。**想定原因**: `applyActiveFilters` が `formatKind == filter` で判定して形態不明本を除外する一方、補完完了時（`enrichFormatsInBackground`）は既存表示のサイズをin-placeで更新するだけで、新たに条件へ合致した本を表示集合へ追加しないため。**対処案**: 補完完了時にフィルター中のみ「新たに条件合致した本」を末尾へ追加する（例: `appendPageToFilteredResults(searchResults)` の再利用で `.id` 重複排除しつつ末尾追加）。ただし末尾追加が並び順・ページング体験に与える影響と、自動追加読み込み（`loadMoreIfNeededForFilters`）との二重取得・カウンタ整合を検証してから実施すること。**R2完了時点では低優先で保留**（v1.4.x パッチ or 将来判断） | `Views/BookSearchView.swift` `enrichFormatsInBackground` 完了分岐 ＋ `applyActiveFilters` |
+| A-9 | 低 | 🔒 クローズ (2026-08-13・オーナー判断) | **クローズの理由**: R1（v1.3.1）以降、R2・R3・R4・R4.5 と**5リリース見送っても実運用で問題になっていない**ため、実害なしと判断した（2026-08-13 オーナー判断）。以下の症状と対処案は、同じ症状に気づいたときに既知か新規かを判別できるよう残す。<br>発行形態フィルター適用中、初期に形態不明（`displayFormat == nil`）だった本が背景の形態補完で該当形態と判明しても、表示に現れず取りこぼす（フィルター再適用・並べ替え変更・再検索まで出ない）。補完前後で該当件数が変わるため、フィルタ結果のちらつきにもつながる。**A-3（全件再ソートの廃止＝in-place化）を実施した際に顕在化した副作用**であり、原因も対処もA-3とは別。**想定原因**: `applyActiveFilters` が `formatKind == filter` で判定して形態不明本を除外する一方、補完完了時（`enrichFormatsInBackground`）は既存表示のサイズをin-placeで更新するだけで、新たに条件へ合致した本を表示集合へ追加しないため。**対処案**: 補完完了時にフィルター中のみ「新たに条件合致した本」を末尾へ追加する（例: `appendPageToFilteredResults(searchResults)` の再利用で `.id` 重複排除しつつ末尾追加）。ただし末尾追加が並び順・ページング体験に与える影響と、自動追加読み込み（`loadMoreIfNeededForFilters`）との二重取得・カウンタ整合を検証してから実施すること。~~**R2完了時点では低優先で保留**（v1.4.x パッチ or 将来判断）~~ → 上記のとおりクローズ | `Views/BookSearchView.swift` `enrichFormatsInBackground` 完了分岐 ＋ `applyActiveFilters` |
 
 ## グループB: 通貨・金額表示
 
@@ -35,7 +35,7 @@ v1.3.0 リリース後の全コードレビューで見つかった不具合の�
 | B-2 | 高 | ✅ 修正済み (2026-07-07) | Paywall の価格表示が `product.displayPrice` を使わず整数切り捨て＋「円」固定表記。日本以外の App Store 地域では "$9.99" が「9円/年」になる。→ `product.displayPrice`（ロケール・通貨対応）に変更し、年額は通貨中立の期間サフィックス `paywall.per_year` を付与 | `Views/UnlimitedPaywallView.swift` planCard |
 | B-3 | 中 | ✅ 修正済み (2026-07-06) | 手入力価格アラートで未入力・不正入力のまま登録でき、金額 nil の本が保存され 0 円トーストが出る。→ 未入力・非数値・負数は登録せず入力アラートを開き直すよう修正 | `Views/BookSearchView.swift` `registerWithManualPrice` |
 | B-4 | 中 | ✅ 修正済み (2026-07-07) | Markdown エクスポート／プレビューの合計行で通貨記号が二重になる（表示通貨が USD 等のとき「$12.99円」「$12.99 JPY」）。→ `export.section_header` / `export.preview_heading` から通貨語を削除し `MoneyDisplay` に一本化（R1） | `Utils/MarkdownExporter.swift` 59–65, 132–138行付近 ／ `Localizable.xcstrings` |
-| B-5 | 低 | ⬜（部分緩和・残余リスクあり） | Google Books の価格換算が `Double` 経由で、小数通貨で 1 最小単位の丸め誤差が起き得る。**現状**: 換算・丸めは `Decimal(amount) * Decimal(minorUnitDivisor)` ＋ `NSDecimalRound`（最小単位＝整数へ丸め）で実装済み（`52aac31`）。ただし入力 `GooglePrice.amount` は依然 `Double?` で、`Decimal(Double)` が二進浮動小数の誤差を引き継ぐため、根本原因（Double 入力）は残存。丸めスケールが整数のため実害は極小だが、**完了扱いにはしない** | `Services/GoogleBooksService.swift` `GoogleSaleInfo.resolvedPrice`（丸めは Decimal 化済み・入力は `GooglePrice.amount: Double?`） |
+| B-5 | 低 | 🔒 クローズ (2026-08-13・オーナー判断) | **クローズの理由**: R1（v1.3.1）以降、R2・R3・R4・R4.5 と**5リリース見送っても実運用で問題になっていない**ため、実害なしと判断した（2026-08-13 オーナー判断）。以下の症状は、同じ症状に気づいたときに既知か新規かを判別できるよう残す。<br>Google Books の価格換算が `Double` 経由で、小数通貨で 1 最小単位の丸め誤差が起き得る。**現状**: 換算・丸めは `Decimal(amount) * Decimal(minorUnitDivisor)` ＋ `NSDecimalRound`（最小単位＝整数へ丸め）で実装済み（`52aac31`）。ただし入力 `GooglePrice.amount` は依然 `Double?` で、`Decimal(Double)` が二進浮動小数の誤差を引き継ぐため、根本原因（Double 入力）は残存。丸めスケールが整数のため実害は極小。~~**完了扱いにはしない**~~ → 修正済みではないが、直さない判断としてクローズ（上記） | `Services/GoogleBooksService.swift` `GoogleSaleInfo.resolvedPrice`（丸めは Decimal 化済み・入力は `GooglePrice.amount: Double?`） |
 | B-6 | 中 | ✅ 修正済み (2026-07-07) | NAVER 検索で `discount: "0"`（未販売・輸入書に多い）の本が「0 won」と表示され、手入力アラートも出ずに 0 円で登録される。他プロバイダは価格情報なしを `nil`＝「-」＋手入力にしているが、NAVER のみ "0" を実価格 0 として扱う非対称（`Int("0")` = 0 で非 nil。空文字 `""` は正しく nil になる）。→ `toRakutenBook` の価格マッピングを「0 超のみ採用、空・0 以下は nil」に変更し、他プロバイダと挙動を統一 | `Services/NaverBooksService.swift` `NaverBookItem.toRakutenBook`（`itemPrice` マッピング） |
 
 ## グループC: 口座・ナビゲーション状態
@@ -116,7 +116,7 @@ v1.5.0 リリース1週間後の Xcode Organizer クラッシュレポート3件
 3. **B-2 / B-4 / B-6 / D-3** — ✅ R1完了 (2026-07-07)
 4. **F-1 / F-2** ✅ 完了 (2026-07-09)：共有の通貨対応と Redis エラー処理（iOS 側 2026-07-07・Web 側 `bookbank-share` を 2026-07-09 に push・Vercel デプロイで本番反映）
 5. **D-4** ✅ 完了 (2026-07-07・`ca60088`)／**C-4** ✅ 完了 (2026-07-07・`a172473`)
-6. **A-9 / B-5** 低優先（A-9 は R2完了時点で保留・B-5 は Decimal化済みだが Double 入力由来の誤差余地が残るため ⬜ 維持）
+6. **A-9 / B-5** 🔒 クローズ (2026-08-13・オーナー判断・**5リリース分の見送りにより実害なしと判断**)。どちらも修正はしていない——症状の記述は各表に残してあるので、同じ症状に気づいたら既知として扱い、実害の判断が変われば開け直す
 7. **F-3** R8（Webアプリ着手時）
 8. **F-4** R6（クラウドストレージ移行で根本解決。それまで既知の制約として保留）
 9. **H-1** R4（DTO化で構造的に解消。R4完了後に Organizer で同一シグネチャの再発ゼロを確認）／**H-2 / H-3** 静観・監視（再発が積み上がった時点で対処を判断）

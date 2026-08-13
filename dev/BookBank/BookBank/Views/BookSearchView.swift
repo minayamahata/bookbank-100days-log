@@ -963,7 +963,8 @@ struct BookSearchView: View {
             // 表示順（スクロール位置・選択状態）を保つため、searchResults / filteredResults の
             // 両方を全件再ソートせず in-place でサイズだけ更新する（A-3）。
             // 世代照合は上の guard で担保済み（ここに到達するのは最新世代のときだけ）。
-            // 注: 形態フィルター中に補完で新たに条件へ合致した本の取りこぼしは別件（A-9）として扱う。
+            // 注: 形態フィルター中に補完で新たに条件へ合致した本の取りこぼしは別件（A-9）。
+            // 2026-08-13 に「直さない」判断でクローズ済み（症状はバグレビュー グループA に残っている）。
             let applyEnrichedSize: (RakutenBook) -> RakutenBook = { book in
                 if book.displayFormat == nil, !book.isbn.isEmpty, let size = sizeByISBN[book.isbn] {
                     return book.withSize(size)
