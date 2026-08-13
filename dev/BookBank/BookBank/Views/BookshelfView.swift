@@ -70,6 +70,11 @@ struct BookshelfView: View {
         let text: String
         var id: String { "\(year)-\(month)" }
     }
+
+    /// カレンダーの同日複数冊一覧シートで選ばれた本。
+    /// 一覧シートのdismiss完了後にセットされ、本棚側の通常のNavigationStackから詳細をpushする
+    /// （シート内へpushすると詳細を物理画面最上端まで展開できないため。D-4の後日変更・2026-08-12）
+    @State private var calendarSelectedBook: BookDTO?
     
     /// 口座に紐づく書籍（総合口座の場合は全書籍）
     private var passbookBooks: [BookDTO] {
@@ -253,6 +258,10 @@ struct BookshelfView: View {
                     onMonthlyMemo: { year, month in
                         openMonthlyMemo(year: year, month: month)
                     },
+                    onSelectDayBook: { book in
+                        // 一覧シートのdismiss完了後に呼ばれる。通常のNavigationStackから詳細をpushする
+                        calendarSelectedBook = book
+                    },
                     header: {
                         EmptyView()
                     }
@@ -289,6 +298,9 @@ struct BookshelfView: View {
             }
         }
         .id(passbook?.id ?? "overall")
+        .navigationDestination(item: $calendarSelectedBook) { book in
+            UserBookDetailView(book: book)
+        }
         .task {
             for await value in repos.passbooks.observePassbooks() {
                 allPassbooks = value

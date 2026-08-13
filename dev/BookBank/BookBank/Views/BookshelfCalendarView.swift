@@ -19,6 +19,11 @@ struct BookshelfCalendarView<Header: View>: View {
     ///   同じメモを編集できる。表示判定に口座種別は用いない。
     let onMonthlyMemo: (Int, Int) -> Void
 
+    /// 同一日の複数冊一覧シートで本が選ばれ、シートのdismissが完了したあとに呼ばれる。
+    /// 詳細を物理画面最上端まで展開できるよう、シート内へpushせず親のNavigationStackで開いてもらう
+    /// （`docs/bug-review-2026-07-06.md` D-4の後日変更・2026-08-12）
+    let onSelectDayBook: (BookDTO) -> Void
+
     /// スクロールに追従して流れる先頭要素（フィルター行など）
     @ViewBuilder var header: () -> Header
 
@@ -29,6 +34,10 @@ struct BookshelfCalendarView<Header: View>: View {
 
     /// 同一日に複数冊ある日をタップしたときに提示する一覧シートの対象
     @State private var selectedDay: DaySelection?
+
+    /// 一覧シートで選ばれた本の一時保持。シートのdismiss完了後に `onSelectDayBook` で親へ通知する
+    /// （dismissとpushの競合を避けるため、dismiss完了前にnavigationを開始しない）
+    @State private var pendingDayBook: BookDTO?
 
     /// カレンダー用の7カラムグリッド（曜日）
     private let weekColumns = Array(repeating: GridItem(.flexible(), spacing: 4), count: 7)
@@ -135,7 +144,12 @@ struct BookshelfCalendarView<Header: View>: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.bottom, 100)
         }
-        .sheet(item: $selectedDay) { selection in
+        .sheet(item: $selectedDay, onDismiss: {
+            // 本を選ばずスワイプで閉じた場合は pendingDayBook が nil のまま＝何も開かない
+            guard let book = pendingDayBook else { return }
+            pendingDayBook = nil
+            onSelectDayBook(book)
+        }) { selection in
             dayBooksSheet(selection)
         }
     }
@@ -282,9 +296,15 @@ struct BookshelfCalendarView<Header: View>: View {
         NavigationStack {
             List {
                 ForEach(selection.books) { book in
-                    NavigationLink(destination: UserBookDetailView(book: book)) {
+                    // 詳細はこのシート内へpushしない。選択本を一時保持して先にシートを閉じ、
+                    // dismiss完了後（`.sheet` の onDismiss）に親のNavigationStackで開く
+                    Button {
+                        pendingDayBook = book
+                        selectedDay = nil
+                    } label: {
                         dayBookRow(book)
                     }
+                    .buttonStyle(.plain)
                     .listRowBackground(Color.appCardBackground)
                     .listRowSeparator(.hidden)
                     .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
@@ -528,7 +548,8 @@ struct BookshelfCalendarView<Header: View>: View {
     return NavigationStack {
         BookshelfCalendarView(
             books: books,
-            onMonthlyMemo: { _, _ in }
+            onMonthlyMemo: { _, _ in },
+            onSelectDayBook: { _ in }
         ) {
             EmptyView()
         }

@@ -45,17 +45,91 @@ struct UserBookDetailView: View {
     @State private var sheetDetent: SheetDetent = .collapsed
     @State private var dragOffset: CGFloat = 0
 
+    /// 物理画面上端からコンテンツ開始位置（ナビバー下端）までの実測値。
+    /// ルートは safe area を無視しないため、global の minY がそのままこの距離になる
+    @State private var contentTopInset: CGFloat = 0
+
+    /// コンテンツ領域の global 下端（シート高の下端補正の算出に使う）
+    @State private var containerGlobalMaxY: CGFloat = 0
+
+    /// 物理画面の global 下端（全端無視の背景で実測）
+    @State private var screenGlobalMaxY: CGFloat = 0
+
+    /// ツールバーの表示切り替え。シートのspringアニメーションに項目の出現・消失が
+    /// 巻き込まれて左上へバウンドしないよう、`sheetDetent` とは別にアニメーション無効で更新する
+    /// （`PassbookDetailView` のchrome切り替えと同じ構成。共有状態は使わずこのView内で完結させる）
+    @State private var isChromeExpanded = false
+
+    /// 詳細ScrollViewの先頭からのオフセット（先頭でのみ下方向ドラッグを折りたたみに使う）
+    @State private var detailScrollOffset: CGFloat = 0
+
     /// カバー画像の高さ
     private let coverHeight: CGFloat = 370
-    /// 折りたたみ時のシート上端位置（カバーを大きく見せる）
+    /// 折りたたみ時のシート上端位置（物理画面上端から。カバーを大きく見せる）
     private let collapsedTop: CGFloat = 330
-    /// 展開時のシート上端位置（カバー上部だけ覗かせる）
-    private let expandedTop: CGFloat = 110
+
+    /// 上端距離を計測済みか。未計測の1フレームはシートを出さない（初回の位置ジャンプ防止）
+    private var hasMeasuredTopInset: Bool {
+        contentTopInset > 0
+    }
+
+    /// コンテンツ下端から物理画面下端までの距離（ホームインジケータ等）。
+    /// 展開時に負方向へ動かした分と合わせてシート高を補い、画面下部に隙間を出さないために使う
+    private var bottomCoverage: CGFloat {
+        max(screenGlobalMaxY - containerGlobalMaxY, 0)
+    }
+
+    /// 折りたたみ時のシート上端（コンテンツ座標）。物理画面上の330ptに合わせる
+    private var collapsedTopOffset: CGFloat {
+        collapsedTop - contentTopInset
+    }
+
+    /// 展開時のシート上端（コンテンツ座標）。物理画面最上端に合わせる
+    private var expandedTopOffset: CGFloat {
+        -contentTopInset
+    }
 
     /// 現在のシート上端位置（ドラッグ量を反映しつつ範囲内に収める）
     private var currentSheetTop: CGFloat {
-        let base = sheetDetent == .collapsed ? collapsedTop : expandedTop
-        return min(max(base + dragOffset, expandedTop), collapsedTop)
+        let base = sheetDetent == .collapsed ? collapsedTopOffset : expandedTopOffset
+        return min(max(base + dragOffset, expandedTopOffset), collapsedTopOffset)
+    }
+
+    /// 展開度（0=折りたたみ・1=展開）。角丸・背景・ハンドル・FABの連続変化に使う
+    private var expansionProgress: CGFloat {
+        guard collapsedTopOffset > expandedTopOffset else {
+            return sheetDetent == .expanded ? 1 : 0
+        }
+        return 1 - (currentSheetTop - expandedTopOffset) / (collapsedTopOffset - expandedTopOffset)
+    }
+
+    /// 上側の角丸（展開度に応じて40→0へ連続変化）
+    private var topCornerRadius: CGFloat {
+        40 * (1 - expansionProgress)
+    }
+
+    private var sheetShape: UnevenRoundedRectangle {
+        UnevenRoundedRectangle(
+            topLeadingRadius: topCornerRadius,
+            bottomLeadingRadius: 0,
+            bottomTrailingRadius: 0,
+            topTrailingRadius: topCornerRadius
+        )
+    }
+
+    private var isDetailAtTop: Bool {
+        detailScrollOffset <= 4
+    }
+
+    private var sheetCollapsedBackground: Color {
+        Color(.systemBackground)
+    }
+
+    /// 展開側の背景（`PassbookDepositSheet.sheetExpandedBackground` と同じ指定）
+    private var sheetExpandedBackground: Color {
+        colorScheme == .dark
+            ? .appGroupedBackground
+            : .appSectionBackground
     }
 
     /// 口座一覧。ストリーム未到達の初回フレームは同期スナップショットで補う
@@ -103,6 +177,23 @@ struct UserBookDetailView: View {
         return themeColor
     }
 
+    /// 展開時ナビバー左のchevronの色（テーマに対して視認できる色＝つながりと同じ退避判定）
+    private var expandedChevronColor: Color {
+        linkColor
+    }
+
+    /// 展開時ナビバー右の編集ボタンのグラス色（`PassbookDetailView.expandedAddTint` と同じ判定）
+    private var expandedEditTint: Color {
+        if colorScheme == .dark && isBlackTheme { return .white }
+        return themeColor
+    }
+
+    /// 展開時ナビバー右の編集ボタンのアイコン色（`PassbookDetailView.expandedAddIconColor` と同じ判定）
+    private var expandedEditIconColor: Color {
+        if colorScheme == .dark && expandedEditTint.luminance > 0.5 { return .black }
+        return .white
+    }
+
     /// このメモに書かれたつながり（出現順・同じキーは1つ）。
     /// 表示はこのメモに書かれたままの綴り。チップ行（設計メモ 4.4節）に使う
     private var memoLinks: [MemoLink] {
@@ -116,15 +207,23 @@ struct UserBookDetailView: View {
 
         GeometryReader { geometry in
             ZStack(alignment: .top) {
-                // 背景：本のカバー（固定）
-                coverSection(screenWidth: geometry.size.width)
+                // 背景：本のカバー（物理画面上端に固定。ステータスバー／ナビバーの背後まで表示する）
+                // ルートは safe area を無視せず、カバー側だけ上端を無視して物理上端へ寄せる
+                VStack(spacing: 0) {
+                    coverSection(screenWidth: geometry.size.width)
+                    Spacer(minLength: 0)
+                }
+                .ignoresSafeArea(edges: .top)
 
-                // ハンドルでドラッグして開閉できる詳細パネル
-                // 高さは画面いっぱいで固定し、位置(offset)だけ動かすことで
-                // ドラッグ中の再レイアウトを避けて滑らかにする
+                // ヘッダー吸い付き型の詳細パネル。位置(offset)だけ動かして
+                // ドラッグ中の再レイアウトを避けつつ、負方向へ動かした分は
+                // 高さで補って画面下部に隙間を出さない
                 bookSheet
-                    .frame(height: geometry.size.height, alignment: .top)
-                    .frame(maxWidth: .infinity)
+                    .frame(
+                        width: geometry.size.width,
+                        height: geometry.size.height - currentSheetTop + bottomCoverage,
+                        alignment: .top
+                    )
                     .offset(y: currentSheetTop)
                     .animation(.spring(response: 0.35, dampingFraction: 0.88), value: sheetDetent)
                     .transaction { transaction in
@@ -132,21 +231,80 @@ struct UserBookDetailView: View {
                             transaction.animation = nil
                         }
                     }
+                    // 上端距離の計測が済むまではアニメーションさせずに隠し、初回フレームの
+                    // 位置ジャンプを防ぐ（カバー・FAB・ナビバーは計測に依存しないので出したまま）
+                    .opacity(hasMeasuredTopInset ? 1 : 0)
+                    .allowsHitTesting(hasMeasuredTopInset)
             }
         }
-        .ignoresSafeArea(edges: .top)
-        .background(Color.appGroupedBackground)
+        .onGeometryChange(for: CGRect.self) { proxy in
+            proxy.frame(in: .global)
+        } action: { _, frame in
+            if frame.minY > 0, abs(contentTopInset - frame.minY) > 0.5 {
+                contentTopInset = frame.minY
+            }
+            if abs(containerGlobalMaxY - frame.maxY) > 0.5 {
+                containerGlobalMaxY = frame.maxY
+            }
+        }
+        .background {
+            // 背景色を全面に敷きつつ、物理画面の下端を実測する（シート高の下端補正用）
+            Color.appGroupedBackground
+                .ignoresSafeArea()
+                .onGeometryChange(for: CGFloat.self) { proxy in
+                    proxy.frame(in: .global).maxY
+                } action: { _, maxY in
+                    guard abs(screenGlobalMaxY - maxY) > 0.5 else { return }
+                    screenGlobalMaxY = maxY
+                }
+        }
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
+        .navigationBarBackButtonHidden(isChromeExpanded)
         .toolbarBackground(.hidden, for: .navigationBar)
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button(action: {
-                    showDeleteAlert = true
-                }) {
-                    Image("icon-delete")
+            ToolbarItem(placement: .topBarLeading) {
+                if isChromeExpanded {
+                    Button {
+                        collapseSheet()
+                    } label: {
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(expandedChevronColor)
+                    }
                 }
-                .tint(.white)
+            }
+            ToolbarItem(placement: .principal) {
+                if isChromeExpanded {
+                    Button {
+                        collapseSheet()
+                    } label: {
+                        navigationBarCoverThumbnail
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                if isChromeExpanded {
+                    Button {
+                        showEditBook = true
+                    } label: {
+                        Image("icon-edit")
+                            .renderingMode(.template)
+                            .foregroundStyle(expandedEditIconColor)
+                    }
+                    .buttonStyle(.glassProminent)
+                    .tint(expandedEditTint)
+                }
+            }
+        }
+        .onChange(of: sheetDetent) { _, detent in
+            // ナビバー項目の入れ替えがスプリングに乗って左上へバウンドするのを防ぐため、
+            // 表示判定のフラグはアニメーション無効で更新する（シートのスライドは別途継続する）
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                isChromeExpanded = detent == .expanded
             }
         }
         .overlay(alignment: .bottomTrailing) {
@@ -168,6 +326,9 @@ struct UserBookDetailView: View {
             }
             .padding(.trailing, 16)
             .padding(.bottom, 22)
+            // 展開度に応じてフェードアウト。ドラッグ開始直後から誤タップを防ぎ、展開時は操作不能にする
+            .opacity(1 - expansionProgress)
+            .allowsHitTesting(expansionProgress <= 0.001)
         }
         .alert("book.delete.title", isPresented: $showDeleteAlert) {
             Button("common.cancel", role: .cancel) { }
@@ -193,7 +354,10 @@ struct UserBookDetailView: View {
                 saveMemo(newMemo)
             }
         }
-        .onAppear { floatingButtonState.isHidden = true }
+        .onAppear {
+            floatingButtonState.isHidden = true
+            isChromeExpanded = sheetDetent == .expanded
+        }
         .onDisappear { floatingButtonState.isHidden = false }
         .task {
             for await value in repos.passbooks.observePassbooks() {
@@ -230,41 +394,55 @@ struct UserBookDetailView: View {
                 .padding(.bottom, 90)
             }
             .scrollDisabled(sheetDetent == .collapsed)
+            // 折りたたみ時：シートのどこからでも上方向ドラッグで展開できる
+            // （simultaneous なので、メモ欄などシート内ボタンのタップは奪わない）
+            .simultaneousGesture(sheetDetent == .collapsed ? expandDragGesture : nil)
+            .onScrollGeometryChange(for: CGFloat.self) { geometry in
+                geometry.contentOffset.y + geometry.contentInsets.top
+            } action: { _, offset in
+                detailScrollOffset = offset
+            }
+            // 展開時：ScrollViewが先頭にあるときだけ、下方向ドラッグで折りたためる
+            .simultaneousGesture(sheetDetent == .expanded ? scrollCollapseDragGesture : nil)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .background(Color(.systemBackground))
-        .clipShape(
-            UnevenRoundedRectangle(
-                topLeadingRadius: 40,
-                bottomLeadingRadius: 0,
-                bottomTrailingRadius: 0,
-                topTrailingRadius: 40
-            )
-        )
-        // シート全面をドラッグ対象にする
-        // 折りたたみ時: シートのどこを掴んでも開閉できる（スクロールは無効）
-        // 展開時: 中身のスクロール／ボタンを優先（閉じる操作はハンドルが担当）
-        .contentShape(Rectangle())
-        .gesture(
-            sheetDragGesture,
-            including: sheetDetent == .collapsed ? .gesture : .subviews
-        )
+        .background {
+            // 折りたたみ側から展開側へ、展開度に応じて連続的にクロスフェードする
+            ZStack {
+                sheetCollapsedBackground
+                sheetExpandedBackground.opacity(expansionProgress)
+            }
+        }
+        .clipShape(sheetShape)
+        .contentShape(sheetShape)
     }
 
-    /// ハンドル（この帯の部分をドラッグで開閉できる）
+    /// ハンドルを含むヘッダー帯。展開度に応じて高さが伸び、展開時は最初のコンテンツが
+    /// ナビゲーションバーの下に来るようにする（帯の下方向ドラッグで折りたためる）
     private var sheetHandle: some View {
         RoundedRectangle(cornerRadius: 2.5)
             .fill(Color.secondary.opacity(0.4))
             .frame(width: 40, height: 5)
             .frame(maxWidth: .infinity)
             .frame(height: 44)
+            .opacity(1 - expansionProgress)
+            .frame(height: handleAreaHeight, alignment: .top)
             .contentShape(Rectangle())
-            .highPriorityGesture(sheetDragGesture)
+            .gesture(sheetDetent == .collapsed ? expandDragGesture : nil)
+            .simultaneousGesture(sheetDetent == .expanded ? collapseDragGesture : nil)
     }
 
-    /// ハンドルのドラッグで折りたたみ／展開を切り替える
-    private var sheetDragGesture: some Gesture {
-        DragGesture(minimumDistance: 0, coordinateSpace: .global)
+    /// ヘッダー帯の高さ。折りたたみ時は従来のハンドル領域（44pt）のまま、
+    /// 展開時はナビバー下端（実測した上端距離）まで伸びて、コンテンツがナビバーへ潜らないようにする
+    private var handleAreaHeight: CGFloat {
+        let collapsed: CGFloat = 44
+        let expanded = max(contentTopInset, collapsed)
+        return collapsed + (expanded - collapsed) * expansionProgress
+    }
+
+    /// 折りたたみ時：シートを上方向へドラッグして展開する
+    private var expandDragGesture: some Gesture {
+        DragGesture(minimumDistance: 8, coordinateSpace: .global)
             .onChanged { value in
                 var transaction = Transaction()
                 transaction.animation = nil
@@ -273,15 +451,78 @@ struct UserBookDetailView: View {
                 }
             }
             .onEnded { value in
-                let velocity = value.predictedEndTranslation.height - value.translation.height
-                snapSheet(velocity: velocity)
+                snapSheet(velocity: value.predictedEndTranslation.height - value.translation.height)
             }
     }
 
+    /// 展開時：ヘッダー帯を下方向へドラッグして折りたたむ（スクロール位置に依存しない）
+    private var collapseDragGesture: some Gesture {
+        DragGesture(minimumDistance: 8, coordinateSpace: .global)
+            .onChanged { value in
+                guard value.translation.height > 0 else { return }
+                var transaction = Transaction()
+                transaction.animation = nil
+                withTransaction(transaction) {
+                    dragOffset = value.translation.height
+                }
+            }
+            .onEnded { value in
+                guard value.translation.height > 0 else { return }
+                snapSheet(velocity: value.predictedEndTranslation.height - value.translation.height)
+            }
+    }
+
+    /// 展開時：詳細ScrollView用の折りたたみジェスチャー。
+    /// ジェスチャーは常時アタッチしたまま「先頭で下方向のとき」だけ作用させることで、
+    /// リスト途中の通常スクロールをシート操作として扱わない（`PassbookDepositSheet` と同じ構成）
+    private var scrollCollapseDragGesture: some Gesture {
+        DragGesture(minimumDistance: 8, coordinateSpace: .global)
+            .onChanged { value in
+                guard isDetailAtTop, value.translation.height > 0 else { return }
+                var transaction = Transaction()
+                transaction.animation = nil
+                withTransaction(transaction) {
+                    dragOffset = value.translation.height
+                }
+            }
+            .onEnded { value in
+                // 実際にシートを引き下げていたときのみスナップ（通常のスクロール終了では作用させない）
+                guard dragOffset > 0 else { return }
+                snapSheet(velocity: value.predictedEndTranslation.height - value.translation.height)
+            }
+    }
+
+    /// 展開時ナビバー中央の書影（高さ28pt・2:3・角丸2pt。タップでシートを折りたたむ）
+    private var navigationBarCoverThumbnail: some View {
+        LocalCoverImage(book: book) { coverImage in
+            if let coverImage {
+                Image(uiImage: coverImage)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+            } else if let imageURL = book.coverImageURL,
+                      let url = URL(string: imageURL) {
+                CachedAsyncImage(url: url, width: 28 * 2 / 3, height: 28)
+            } else {
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(Color.gray.opacity(0.3))
+            }
+        }
+        .frame(width: 28 * 2 / 3, height: 28)
+        .clipShape(RoundedRectangle(cornerRadius: 2))
+        .contentShape(Rectangle())
+    }
+
+    private func collapseSheet() {
+        withAnimation(.spring(response: 0.38, dampingFraction: 0.88)) {
+            sheetDetent = .collapsed
+            dragOffset = 0
+        }
+    }
+
     private func snapSheet(velocity: CGFloat) {
-        let base = sheetDetent == .collapsed ? collapsedTop : expandedTop
+        let base = sheetDetent == .collapsed ? collapsedTopOffset : expandedTopOffset
         let projected = base + dragOffset
-        let midpoint = (collapsedTop + expandedTop) / 2
+        let midpoint = (collapsedTopOffset + expandedTopOffset) / 2
 
         withAnimation(.spring(response: 0.38, dampingFraction: 0.88)) {
             if sheetDetent == .collapsed {
@@ -289,7 +530,7 @@ struct UserBookDetailView: View {
                     sheetDetent = .expanded
                 }
             } else {
-                if velocity > 120 || projected > midpoint {
+                if velocity > 120 || projected > midpoint || dragOffset > 40 {
                     sheetDetent = .collapsed
                 }
             }
@@ -495,6 +736,20 @@ struct UserBookDetailView: View {
             if !memoLinks.isEmpty {
                 memoLinkChipRow
             }
+
+            // 削除の導線（ツールバーから移設）。メモ欄との誤タップを避けるため上に広めの余白を取る
+            Button {
+                showDeleteAlert = true
+            } label: {
+                Text("book.delete.action")
+                    .font(.subheadline)
+                    .foregroundColor(.red)
+                    .padding(.vertical, 8)
+                    .frame(maxWidth: .infinity)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 40)
         }
         .padding(.horizontal, 24)
         .padding(.bottom, 40)
