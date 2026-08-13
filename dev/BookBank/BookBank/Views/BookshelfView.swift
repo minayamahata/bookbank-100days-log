@@ -73,7 +73,7 @@ struct BookshelfView: View {
 
     /// カレンダーの同日複数冊一覧シートで選ばれた本。
     /// 一覧シートのdismiss完了後にセットされ、本棚側の通常のNavigationStackから詳細をpushする
-    /// （シート内へpushすると詳細を物理画面最上端まで展開できないため。D-4の後日変更・2026-08-12）
+    /// （シート内へpushすると詳細を物理画面最上端まで展開できないため。D-4の後日変更・2026-08-13）
     @State private var calendarSelectedBook: BookDTO?
     
     /// 口座に紐づく書籍（総合口座の場合は全書籍）

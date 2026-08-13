@@ -21,7 +21,7 @@ struct BookshelfCalendarView<Header: View>: View {
 
     /// 同一日の複数冊一覧シートで本が選ばれ、シートのdismissが完了したあとに呼ばれる。
     /// 詳細を物理画面最上端まで展開できるよう、シート内へpushせず親のNavigationStackで開いてもらう
-    /// （`docs/bug-review-2026-07-06.md` D-4の後日変更・2026-08-12）
+    /// （`docs/bug-review-2026-07-06.md` D-4の後日変更・2026-08-13）
     let onSelectDayBook: (BookDTO) -> Void
 
     /// スクロールに追従して流れる先頭要素（フィルター行など）
