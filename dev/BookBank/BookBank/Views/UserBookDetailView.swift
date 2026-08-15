@@ -261,6 +261,7 @@ struct UserBookDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(isChromeExpanded)
         .toolbarBackground(.hidden, for: .navigationBar)
+        .toolbarBackground(.hidden, for: .tabBar)
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
                 if isChromeExpanded {
