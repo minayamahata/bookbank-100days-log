@@ -44,19 +44,14 @@ struct BookshelfView: View {
     /// カレンダー表示モード
     @State private var showCalendarView: Bool
 
-    /// 本棚内検索モード（フィルター行が検索フィールドに変形）
-    /// - Note: オンライン検索（`BookSearchView` の `SearchPhase`・世代管理・ページング）とは
-    ///   完全に別系統。ここでは所有本のローカル絞り込みのみを行い、既存の検索状態は参照しない。
+    /// 本棚内検索モード（フィルター行が検索フィールドに変形）。
+    /// UI一式は通帳ページと共通の `ShelfSearchView`（R4.6・2026-08-13で共通化）。
+    /// クエリ・フォーカス・つながり一覧の開閉はコンポーネント内部の状態
     @State private var isSearching: Bool = false
 
-    /// 本棚内検索のクエリ（1文字ごとに即時絞り込み）
-    @State private var shelfSearchText: String = ""
-
-    /// 検索フィールドのフォーカス
-    @FocusState private var isSearchFieldFocused: Bool
-
-    /// つながり一覧を全件に展開しているか（検索モードに入り直すと畳んだ状態に戻る）
-    @State private var showsAllLinks = false
+    /// 検索の0件表示から開く登録画面（`ShelfSearchView` はコールバックしか持たないため、
+    /// NavigationLink ではなくここで item ベースのpushにする）
+    @State private var searchRegistrationTarget: BookSearchDestination?
 
     /// 月別メモ編集用（口座横断・年月ごとに1つ。全口座のカレンダーから編集可能）
     /// 年・月・本文を1つの値で持ち、`.sheet(item:)` で開くことで
@@ -71,10 +66,11 @@ struct BookshelfView: View {
         var id: String { "\(year)-\(month)" }
     }
 
-    /// カレンダーの同日複数冊一覧シートで選ばれた本。
-    /// 一覧シートのdismiss完了後にセットされ、本棚側の通常のNavigationStackから詳細をpushする
-    /// （シート内へpushすると詳細を物理画面最上端まで展開できないため。D-4の後日変更・2026-08-13）
-    @State private var calendarSelectedBook: BookDTO?
+    /// 通常のNavigationStackから詳細をpushする対象の本。使い道は2つ:
+    /// - カレンダーの同日複数冊一覧シートで選ばれた本（一覧シートのdismiss完了後にセット。
+    ///   シート内へpushすると詳細を物理画面最上端まで展開できないため。D-4の後日変更・2026-08-13）
+    /// - 検索結果グリッドで選ばれた本（`ShelfSearchView` のコールバック経由）
+    @State private var selectedDetailBook: BookDTO?
     
     /// 口座に紐づく書籍（総合口座の場合は全書籍）
     private var passbookBooks: [BookDTO] {
@@ -109,23 +105,10 @@ struct BookshelfView: View {
             }
         }
 
-        // 本棚内検索（タイトル・著者のローカル絞り込み）。既存フィルターとAND合成する。
-        // 数百〜千冊でもタイトル+著者の正規化は軽量なため、毎キーストロークのインライン計算で十分。
-        if isSearching {
-            let query = shelfSearchText.trimmingCharacters(in: .whitespaces)
-            if !query.isEmpty {
-                books = books.filter {
-                    ShelfSearchMatcher.matches(fields: [$0.title, $0.author], query: query)
-                }
-            }
-        }
+        // 本棚内検索のクエリ絞り込みは `ShelfSearchView` の内部で行う。
+        // ここまでのフィルタ適用後を検索対象として渡すことで、従来どおりのAND合成になる
 
         return books
-    }
-
-    /// 本棚内検索が有効な絞り込みを行っているか（モードON かつ 入力あり）
-    private var isShelfSearchActive: Bool {
-        isSearching && !shelfSearchText.trimmingCharacters(in: .whitespaces).isEmpty
     }
 
     /// つながりでの絞り込み（本棚タブ全体で共有・口座切替をまたいで維持）
@@ -260,46 +243,45 @@ struct BookshelfView: View {
                     },
                     onSelectDayBook: { book in
                         // 一覧シートのdismiss完了後に呼ばれる。通常のNavigationStackから詳細をpushする
-                        calendarSelectedBook = book
+                        selectedDetailBook = book
                     },
                     header: {
                         EmptyView()
                     }
                 )
             } else {
+                // 本棚内検索（R4.6）は通常表示を残したまま上に重ねる。
+                // 差し替え（作り直し）にすると閉じるたびにグリッドの再構築が走って
+                // 引っかかるため（2026-08-14 オーナー指摘・通帳側と同じ方式）。
+                // 裏側はヒットテストを切るので、検索中に裏のスクロールは効かない
                 ScrollView {
                     VStack(spacing: 0) {
-                        // フィルターセクション（通常のピル行 ⇔ 検索フィールド行）
-                        filterSection
+                        // フィルターセクション（通常のピル行）
+                        normalFilterRow
 
-                        // つながりで絞り込み中だけ出る解除チップ。
-                        // 3タブ・本棚内検索とAND併用中も出したままにして、解除の口を失わない
+                        // つながりで絞り込み中だけ出る解除チップ
                         if linkFilter != nil {
                             linkFilterChipRow
-                        }
-
-                        if isSearching {
-                            if isShelfSearchActive {
-                                // 入力あり: 一致するつながりのチップ（検索結果の上・決定事項3）＋件数
-                                linkMatchRow
-                                searchResultCount
-                            } else {
-                                // 入力前: つながりの一覧（表記ゆれに気づく場所・設計メモ4.1節）
-                                linkListSection
-                            }
                         }
 
                         // 本棚グリッド
                         gridContent
                     }
                 }
-                // スクロールでキーボードを閉じる（検索モード自体は維持・仕様3.5）
-                .scrollDismissesKeyboard(.immediately)
+                .allowsHitTesting(!isSearching)
+                .overlay {
+                    if isSearching {
+                        shelfSearchOverlay
+                    }
+                }
             }
         }
         .id(passbook?.id ?? "overall")
-        .navigationDestination(item: $calendarSelectedBook) { book in
+        .navigationDestination(item: $selectedDetailBook) { book in
             UserBookDetailView(book: book)
+        }
+        .navigationDestination(item: $searchRegistrationTarget) { destination in
+            BookSearchView(passbook: destination.passbook, allowPassbookChange: true)
         }
         .task {
             for await value in repos.passbooks.observePassbooks() {
@@ -321,7 +303,7 @@ struct BookshelfView: View {
                 ThemedBackgroundView(themeColor: themeColor, isBlackTheme: isBlackTheme)
             }
         }
-        .navigationTitle(showCalendarView ? "bookshelf.calendar_title" : "bookshelf.title")
+        .navigationTitle(searchAwareNavigationTitle)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             // 通帳ページから開いたカレンダーの右上に、シート展開時と同じ＋ボタンを表示
@@ -360,6 +342,14 @@ struct BookshelfView: View {
                 showCalendarView = newValue
             }
         }
+        .onChange(of: bookshelfChromeState.isSearching) { _, newValue in
+            // 右上ツールバーの虫眼鏡（MainTabView側・2026-08-14に入口を移設）からの
+            // 検索開始を受け取る。自分発の変更（exitShelfSearch等）はguardで素通し
+            guard newValue != isSearching else { return }
+            withAnimation(.easeInOut(duration: 0.2)) {
+                isSearching = newValue
+            }
+        }
         .sheet(item: $monthlyMemoTarget) { target in
             MemoEditorView(
                 memo: .constant(target.text),
@@ -377,16 +367,56 @@ struct BookshelfView: View {
         }
     }
     
-    // MARK: - Filter Section
-    
-    @ViewBuilder
-    private var filterSection: some View {
-        if isSearching {
-            searchFieldRow
-        } else {
-            normalFilterRow
+    // MARK: - Shelf Search（本棚内検索・R4.6）
+
+    /// ナビゲーションタイトル。検索中は通帳側と共通の「検索」
+    ///（どのタブから入っても同じ画面のため・2026-08-14 オーナー確定）
+    private var searchAwareNavigationTitle: LocalizedStringKey {
+        if isSearching { return "bookshelf.search.title" }
+        return showCalendarView ? "bookshelf.calendar_title" : "bookshelf.title"
+    }
+
+    /// 通常表示の上に重ねる検索UI一式（通帳ページと共通・R4.6）。
+    /// 解除チップの行は検索バー直下のスロットへ差し込み、従来の並び順を保つ
+    private var shelfSearchOverlay: some View {
+        ScrollView {
+            ShelfSearchView(
+                books: userBooks,
+                linkIndex: linkIndex,
+                controlColor: bookshelfControlColor,
+                onSelectBook: { book in
+                    selectedDetailBook = book
+                },
+                onSelectLink: { selection in
+                    applyLinkFilter(selection)
+                },
+                onRegisterBook: registrationPassbook.map { target in
+                    { searchRegistrationTarget = BookSearchDestination(passbook: target) }
+                }
+            ) {
+                // つながりで絞り込み中だけ出る解除チップ。
+                // 検索とAND併用中も出したままにして、解除の口を失わない
+                if linkFilter != nil {
+                    linkFilterChipRow
+                }
+            } emptyFallback: {
+                // 入力前に0冊（絞り込みやメモ書き換えで起こる）: 通常表示と同じ空状態
+                emptyShelfState
+            }
+        }
+        // スクロールでキーボードを閉じる（検索モード自体は維持・仕様3.5）
+        .scrollDismissesKeyboard(.immediately)
+        .background {
+            // 下の通常表示が透けないよう、外側と同じ背景をもう一度敷く
+            if isOverallAccount {
+                OverallAccountBackgroundView()
+            } else {
+                ThemedBackgroundView(themeColor: themeColor, isBlackTheme: isBlackTheme)
+            }
         }
     }
+
+    // MARK: - Filter Section
 
     private var normalFilterRow: some View {
         VStack(spacing: 0) {
@@ -432,23 +462,9 @@ struct BookshelfView: View {
             }
             .frame(maxWidth: .infinity)
 
-            // 虫眼鏡・カレンダーボタンはまとめて間隔を狭くする
-            HStack(alignment: .bottom, spacing: 4) {
-            // 本棚内検索を開く（カレンダーボタンの左隣・同一グラス様式）
-            Button(action: { enterShelfSearch() }) {
-                Image(systemName: "magnifyingglass")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(calendarToggleIconColor)
-                    .frame(width: 34, height: 34)
-                    .passbookCircleGlass(tint: actionButtonGlassTint)
-                    .contentShape(Circle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(Text("bookshelf.search.placeholder"))
-            .padding(.bottom, 6)
-
             // カレンダービューへ切り替え（グリッド表示時のみ表示）
-            // 総合口座の通帳ビューの丸アクションボタンと同じグラススタイルにする
+            // 総合口座の通帳ビューの丸アクションボタンと同じグラススタイルにする。
+            // 本棚内検索の虫眼鏡は右上ツールバーへ移設した（通帳と入口を統一・2026-08-14）
             Button(action: {
                 showCalendarView = true
             }) {
@@ -464,7 +480,6 @@ struct BookshelfView: View {
             }
             .buttonStyle(.plain)
             .padding(.bottom, 6)
-            }
         }
 
         // 行全体（タブ＋虫眼鏡・カレンダーボタンの下）に通す薄い境界線。
@@ -478,76 +493,7 @@ struct BookshelfView: View {
         .padding(.bottom, 16)
     }
 
-    /// 検索モード時のフィルター行（虫眼鏡＋テキストフィールド＋クリア＋キャンセル）
-    private var searchFieldRow: some View {
-        HStack(spacing: 8) {
-            HStack(spacing: 8) {
-                Image(systemName: "magnifyingglass")
-                    .font(.system(size: 16))
-                    .foregroundColor(bookshelfControlColor.opacity(0.7))
-
-                TextField(
-                    "",
-                    text: $shelfSearchText,
-                    prompt: Text("bookshelf.search.placeholder")
-                        .foregroundColor(bookshelfControlColor.opacity(0.5))
-                )
-                .font(.system(size: 13))
-                .focused($isSearchFieldFocused)
-                .foregroundColor(bookshelfControlColor)
-                .tint(bookshelfControlColor)
-                .submitLabel(.done)
-                .autocorrectionDisabled()
-                .textInputAutocapitalization(.never)
-                .accessibilityLabel(Text("bookshelf.search.placeholder"))
-
-                if !shelfSearchText.isEmpty {
-                    Button(action: { shelfSearchText = "" }) {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 16))
-                            .foregroundColor(bookshelfControlColor.opacity(0.5))
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .padding(.horizontal, 14)
-            .frame(height: 40)
-            .background(Capsule().fill(bookshelfControlColor.opacity(0.08)))
-            .overlay(Capsule().strokeBorder(bookshelfControlColor.opacity(0.3), lineWidth: 1))
-
-            Button("common.cancel") { exitShelfSearch() }
-                .font(.system(size: 14))
-                .foregroundColor(bookshelfControlColor)
-        }
-        .padding(.horizontal, 20)
-        .padding(.top, 16)
-        .padding(.bottom, 16)
-    }
-
-    /// 検索結果の件数表示（検索フィールド直下）
-    private var searchResultCount: some View {
-        HStack {
-            Text(L10n.format("bookshelf.search.result_count", Int64(userBooks.count)))
-                .font(.caption)
-                .foregroundColor(bookshelfControlColor.opacity(0.7))
-            Spacer()
-        }
-        .padding(.horizontal, 20)
-        .padding(.bottom, 8)
-    }
-
     // MARK: - Link Filter（つながり絞り込み・ステップ8'）
-
-    /// つながりの印（メモ編集ツールバーの「つなぐ」と同じ図像）。
-    /// チップの言葉だけでは著者・タイトルの一致と見分けがつかないため添える
-    /// （2026-08-12 オーナー指示——文言だと5言語で幅が伸びるのでアイコンで示す）
-    private func linkChipIcon(size: CGFloat = 12) -> some View {
-        Image("icn_node")
-            .renderingMode(.template)
-            .resizable()
-            .scaledToFit()
-            .frame(width: size, height: size)
-    }
 
     /// 絞り込み中チップの文字色。塗りが `bookshelfControlColor` なのでその反転色
     private var linkChipSelectedTextColor: Color {
@@ -562,7 +508,7 @@ struct BookshelfView: View {
             if let linkFilter {
                 Button(action: { bookshelfChromeState.linkFilter = nil }) {
                     HStack(spacing: 6) {
-                        linkChipIcon()
+                        MemoLinkChipIcon()
                         Text(linkFilter.display)
                             .lineLimit(1)
                         Image(systemName: "xmark")
@@ -583,110 +529,7 @@ struct BookshelfView: View {
         .padding(.bottom, 12)
     }
 
-    /// 候補チップ（線のみ・件数つき）。タップでそのつながりの絞り込みへ切り替える
-    private func linkSuggestionChip(_ link: MemoLinkIndex.Link, showsIcon: Bool) -> some View {
-        Button(action: { applyLinkFilter(MemoLinkSelection(key: link.key, display: link.display)) }) {
-            HStack(spacing: 6) {
-                if showsIcon {
-                    linkChipIcon()
-                }
-                Text(link.display)
-                    .lineLimit(1)
-                Text(link.bookCount.formatted())
-                    .font(.system(size: 10, weight: .medium))
-                    .opacity(0.7)
-            }
-            .font(.system(size: 13))
-            .foregroundColor(bookshelfControlColor)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 7)
-            .overlay(Capsule().strokeBorder(bookshelfControlColor.opacity(0.4), lineWidth: 1))
-            .contentShape(Capsule())
-        }
-        .buttonStyle(.plain)
-    }
-
-    /// 一覧に最初から出すつながりの数（多い順の上位）。実際は数十件に収まる想定だが、
-    /// 上限が無いと際限なく伸びるため区切る（2026-08-12 実機確認を受けたオーナー指示）
-    private static let linkListDisplayLimit = 20
-
-    /// 検索の入力前に出す、つながりの一覧（多い順・件数つき）。
-    /// 全部のつながりを見られる場所で、表記ゆれ（[[京都]] と [[きょうと]]）に
-    /// 気づく場所を兼ねる（設計メモ 4.1節）。つながりが1つも無ければ何も出ない。
-    /// 上限を超えるぶんは「もっと見る」で全件に展開する
-    @ViewBuilder
-    private var linkListSection: some View {
-        let links = linkIndex.links
-        let visibleLinks = showsAllLinks ? links : Array(links.prefix(Self.linkListDisplayLimit))
-        if !links.isEmpty {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack(spacing: 6) {
-                    linkChipIcon(size: 11)
-                    Text("bookshelf.links.header")
-                }
-                .font(.system(size: 12, weight: .medium))
-                .foregroundColor(bookshelfControlColor.opacity(0.7))
-
-                ChipFlowLayout(spacing: 8, lineSpacing: 8) {
-                    ForEach(visibleLinks, id: \.key) { link in
-                        linkSuggestionChip(link, showsIcon: false)
-                    }
-
-                    if links.count > visibleLinks.count {
-                        showMoreLinksChip(remaining: links.count - visibleLinks.count)
-                    }
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 20)
-            .padding(.bottom, 20)
-        }
-    }
-
-    /// 一覧の続きを開くチップ（残り件数つき）。押すと全件に展開する
-    private func showMoreLinksChip(remaining: Int) -> some View {
-        Button(action: { showsAllLinks = true }) {
-            HStack(spacing: 4) {
-                Text(L10n.format("bookshelf.links.show_more", Int64(remaining)))
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 9, weight: .semibold))
-            }
-            .font(.system(size: 13))
-            .foregroundColor(bookshelfControlColor.opacity(0.7))
-            .padding(.horizontal, 12)
-            .padding(.vertical, 7)
-            .overlay(
-                Capsule().strokeBorder(
-                    bookshelfControlColor.opacity(0.3),
-                    style: StrokeStyle(lineWidth: 1, dash: [3, 3])
-                )
-            )
-            .contentShape(Capsule())
-        }
-        .buttonStyle(.plain)
-    }
-
-    /// 検索語に一致するつながりのチップ（検索結果の上・決定事項3）。
-    /// 一致は部分一致＋本棚内検索と同じ正規化、複数一致は多い順に横1行
-    /// （2026-08-12 オーナー確定）。先頭のアイコンが「著者・タイトルの一致ではなく
-    /// つながり」であることの見分けになる
-    @ViewBuilder
-    private var linkMatchRow: some View {
-        let matches = linkIndex.links(matching: shelfSearchText)
-        if !matches.isEmpty {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach(matches, id: \.key) { link in
-                        linkSuggestionChip(link, showsIcon: true)
-                    }
-                }
-                .padding(.horizontal, 20)
-            }
-            .padding(.bottom, 10)
-        }
-    }
-
-    /// つながりの絞り込みへ切り替える。検索モード中なら検索文字をクリアして
+    /// つながりの絞り込みへ切り替える。検索モード中なら検索を閉じて
     /// 通常表示へ戻す（決定事項3「押すと検索文字はクリアされ、絞り込みに切り替わる」）
     private func applyLinkFilter(_ selection: MemoLinkSelection) {
         bookshelfChromeState.linkFilter = selection
@@ -695,23 +538,10 @@ struct BookshelfView: View {
         }
     }
 
-    /// 検索モードに入る（フィールドを展開してフォーカス）。
-    /// 検索モード中は右下の＋ボタンを隠すため、共有状態にも反映する
-    /// （0件画面の「本を登録する」と重複するため・2026-08-12 オーナー確定）。
-    /// つながり一覧は入り直すたびに畳んだ状態から始める
-    private func enterShelfSearch() {
-        showsAllLinks = false
-        withAnimation(.easeInOut(duration: 0.2)) {
-            isSearching = true
-        }
-        bookshelfChromeState.isSearching = true
-        isSearchFieldFocused = true
-    }
-
-    /// 検索モードを終了（テキストをクリアして通常のフィルター行へ戻す）
+    /// 検索モードを終了（通常のフィルター行へ戻す。クエリはコンポーネントごと破棄される）。
+    /// 開始は右上ツールバーの虫眼鏡が `bookshelfChromeState.isSearching` を立て、
+    /// onChange で受け取る（入口は MainTabView 側・2026-08-14 通帳と統一）
     private func exitShelfSearch() {
-        isSearchFieldFocused = false
-        shelfSearchText = ""
         withAnimation(.easeInOut(duration: 0.2)) {
             isSearching = false
         }
@@ -773,28 +603,7 @@ struct BookshelfView: View {
     private var gridContent: some View {
         Group {
             if userBooks.isEmpty {
-                if isShelfSearchActive {
-                    searchEmptyState
-                } else if linkFilter != nil {
-                    // つながり絞り込みで0件（お気に入り等とのANDや、メモの書き換えで起こる）。
-                    // 「本を登録しましょう」では誤解を招くため専用の文言を出す
-                    linkFilterEmptyState
-                } else if hasLoadedUserBooks {
-                    VStack(spacing: 8) {
-                        Text("bookshelf.register_prompt")
-                            .font(.body)
-                            .foregroundColor(bookshelfControlColor)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                } else {
-                    // 未受信の1フレーム: 空状態を出さず、レイアウトが潰れないよう同じ場所を占有する
-                    // （ステップ3レビュー6章のレイアウト1フレーム潰れの再発防止）
-                    Color.clear
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 0)
-                        .padding()
-                }
+                emptyShelfState
             } else {
                 LazyVGrid(columns: columns, spacing: 10) {
                     ForEach(userBooks) { book in
@@ -810,7 +619,33 @@ struct BookshelfView: View {
         }
         .padding(.bottom, 100)
     }
-    
+
+    /// 0冊のときの空状態（検索での0件は `ShelfSearchView` 側が担う）。
+    /// 検索モードの入力前でも同じ表示を使う（`emptyFallback` として渡す）
+    @ViewBuilder
+    private var emptyShelfState: some View {
+        if linkFilter != nil {
+            // つながり絞り込みで0件（お気に入り等とのANDや、メモの書き換えで起こる）。
+            // 「本を登録しましょう」では誤解を招くため専用の文言を出す
+            linkFilterEmptyState
+        } else if hasLoadedUserBooks {
+            VStack(spacing: 8) {
+                Text("bookshelf.register_prompt")
+                    .font(.body)
+                    .foregroundColor(bookshelfControlColor)
+            }
+            .frame(maxWidth: .infinity)
+            .padding()
+        } else {
+            // 未受信の1フレーム: 空状態を出さず、レイアウトが潰れないよう同じ場所を占有する
+            // （ステップ3レビュー6章のレイアウト1フレーム潰れの再発防止）
+            Color.clear
+                .frame(maxWidth: .infinity)
+                .frame(height: 0)
+                .padding()
+        }
+    }
+
     /// つながり絞り込みで0件のときの空状態
     private var linkFilterEmptyState: some View {
         Text("bookshelf.link_filter.empty")
@@ -820,46 +655,6 @@ struct BookshelfView: View {
             .frame(maxWidth: .infinity)
             .padding(.top, 40)
             .padding(.horizontal, 40)
-    }
-
-    /// 本棚内検索で0件のときの空状態。オンライン検索（登録）への導線を出す（仕様3.4）。
-    private var searchEmptyState: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "magnifyingglass")
-                .font(.system(size: 60))
-                .foregroundColor(bookshelfControlColor.opacity(0.5))
-
-            Text("bookshelf.search.empty_title")
-                .font(.headline)
-                .foregroundColor(bookshelfControlColor)
-
-            Text("bookshelf.search.empty_message")
-                .font(.subheadline)
-                .foregroundColor(bookshelfControlColor.opacity(0.7))
-                .multilineTextAlignment(.center)
-
-            // 総合口座でカスタム口座が無い場合は登録先が無いため導線を出さない
-            if let registrationPassbook {
-                NavigationLink(value: BookSearchDestination(passbook: registrationPassbook)) {
-                    HStack(spacing: 6) {
-                        Image(systemName: "magnifyingglass")
-                        Text("book.register")
-                    }
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundColor(bookshelfControlColor)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-                    .background(
-                        Capsule().strokeBorder(bookshelfControlColor.opacity(0.4), lineWidth: 1)
-                    )
-                }
-                .buttonStyle(.plain)
-                .padding(.top, 4)
-            }
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.top, 60)
-        .padding(.horizontal, 40)
     }
 
     // MARK: - Monthly Memo

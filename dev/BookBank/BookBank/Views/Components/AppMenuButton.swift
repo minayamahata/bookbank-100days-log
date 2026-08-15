@@ -15,8 +15,11 @@ struct AppMenuButton: View {
         Button {
             isPresented = true
         } label: {
-            Image(systemName: "line.3.horizontal")
-                .font(.system(size: 16))
+            Image("icn_setting")
+                .renderingMode(.template)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 18, height: 18)
         }
         .tint(.primary)
     }

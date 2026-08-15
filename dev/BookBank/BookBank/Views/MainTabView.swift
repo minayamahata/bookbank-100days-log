@@ -109,6 +109,19 @@ struct MainTabView: View {
     
     /// 現在選択中のタブ
     @State private var selectedTab = 1  // デフォルトは通帳タブ
+
+    // MARK: 通帳からの本棚内検索（R4.6）
+
+    /// 通帳タブが本棚内検索モードか。本棚と同じインライン切替
+    /// （検索中は `PassbookDetailView` を検索ビューへ差し替える。シート提示にしないのは
+    /// 入口と見え方を本棚と揃えるため・2026-08-14 オーナー確定）
+    @State private var isPassbookSearching = false
+    /// 通帳ページのキーボード前 top safe（ナビ＋ステータス）。キーボードで減っても検索の上端を戻す
+    @State private var passbookSearchTopLock: CGFloat = 0
+    /// 通帳ページの現在の top safe。キーボードで減った差分を検索の下 inset に足す
+    @State private var passbookCurrentTopSafe: CGFloat = 0
+    /// 検索結果から通帳タブのNavigationStackへpushする詳細の本
+    @State private var passbookSearchDetailBook: BookDTO?
     
     // カスタム口座を取得
     private var customPassbooks: [PassbookDTO] {
@@ -190,10 +203,12 @@ struct MainTabView: View {
                     selectedPassbookId = passbook.id
                     selectedTab = 1
                     passbookNavPath = NavigationPath()
+                    isPassbookSearching = false
                 }
                 appShellState.onOverallSelected = {
                     isOverallMode = true
                     selectedTab = 1
+                    isPassbookSearching = false
                 }
                 // 本棚・カレンダーへの導線は「本棚タブに切り替える」ことで
                 // ルート表示に統一する（戻るボタンを出さず、タブバーも本棚をアクティブにする）
@@ -296,8 +311,54 @@ struct MainTabView: View {
                         if customPassbooks.isEmpty {
                             emptyStateView
                         } else {
-                            PassbookDetailView(passbook: displayPassbook)
+                            // 本棚内検索（R4.6）は通帳ページを残したまま上に重ねる。
+                            // 差し替え（作り直し）にすると、閉じるたびに通帳の実測・表紙・シートの
+                            // 再構築が一度に走って引っかかるため（2026-08-14 オーナー指摘）。
+                            // 裏側はヒットテストを切るので、通帳シートのドラッグ・スクロールは効かない。
+                            // 上端揃え＋背面だけキーボードセーフエリアを無視する。
+                            // 通帳タブはキーボードで top safe が 116→85 に減る（隠しナビ＋下端無視の副作用）ので、
+                            // 検索レイヤーは開いた時点の top を固定し、コンテナ上端だけ無視して戻す。
+                            ZStack(alignment: .top) {
+                                PassbookDetailView(
+                                    passbook: displayPassbook,
+                                    isSearchOverlayActive: isPassbookSearching
+                                )
                                 .id("passbook-\(displayPassbookID)")
+                                .allowsHitTesting(!isPassbookSearching)
+                                .ignoresSafeArea(.keyboard)
+                                .onGeometryChange(for: CGFloat.self) { proxy in
+                                    proxy.safeAreaInsets.top
+                                } action: { _, top in
+                                    if passbookSearchTopLock == 0, top > 0 {
+                                        passbookSearchTopLock = top
+                                    }
+                                    passbookCurrentTopSafe = top
+                                }
+
+                                if isPassbookSearching {
+                                    PassbookShelfSearchView(
+                                        passbook: displayPassbook,
+                                        customPassbooks: customPassbooks,
+                                        onSelectBook: { book in
+                                            // シートではないので回避策なしで直接push
+                                            //（検索状態は裏に残り、戻ると検索結果へ戻る）
+                                            passbookSearchDetailBook = book
+                                        },
+                                        onSelectLink: { link in
+                                            // 書籍詳細のつながりチップと同じ遷移
+                                            //（総合口座へ切り替えて本棚を絞り込む）
+                                            appShellState.filterBookshelf(by: link)
+                                        },
+                                        onRegisterBook: { passbook in
+                                            passbookNavPath.append(BookSearchDestination(passbook: passbook))
+                                        }
+                                    )
+                                    .id("passbook-search-\(displayPassbookID)")
+                                    .padding(.top, passbookSearchTopLock)
+                                    .padding(.bottom, max(0, passbookSearchTopLock - passbookCurrentTopSafe))
+                                    .ignoresSafeArea(.container, edges: .top)
+                                }
+                            }
                         }
                     }
                     .navigationDestination(for: BookSearchDestination.self) { destination in
@@ -309,6 +370,11 @@ struct MainTabView: View {
                             AccountListView()
                         }
                     }
+                    // 本棚内検索の結果から開く詳細。インライン検索なのでシートのdismiss待ちは
+                    // 不要（カレンダーの同日複数冊＝D-4後日変更の回避策はシートのままなので残る）
+                    .navigationDestination(item: $passbookSearchDetailBook) { book in
+                        UserBookDetailView(book: book)
+                    }
                     .toolbar {
                         if !customPassbooks.isEmpty, !passbookSheetChromeState.isExpanded {
                             ToolbarItem(placement: .topBarLeading) {
@@ -316,8 +382,32 @@ struct MainTabView: View {
                             }
                         }
                         if !passbookSheetChromeState.isExpanded {
-                            ToolbarItem(placement: .topBarTrailing) {
-                                AppMenuButton(isPresented: appMenuPresentation)
+                            // 本棚内検索の入口（R4.6・本棚タブと同じ右上）。
+                            // 検索中は虫眼鏡＋設定の代わりに✕（キャンセル）を同じ位置へ出す
+                            if isPassbookSearching {
+                                ToolbarItem(placement: .topBarTrailing) {
+                                    searchCloseToolbarButton {
+                                        withAnimation(.easeInOut(duration: 0.2)) {
+                                            isPassbookSearching = false
+                                        }
+                                    }
+                                }
+                                .sharedBackgroundVisibility(.hidden)
+                            } else if !customPassbooks.isEmpty {
+                                ToolbarItem(placement: .topBarTrailing) {
+                                    searchAndMenuToolbarPair {
+                                        withAnimation(.easeInOut(duration: 0.2)) {
+                                            isPassbookSearching = true
+                                        }
+                                    }
+                                }
+                                // 標準の共有カプセル（2ボタンが1つに束ねられる）を消し、
+                                // 上のHStackの間隔と個別ガラス円をそのまま見せる
+                                .sharedBackgroundVisibility(.hidden)
+                            } else {
+                                ToolbarItem(placement: .topBarTrailing) {
+                                    AppMenuButton(isPresented: appMenuPresentation)
+                                }
                             }
                         }
                     }
@@ -354,8 +444,30 @@ struct MainTabView: View {
                                 passbookSwitcherButton
                             }
                         }
-                        ToolbarItem(placement: .topBarTrailing) {
-                            AppMenuButton(isPresented: appMenuPresentation)
+                        // 本棚内検索の入口（R4.6で通帳と統一——フィルター行の虫眼鏡から移設）。
+                        // 検索中は虫眼鏡＋設定の代わりに✕（キャンセル）を同じ位置へ出す。
+                        // カレンダー表示中は設定ボタンのみ
+                        if bookshelfChromeState.isSearching, !bookshelfChromeState.isCalendar {
+                            ToolbarItem(placement: .topBarTrailing) {
+                                searchCloseToolbarButton {
+                                    // BookshelfView 側が onChange で拾って検索モードを終える
+                                    bookshelfChromeState.isSearching = false
+                                }
+                            }
+                            .sharedBackgroundVisibility(.hidden)
+                        } else if !customPassbooks.isEmpty, !bookshelfChromeState.isCalendar {
+                            ToolbarItem(placement: .topBarTrailing) {
+                                searchAndMenuToolbarPair {
+                                    // BookshelfView 側が onChange で拾って検索モードへ入る
+                                    bookshelfChromeState.isSearching = true
+                                }
+                            }
+                            // 通帳タブと同じく共有カプセルを消して、間隔と個別ガラス円を見せる
+                            .sharedBackgroundVisibility(.hidden)
+                        } else {
+                            ToolbarItem(placement: .topBarTrailing) {
+                                AppMenuButton(isPresented: appMenuPresentation)
+                            }
                         }
                     }
                 }
@@ -417,8 +529,8 @@ struct MainTabView: View {
             // プラスボタン（右下に配置、タブバーの上）- リキッドグラス風
             // 口座タブ(0)、ナビゲーション中、詳細画面表示中は非表示
             // 総合口座の通帳タブ(1)では丸アクションボタンに「本の追加」があるため非表示
-            // 本棚タブ(2)の検索モード中も非表示（0件画面の「本を登録する」と重複するため）
-            if !isNavigating && !floatingButtonState.isHidden && selectedTab != 0 && !passbookSheetChromeState.isExpanded && !(selectedTab == 1 && isOverallMode) && !(selectedTab == 2 && bookshelfChromeState.isSearching) {
+            // 検索モード中の通帳(1)・本棚(2)も非表示（0件画面の「本を登録する」と重複するため）
+            if !isNavigating && !floatingButtonState.isHidden && selectedTab != 0 && !passbookSheetChromeState.isExpanded && !(selectedTab == 1 && isOverallMode) && !(selectedTab == 1 && isPassbookSearching) && !(selectedTab == 2 && bookshelfChromeState.isSearching) {
                 HStack {
                     Spacer()
                     
@@ -484,7 +596,58 @@ struct MainTabView: View {
     }
     
     // MARK: - Subviews
-    
+
+    /// 右上の虫眼鏡＋設定ボタンの組（通帳タブ・本棚タブ共通）。
+    /// `ToolbarSpacer(.fixed)` では2カプセル間の距離を調整できないため、
+    /// 1つのツールバー項目に自前のガラス円2つを並べ、間隔を自分で決める
+    /// （呼び出し側で共有背景を `.sharedBackgroundVisibility(.hidden)` で消すこと）
+    private func searchAndMenuToolbarPair(onSearch: @escaping () -> Void) -> some View {
+        HStack(spacing: 6) {
+            Button(action: onSearch) {
+                Image("icn_search")
+                    .renderingMode(.template)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 18, height: 18)
+                    .foregroundStyle(.primary)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Circle())
+            }
+            .buttonStyle(.plain)
+            .glassEffect(.regular.interactive())
+            .accessibilityLabel(Text("bookshelf.search.placeholder"))
+
+            Button(action: { appShellState.showAppMenu = true }) {
+                Image("icn_setting")
+                    .renderingMode(.template)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 18, height: 18)
+                    .foregroundStyle(.primary)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Circle())
+            }
+            .buttonStyle(.plain)
+            .glassEffect(.regular.interactive())
+        }
+    }
+
+    /// 検索モード中に虫眼鏡＋設定の代わりへ出す✕ボタン（検索のキャンセルと同じ動作）。
+    /// ボタンを消すだけだと右へ吸い込まれる退場アニメーションになるため、
+    /// 同じ位置の項目を差し替えて「その場で入れ替わる」見え方にする（2026-08-14 オーナー指示）
+    private func searchCloseToolbarButton(action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: "xmark")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(.primary)
+                .frame(width: 44, height: 44)
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .glassEffect(.regular.interactive())
+        .accessibilityLabel(Text("common.cancel"))
+    }
+
     /// 口座切り替えボタン（Menu で総合口座＋登録口座を一覧表示）
     private var passbookSwitcherButton: some View {
         Menu {
@@ -556,8 +719,10 @@ struct MainTabView: View {
     }
 
     /// 口座に依存するタブのナビゲーションをルートへ戻す
-    /// （切替前の口座で開いた検索画面などが残らないようにする）
+    /// （切替前の口座で開いた検索画面などが残らないようにする）。
+    /// 通帳のインライン検索も同じ理由で終了する（本棚が口座切替で検索を終える挙動と一致）
     private func resetContentNavigationPaths() {
+        isPassbookSearching = false
         passbookNavPath = NavigationPath()
         bookshelfNavPath = NavigationPath()
         statisticsNavPath = NavigationPath()
@@ -629,6 +794,11 @@ struct BookSearchDestination: Hashable {
     static func == (lhs: BookSearchDestination, rhs: BookSearchDestination) -> Bool {
         lhs.passbook.id == rhs.passbook.id
     }
+}
+
+/// `navigationDestination(item:)` によるプログラム的なpush（検索0件からの登録導線）で使う
+extension BookSearchDestination: Identifiable {
+    var id: String { passbook.id }
 }
 
 /// 通帳ページのアクションボタンからの遷移先（値ベースナビゲーション）

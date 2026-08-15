@@ -803,8 +803,13 @@ struct UserBookDetailView: View {
     // MARK: - Actions
 
     /// つながりチップから本棚へ。総合口座モードに切り替えて全冊から絞り込む
-    /// （2026-08-12 オーナー確定——つながりは口座をまたぐのが普通なので、口座で切らない）
+    /// （2026-08-12 オーナー確定——つながりは口座をまたぐのが普通なので、口座で切らない）。
+    /// この詳細ページ自身も閉じる——`filterBookshelf` のNavigationPathリセットでは
+    /// `NavigationLink(destination:)` 等でpushされたこの画面はpopされないため、
+    /// 本棚タブから来た場合に「その場で絞り込み済みの本棚へ飛ぶ」見え方にならない
+    /// （2026-08-14 オーナー指摘）
     private func filterBookshelf(by link: MemoLink) {
+        dismiss()
         appShellState.filterBookshelf(
             by: MemoLinkSelection(key: link.key, display: link.display)
         )

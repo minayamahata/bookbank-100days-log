@@ -15,7 +15,13 @@ struct PassbookDetailView: View {
     
     /// 表示対象の口座（nil = 総合口座）
     let passbook: PassbookDTO?
-    
+
+    /// 本棚内検索のオーバーレイが上に重なっているか（R4.6・2026-08-14）。
+    /// この画面はナビバー中央を principal 項目で自前描画しているため、
+    /// 検索中のタイトル「検索」への切り替えもここで分岐する
+    /// （外側の `navigationTitle` は principal に上書きされて効かない）
+    var isSearchOverlayActive: Bool = false
+
     // MARK: - Environment
 
     /// リポジトリ束（R4ステップ3: 口座はストリーム購読へ切替）
@@ -184,8 +190,9 @@ struct PassbookDetailView: View {
     
     // MARK: - Initialization
     
-    init(passbook: PassbookDTO?) {
+    init(passbook: PassbookDTO?, isSearchOverlayActive: Bool = false) {
         self.passbook = passbook
+        self.isSearchOverlayActive = isSearchOverlayActive
         // 並びは `BookRepository` の正準ソート（registeredAt 降順＋createdAt 降順）が担う。
         // 旧 @Query の sort 指定と同一のため、C-4（同秒登録時の並び安定）は維持される。
     }
@@ -296,7 +303,11 @@ struct PassbookDetailView: View {
         .toolbarBackground(.hidden, for: .navigationBar)
         .toolbar {
             ToolbarItem(placement: .principal) {
-                if passbookSheetChromeState.isExpanded {
+                if isSearchOverlayActive {
+                    // 本棚の検索と共通のタイトル（どのタブから入っても同じ画面のため）
+                    Text("bookshelf.search.title")
+                        .font(.system(size: 17))
+                } else if passbookSheetChromeState.isExpanded {
                     DisplayCurrencyPriceText(
                         amount: totalValue,
                         font: .system(size: 18, weight: .semibold),
@@ -305,7 +316,7 @@ struct PassbookDetailView: View {
                     .foregroundStyle(headerPriceStyle)
                 } else {
                     Text("passbook.title")
-                        .font(.system(size: 17))
+                        .font(.headline)
                 }
             }
             ToolbarItem(placement: .topBarLeading) {
