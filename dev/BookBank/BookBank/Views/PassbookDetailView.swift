@@ -19,7 +19,6 @@ struct PassbookDetailView: View {
     /// 本棚内検索のオーバーレイが上に重なっているか（R4.6・2026-08-14）。
     /// この画面はナビバー中央を principal 項目で自前描画しているため、
     /// 検索中のタイトル「検索」への切り替えもここで分岐する
-    /// （外側の `navigationTitle` は principal に上書きされて効かない）
     var isSearchOverlayActive: Bool = false
 
     // MARK: - Environment
@@ -82,6 +81,12 @@ struct PassbookDetailView: View {
     /// ※ この数値を増やすとヘッダーが下がり、減らすと上がる
     private var expandedHeaderTopInset: CGFloat {
         max(safeAreaTopInset - 0, 4)
+    }
+
+    /// ナビバー中央のタイトル。検索中は本棚と同じ「検索」
+    private var searchAwareNavigationTitle: LocalizedStringKey {
+        if isSearchOverlayActive { return "bookshelf.search.title" }
+        return "passbook.title"
     }
     
     // MARK: - Repository Streams
@@ -303,11 +308,7 @@ struct PassbookDetailView: View {
         .toolbarBackground(.hidden, for: .navigationBar)
         .toolbar {
             ToolbarItem(placement: .principal) {
-                if isSearchOverlayActive {
-                    // 本棚の検索と共通のタイトル（どのタブから入っても同じ画面のため）
-                    Text("bookshelf.search.title")
-                        .font(.system(size: 17))
-                } else if passbookSheetChromeState.isExpanded {
+                if passbookSheetChromeState.isExpanded, !isSearchOverlayActive {
                     DisplayCurrencyPriceText(
                         amount: totalValue,
                         font: .system(size: 18, weight: .semibold),
@@ -315,8 +316,8 @@ struct PassbookDetailView: View {
                     )
                     .foregroundStyle(headerPriceStyle)
                 } else {
-                    Text("passbook.title")
-                        .font(.headline)
+                    Text(searchAwareNavigationTitle)
+                        .font(.system(size: 15, weight: .regular))
                 }
             }
             ToolbarItem(placement: .topBarLeading) {
