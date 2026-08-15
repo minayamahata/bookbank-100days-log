@@ -368,6 +368,8 @@ struct MainTabView: View {
                         switch destination {
                         case .accounts:
                             AccountListView()
+                        case .memos:
+                            MemoListView()
                         }
                     }
                     // 本棚内検索の結果から開く詳細。インライン検索なのでシートのdismiss待ちは
@@ -804,6 +806,7 @@ extension BookSearchDestination: Identifiable {
 /// 通帳ページのアクションボタンからの遷移先（値ベースナビゲーション）
 enum PassbookActionDestination: Hashable {
     case accounts
+    case memos
 }
 
 // MARK: - Preview

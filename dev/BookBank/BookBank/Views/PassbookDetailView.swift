@@ -553,8 +553,8 @@ struct PassbookDetailView: View {
                 .buttonStyle(.plain)
             }
 
-            NavigationLink(value: PassbookActionDestination.accounts) {
-                overallAccountActionButtonLabel(title: "passbook.view_accounts", icon: "icon-tab-account")
+            NavigationLink(value: PassbookActionDestination.memos) {
+                overallAccountActionButtonLabel(title: "passbook.view_memos", systemImage: "quote.opening")
             }
             .buttonStyle(.plain)
 
