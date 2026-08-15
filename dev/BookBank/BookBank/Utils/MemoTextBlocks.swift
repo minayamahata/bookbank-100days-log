@@ -22,11 +22,13 @@ enum MemoTextBlock: Equatable, Sendable {
 
 enum MemoTextBlocks {
     /// 行頭が `> `（半角・空白必須）の行を引用として分割する。
-    /// `>` 単独や `>text` は解釈しない（「ボタンで入れたものだけが装飾になる」約束＝設計メモ 0.4節）
+    /// `>` 単独や `>text` は解釈しない（「ボタンで入れたものだけが装飾になる」約束＝設計メモ 0.4節）。
+    /// 引用行のあいだの空行1つは別枠の境界（設計メモ 4.6節・2026-08-15）。空の本文ブロックは作らない
     static func parse(_ memo: String) -> [MemoTextBlock] {
         var blocks: [MemoTextBlock] = []
         var paragraphLines: [String] = []
         var quoteLines: [String] = []
+        let lines = memo.components(separatedBy: "\n")
 
         func flushParagraph() {
             guard !paragraphLines.isEmpty else { return }
@@ -39,20 +41,45 @@ enum MemoTextBlocks {
             quoteLines = []
         }
 
-        for line in memo.components(separatedBy: "\n") {
+        var index = 0
+        while index < lines.count {
+            let line = lines[index]
             if line.hasPrefix("> ") {
                 flushParagraph()
                 quoteLines.append(String(line.dropFirst(2)))
+                index += 1
                 continue
             }
             // 引用の直後の「p.数字」だけの行は、その引用の出典ページとして扱う
             if !quoteLines.isEmpty, let digits = MemoQuotePage.digits(inPageOnlyLine: line) {
                 flushQuote()
                 blocks.append(.quotePage(digits))
+                index += 1
+                continue
+            }
+            // 引用の直後の空行は、次の非空行が引用なら境界（1行だけ消費。余りは本文として残す）
+            if !quoteLines.isEmpty, line.isEmpty {
+                var emptyCount = 0
+                var cursor = index
+                while cursor < lines.count, lines[cursor].isEmpty {
+                    emptyCount += 1
+                    cursor += 1
+                }
+                let nextIsQuote = cursor < lines.count && lines[cursor].hasPrefix("> ")
+                flushQuote()
+                if nextIsQuote {
+                    if emptyCount > 1 {
+                        paragraphLines.append(contentsOf: Array(repeating: "", count: emptyCount - 1))
+                    }
+                } else {
+                    paragraphLines.append(contentsOf: Array(repeating: "", count: emptyCount))
+                }
+                index = cursor
                 continue
             }
             flushQuote()
             paragraphLines.append(line)
+            index += 1
         }
         flushParagraph()
         flushQuote()
@@ -178,9 +205,40 @@ enum MemoQuotePage {
         return hasTrailingPageLine || endsWithPageMarker ? length : nil
     }
 
+    /// 保存された引用境界の空行を、前の引用の空ページ行 `p.` へ戻す。
+    /// 境界に必要な1行だけを復元し、ユーザーが足した余分な空行は残す（設計メモ 4.6節・2026-08-15）
+    static func restoringBoundaryPageLines(in memo: String) -> String {
+        let lines = memo.components(separatedBy: "\n")
+        var restored: [String] = []
+        var index = 0
+        while index < lines.count {
+            let line = lines[index]
+            restored.append(line)
+            index += 1
+            guard line.hasPrefix("> ") else { continue }
+
+            var emptyCount = 0
+            while index < lines.count, lines[index].isEmpty {
+                emptyCount += 1
+                index += 1
+            }
+            let nextIsQuote = index < lines.count && lines[index].hasPrefix("> ")
+            if nextIsQuote, emptyCount >= 1 {
+                restored.append("p.")
+                if emptyCount > 1 {
+                    restored.append(contentsOf: Array(repeating: "", count: emptyCount - 1))
+                }
+            } else if emptyCount > 0 {
+                restored.append(contentsOf: Array(repeating: "", count: emptyCount))
+            }
+        }
+        return restored.joined(separator: "\n")
+    }
+
     /// 編集画面に載せる形。出典ページの案内と、その下の行き先の行を用意する
     static func preparedForEditing(_ memo: String) -> String {
-        let ensured = ensuringPageLines(in: memo)
+        let restored = restoringBoundaryPageLines(in: memo)
+        let ensured = ensuringPageLines(in: restored)
         return trailingBlankLineInsertion(in: ensured) == nil ? ensured : ensured + "\n"
     }
 
@@ -213,12 +271,18 @@ enum MemoQuotePage {
         return String(text[start..<end])
     }
 
-    /// 数字が入らなかったページ行を取り除く（保存時）
+    /// 数字が入らなかったページ行を取り除く（保存時）。
+    /// 直前が引用で直後も引用なら、完全削除せず空行1つを境界として残す（設計メモ 4.6節・2026-08-15）
     static func removingEmptyPageLines(from memo: String) -> String {
+        let lines = memo.components(separatedBy: "\n")
         var kept: [String] = []
-        for line in memo.components(separatedBy: "\n") {
+        for (index, line) in lines.enumerated() {
             if let digits = digits(inPageOnlyLine: line), digits.isEmpty,
                kept.last?.hasPrefix("> ") == true {
+                let next = index + 1 < lines.count ? lines[index + 1] : nil
+                if next?.hasPrefix("> ") == true {
+                    kept.append("")
+                }
                 continue
             }
             kept.append(line)

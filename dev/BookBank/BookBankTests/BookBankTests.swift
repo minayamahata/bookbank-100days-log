@@ -891,6 +891,15 @@ struct BookBankTests {
             MemoTextBlocks.parse("> 1行目\n> 2行目") == [.quote("1行目\n2行目")],
             "連続する引用行はひとつの囲みにまとめる"
         )
+        #expect(
+            MemoTextBlocks.parse("> 引用1\n\n> 引用2") == [.quote("引用1"), .quote("引用2")],
+            "引用のあいだの空行1つは別枠の境界（空の本文ブロックは作らない）"
+        )
+        #expect(
+            MemoTextBlocks.parse("> 引用1\n\n\n> 引用2")
+                == [.quote("引用1"), .paragraph(""), .quote("引用2")],
+            "余分な空行は境界1行以外を本文として残す"
+        )
         // `>` 単独・空白なし・行の途中は解釈しない
         #expect(
             MemoTextBlocks.parse(">空白なし\n文中の > は引用ではない")
@@ -905,6 +914,12 @@ struct BookBankTests {
         let quoted = ranges.map { (memo as NSString).substring(with: $0) }
 
         #expect(quoted == ["> 1行目\n> 2行目", "> 別のまとまり"])
+        #expect(
+            MemoTextBlocks.quoteBlockRanges(in: "> 引用1\n\n> 引用2")
+                .map { ("> 引用1\n\n> 引用2" as NSString).substring(with: $0) }
+                == ["> 引用1", "> 引用2"],
+            "空行で分かれた引用は2つの範囲"
+        )
         #expect(
             MemoTextBlocks.quoteBlockRanges(in: "引用のない本文").isEmpty,
             "引用行が無ければ囲みは描かない"
@@ -1030,6 +1045,16 @@ struct BookBankTests {
             MemoQuotePage.removingEmptyPageLines(from: "p.\n本文") == "p.\n本文",
             "引用の直後でない `p.` はユーザーが書いた文字なので触らない"
         )
+        #expect(
+            MemoQuotePage.removingEmptyPageLines(from: "> 引用1\np.\n> 引用2\np.")
+                == "> 引用1\n\n> 引用2",
+            "直後が別引用なら空の `p.` を境界の空行へ変える"
+        )
+        #expect(
+            MemoQuotePage.removingEmptyPageLines(from: "> 引用1\np.\n\n> 引用2\np.")
+                == "> 引用1\n\n> 引用2",
+            "ユーザーが入れた空行は圧縮せず、空の `p.` だけ落とす"
+        )
     }
 
     /// 編集画面は引用に出典ページの行を用意し続ける（2026-08-11 オーナー指示）——
@@ -1081,6 +1106,59 @@ struct BookBankTests {
         #expect(MemoQuotePage.preparedForEditing("> 引用") == "> 引用\np.\n", "案内と行き先をまとめて用意")
         #expect(MemoQuotePage.preparedForEditing("> 引用\np.42\n本文") == "> 引用\np.42\n本文")
         #expect(MemoQuotePage.preparedForEditing("本文だけ") == "本文だけ", "引用が無ければ何も足さない")
+        #expect(
+            MemoQuotePage.preparedForEditing("> 引用1\n\n> 引用2") == "> 引用1\np.\n> 引用2\np.\n",
+            "境界の空行は前の引用の空ページ行へ戻し、末尾にも案内と行き先を足す"
+        )
+        #expect(
+            MemoQuotePage.preparedForEditing("> 引用1\n\n\n> 引用2")
+                == "> 引用1\np.\n\n> 引用2\np.\n",
+            "余分な空行は境界1行以外を残す"
+        )
+    }
+
+    /// 個別に作った引用は保存後も別枠のまま。保存→再編集→再保存しても形が増えない
+    @Test func memoSeparateQuotesStaySeparateAcrossSaveAndDisplay() {
+        func saved(_ text: String) -> String {
+            var result = MemoQuotePage.removingEmptyPageLines(from: text)
+            while result.hasSuffix("\n") { result.removeLast() }
+            return result
+        }
+
+        let edited = "> 引用1\np.\n> 引用2\np."
+        let stored = "> 引用1\n\n> 引用2"
+        #expect(saved(edited) == stored)
+
+        #expect(
+            MemoTextBlocks.parse(stored) == [.quote("引用1"), .quote("引用2")]
+        )
+        #expect(
+            MemoTextBlocks.parse("> 1行目\n> 2行目") == [.quote("1行目\n2行目")],
+            "複数行を一度に引用した形は1ブロック"
+        )
+
+        #expect(MemoQuotePage.preparedForEditing(stored) == "> 引用1\np.\n> 引用2\np.\n")
+
+        var current = stored
+        for _ in 0..<3 {
+            current = saved(MemoQuotePage.preparedForEditing(current))
+            #expect(current == stored)
+        }
+
+        #expect(
+            MemoQuotePage.removingEmptyPageLines(from: "> 引用1\np.42\n> 引用2\np.")
+                == "> 引用1\np.42\n> 引用2",
+            "入力済みのページ行は残す"
+        )
+        #expect(
+            MemoTextBlocks.parse("> 引用1\np.42\n> 引用2")
+                == [.quote("引用1"), .quotePage("42"), .quote("引用2")],
+            "入力済みページは前の引用に属する"
+        )
+        #expect(
+            MemoTextBlocks.parse("ふつうの本文\n\n次の段落")
+                == [.paragraph("ふつうの本文\n\n次の段落")]
+        )
     }
 
     /// 数字が未入力の案内は消せない。通すと足し直しとぶつかって `p` だけが残る
