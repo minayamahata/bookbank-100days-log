@@ -553,15 +553,15 @@ struct PassbookDetailView: View {
                 .buttonStyle(.plain)
             }
 
-            NavigationLink(value: PassbookActionDestination.memos) {
-                overallAccountActionButtonLabel(title: "passbook.view_memos", systemImage: "quote.opening")
-            }
-            .buttonStyle(.plain)
-
             Button {
                 appShellState.showBookshelf()
             } label: {
                 overallAccountActionButtonLabel(title: "passbook.view_bookshelf", icon: "icon-tab-bookshelf")
+            }
+            .buttonStyle(.plain)
+
+            NavigationLink(value: PassbookActionDestination.memos) {
+                overallAccountActionButtonLabel(title: "passbook.view_memos", icon: "icn_memo")
             }
             .buttonStyle(.plain)
 

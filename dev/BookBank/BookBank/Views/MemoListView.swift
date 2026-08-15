@@ -111,7 +111,11 @@ struct MemoListView: View {
                     Button {
                         isSearching = true
                     } label: {
-                        Image(systemName: "magnifyingglass")
+                        Image("icn_search")
+                            .renderingMode(.template)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 18, height: 18)
                     }
                     .accessibilityLabel(Text("memo.list.search.placeholder"))
                 }
