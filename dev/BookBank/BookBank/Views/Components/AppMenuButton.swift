@@ -36,13 +36,13 @@ struct FormattedPriceText: View {
     @Environment(ExchangeRateService.self) private var exchangeRates
     @Environment(LanguageManager.self) private var languageManager
 
-    var font: Font = .body
+    var font: Font = .app(.body)
     var fontWeight: Font.Weight = .regular
     /// 通貨記号用フォント（nil の場合は数字より小さめのサイズ）
     var symbolFont: Font?
 
     private var resolvedSymbolFont: Font {
-        symbolFont ?? .caption.weight(fontWeight)
+        symbolFont ?? .app(.caption, weight: AppTypography.Weight(fontWeight))
     }
 
     var body: some View {
@@ -66,7 +66,6 @@ struct FormattedPriceText: View {
                 }
                 Text(parts.amount)
                     .font(font)
-                    .fontWeight(fontWeight)
                 if !parts.suffix.isEmpty {
                     Text(parts.suffix)
                         .font(resolvedSymbolFont)
@@ -83,13 +82,13 @@ struct DisplayCurrencyPriceText: View {
     @Environment(CurrencyManager.self) private var currencyManager
     @Environment(LanguageManager.self) private var languageManager
 
-    var font: Font = .body
+    var font: Font = .app(.body)
     var fontWeight: Font.Weight = .regular
     /// 通貨記号用フォント（nil の場合は数字より小さめのサイズ）
     var symbolFont: Font?
 
     private var resolvedSymbolFont: Font {
-        symbolFont ?? .caption.weight(fontWeight)
+        symbolFont ?? .app(.caption, weight: AppTypography.Weight(fontWeight))
     }
 
     var body: some View {
@@ -109,7 +108,6 @@ struct DisplayCurrencyPriceText: View {
                 }
                 Text(parts.amount)
                     .font(font)
-                    .fontWeight(fontWeight)
                 if !parts.suffix.isEmpty {
                     Text(parts.suffix)
                         .font(resolvedSymbolFont)
@@ -123,7 +121,7 @@ struct DisplayCurrencyPriceText: View {
 struct BookPriceText: View {
     let book: BookDTO
 
-    var font: Font = .body
+    var font: Font = .app(.body)
     var fontWeight: Font.Weight = .regular
     var symbolFont: Font?
 
@@ -144,7 +142,7 @@ struct BooksCountText: View {
 
     @Environment(LanguageManager.self) private var languageManager
 
-    var font: Font = .body
+    var font: Font = .app(.body)
     var fontWeight: Font.Weight = .regular
     /// 単位用フォント（nil の場合は数字より小さめのサイズ）
     var unitFont: Font?
@@ -155,14 +153,13 @@ struct BooksCountText: View {
     }
 
     private var resolvedUnitFont: Font {
-        unitFont ?? .caption.weight(fontWeight)
+        unitFont ?? .app(.caption, weight: AppTypography.Weight(fontWeight))
     }
 
     var body: some View {
         HStack(alignment: .lastTextBaseline, spacing: 1) {
             Text(count.formatted())
                 .font(font)
-                .fontWeight(fontWeight)
             Text(L10n.string("common.books_count.unit", locale: resolvedLocale))
                 .font(resolvedUnitFont)
         }
@@ -175,7 +172,7 @@ struct CharacterCountText: View {
 
     @Environment(LanguageManager.self) private var languageManager
 
-    var font: Font = .body
+    var font: Font = .app(.body)
     var fontWeight: Font.Weight = .regular
     var unitFont: Font?
     var locale: Locale?
@@ -185,14 +182,13 @@ struct CharacterCountText: View {
     }
 
     private var resolvedUnitFont: Font {
-        unitFont ?? .caption.weight(fontWeight)
+        unitFont ?? .app(.caption, weight: AppTypography.Weight(fontWeight))
     }
 
     var body: some View {
         HStack(alignment: .lastTextBaseline, spacing: 1) {
             Text(count.formatted())
                 .font(font)
-                .fontWeight(fontWeight)
             Text(L10n.string("statistics.chars_unit", locale: resolvedLocale))
                 .font(resolvedUnitFont)
         }

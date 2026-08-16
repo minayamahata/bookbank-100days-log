@@ -139,7 +139,7 @@ struct AddBookView: View {
                                 }
                             } label: {
                                 Text("book.cover_delete")
-                                    .font(.caption)
+                                    .font(.app(.caption))
                             }
                             .buttonStyle(.borderless)
                         }
@@ -155,7 +155,7 @@ struct AddBookView: View {
                                 .frame(width: 120, height: 180)
                                 .overlay {
                                     Text("book.cover")
-                                        .font(.subheadline)
+                                        .font(.app(.subheadline))
                                         .foregroundColor(.secondary)
                                 }
                                 .frame(maxWidth: .infinity)
@@ -177,7 +177,7 @@ struct AddBookView: View {
                                 }
                             } label: {
                                 Text("book.cover_register")
-                                    .font(.subheadline)
+                                    .font(.app(.subheadline))
                                     .padding(.horizontal, 16)
                                     .padding(.vertical, 8)
                                     .background(Color.primary.opacity(0.06))
@@ -198,7 +198,7 @@ struct AddBookView: View {
                             Text("*")
                                 .foregroundColor(.red)
                         }
-                        .font(.caption)
+                        .font(.app(.caption))
                         .foregroundColor(.secondary)
 
                         TextField("book.title_placeholder", text: $title)
@@ -218,7 +218,7 @@ struct AddBookView: View {
                             Text("*")
                                 .foregroundColor(.red)
                         }
-                        .font(.caption)
+                        .font(.app(.caption))
                         .foregroundColor(.secondary)
 
                         HStack {

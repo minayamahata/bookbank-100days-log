@@ -81,7 +81,7 @@ struct PassbookDepositSheet<ListContent: View>: View {
 
             HStack {
                 Text("passbook.deposit_history")
-                    .font(.footnote)
+                    .font(.app(.footnote))
                     .foregroundColor(.primary)
                 Spacer()
             }
@@ -311,8 +311,8 @@ private struct PassbookSheetCompactHeader: View {
 
             DisplayCurrencyPriceText(
                 amount: totalValue,
-                font: .system(size: 18, weight: .semibold),
-                symbolFont: .system(size: 12, weight: .medium)
+                font: .app(size: 18, weight: .bold),
+                symbolFont: .app(size: 12)
             )
             .foregroundStyle(priceStyle)
 

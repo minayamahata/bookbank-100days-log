@@ -311,13 +311,13 @@ struct PassbookDetailView: View {
                 if passbookSheetChromeState.isExpanded, !isSearchOverlayActive {
                     DisplayCurrencyPriceText(
                         amount: totalValue,
-                        font: .system(size: 18, weight: .semibold),
-                        symbolFont: .system(size: 12, weight: .medium)
+                        font: .app(size: 18, weight: .bold),
+                        symbolFont: .app(size: 12)
                     )
                     .foregroundStyle(headerPriceStyle)
                 } else {
                     Text(searchAwareNavigationTitle)
-                        .font(.system(size: 15, weight: .regular))
+                        .font(.app(size: 15))
                 }
             }
             ToolbarItem(placement: .topBarLeading) {
@@ -423,8 +423,7 @@ struct PassbookDetailView: View {
                     if let registrationPassbook {
                         NavigationLink(value: BookSearchDestination(passbook: registrationPassbook)) {
                             Text("book.register")
-                                .font(.subheadline)
-                                .fontWeight(.medium)
+                                .font(.app(.subheadline))
                                 .foregroundColor(accountActionButtonTextColor)
                                 .padding(.horizontal, 20)
                                 .padding(.vertical, 12)
@@ -436,8 +435,7 @@ struct PassbookDetailView: View {
                         appShellState.showBookshelf()
                     } label: {
                         Text("passbook.view_bookshelf")
-                            .font(.subheadline)
-                            .fontWeight(.medium)
+                            .font(.app(.subheadline))
                             .foregroundColor(accountActionButtonTextColor)
                             .padding(.horizontal, 20)
                             .padding(.vertical, 12)
@@ -461,15 +459,14 @@ struct PassbookDetailView: View {
 
             HStack {
                 Text(L10n.string("account.bookbank_overall", locale: languageManager.resolvedLocale))
-                    .font(.subheadline)
-                    .fontWeight(.medium)
+                    .font(.app(.subheadline))
                     .foregroundColor(.black)
 
                 Spacer()
 
                 if UnlimitedManager.shared.isUnlimited {
                     Text("paywall.unlimited")
-                        .font(.custom("Fearlessly Authentic", size: 16))
+                        .font(.app(size: 16))
                         .foregroundColor(.black)
                 }
 
@@ -502,21 +499,21 @@ struct PassbookDetailView: View {
                     Spacer()
 
                     Text(todayString)
-                        .font(.footnote)
+                        .font(.app(.footnote))
                         .foregroundColor(.white)
                 }
 
                 HStack(alignment: .lastTextBaseline) {
                     DisplayCurrencyPriceText(
                         amount: totalValue,
-                        font: .system(size: 36, weight: .medium),
-                        symbolFont: .system(size: 21, weight: .medium)
+                        font: .app(size: 36),
+                        symbolFont: .app(size: 21)
                     )
                     .foregroundColor(.white)
 
                     Spacer(minLength: 8)
 
-                    BooksCountText(count: bookCount, font: .subheadline, locale: languageManager.resolvedLocale)
+                    BooksCountText(count: bookCount, font: .app(.subheadline), locale: languageManager.resolvedLocale)
                         .foregroundColor(.white)
                 }
                 .padding(.top, 56)
@@ -583,8 +580,7 @@ struct PassbookDetailView: View {
                     appShellState.selectPassbook(passbook)
                 } label: {
                     Text(passbook.name)
-                        .font(.subheadline)
-                        .fontWeight(.medium)
+                        .font(.app(.subheadline))
                         .foregroundColor(.white)
                         .padding(.horizontal, 20)
                         .padding(.vertical, 12)
@@ -624,7 +620,7 @@ struct PassbookDetailView: View {
             .passbookCircleGlass(tint: accountActionButtonGlassTint)
 
             Text(title)
-                .font(.footnote)
+                .font(.app(.footnote))
                 .foregroundColor(.primary)
                 .multilineTextAlignment(.center)
                 .lineLimit(2)
@@ -638,7 +634,7 @@ struct PassbookDetailView: View {
     private var customAccountSummaryHeader: some View {
         VStack(spacing: 0) {
             Text(todayString)
-                .font(.footnote)
+                .font(.app(.footnote))
                 .foregroundColor(accountHeaderSecondaryTextColor)
                 .frame(maxWidth: .infinity, alignment: .trailing)
                 .padding(.horizontal)
@@ -646,8 +642,8 @@ struct PassbookDetailView: View {
 
             DisplayCurrencyPriceText(
                 amount: totalValue,
-                font: .system(size: 48, weight: .medium),
-                symbolFont: .system(size: 28, weight: .medium)
+                font: .app(size: 48),
+                symbolFont: .app(size: 28)
             )
             .foregroundStyle(
                 LinearGradient(
@@ -662,7 +658,7 @@ struct PassbookDetailView: View {
             )
 
             Text(L10n.format("passbook.registered_books", locale: languageManager.resolvedLocale, Int64(bookCount)))
-                .font(.subheadline)
+                .font(.app(.subheadline))
                 .foregroundColor(accountHeaderPrimaryTextColor)
         }
     }
@@ -705,7 +701,7 @@ struct PassbookDetailView: View {
             VStack(alignment: .leading, spacing: 6) {
                 HStack(alignment: .center, spacing: 6) {
                     Text("\(userBooks.count - index)")
-                        .font(.system(size: 11, weight: .medium))
+                        .font(.app(size: 11))
                         .foregroundColor(accentColor)
                         .padding(.horizontal, 5)
                         .padding(.vertical, 2)
@@ -715,19 +711,18 @@ struct PassbookDetailView: View {
                         )
 
                     Text(formatDate(book.registeredAt))
-                        .font(.system(size: 11))
+                        .font(.app(size: 11))
                         .foregroundColor(.secondary)
                 }
 
                 Text(book.title)
-                    .font(.callout)
-                    .fontWeight(.medium)
+                    .font(.app(.callout))
                     .foregroundColor(.primary)
                     .lineLimit(2)
 
                 if !book.displayAuthor.isEmpty {
                     Text(book.displayAuthor)
-                        .font(.caption)
+                        .font(.app(.caption))
                         .foregroundColor(.secondary)
                 }
             }
@@ -737,7 +732,7 @@ struct PassbookDetailView: View {
         }
         .overlay(alignment: .trailing) {
             if book.priceAtRegistration != nil {
-                BookPriceText(book: book, font: .headline, fontWeight: .medium)
+                BookPriceText(book: book, font: .app(.headline, weight: .regular))
                     .foregroundColor(accentColor)
             }
         }
@@ -760,7 +755,7 @@ struct PassbookDetailView: View {
             if userBooks.isEmpty {
                 if hasLoadedUserBooks {
                     Text("passbook.recent_books_prompt")
-                        .font(.body)
+                        .font(.app(.body))
                         .foregroundColor(.secondary)
                         .frame(maxWidth: .infinity)
                         .padding()

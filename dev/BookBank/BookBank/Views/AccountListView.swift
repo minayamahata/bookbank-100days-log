@@ -127,7 +127,7 @@ struct AccountListView: View {
                                                 .fill(data.color)
                                                 .frame(width: 6, height: 6)
                                             Text(L10n.format("common.percent", Int64(Int(percentage.rounded()))))
-                                                .font(.caption2)
+                                                .font(.app(.caption2))
                                                 .foregroundColor(.primary)
                                         }
                                         .padding(.horizontal, 10)
@@ -149,19 +149,17 @@ struct AccountListView: View {
                             }
                             
                             Text("account.total_assets")
-                                .font(.callout)
-                                .fontWeight(.regular)
+                                .font(.app(.callout))
                                 .foregroundColor(.primary)
                             
                             DisplayCurrencyPriceText(
                                 amount: totalAmount,
-                                font: .system(size: 26),
-                                fontWeight: .medium,
-                                symbolFont: .system(size: 16, weight: .medium)
+                                font: .app(size: 26),
+                                symbolFont: .app(size: 16)
                             )
                             .foregroundColor(.primary)
                             
-                            BooksCountText(count: totalBookCount, font: .footnote)
+                            BooksCountText(count: totalBookCount, font: .app(.footnote))
                                 .foregroundColor(.secondary)
                         }
                     }
@@ -211,7 +209,7 @@ struct AccountListView: View {
                         Image(systemName: "plus")
                             .font(.system(size: 14))
                         Text("account.add_new")
-                            .font(.body)
+                            .font(.app(.body))
                     }
                     .foregroundColor(.primary)
                     .frame(maxWidth: .infinity)
@@ -348,24 +346,22 @@ struct AccountListView: View {
             if showSummary {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(name)
-                        .font(.subheadline)
-                        .fontWeight(.medium)
+                        .font(.app(.subheadline))
                         .foregroundColor(.primary)
                     
-                    BooksCountText(count: bookCount, font: .caption)
+                    BooksCountText(count: bookCount, font: .app(.caption))
                         .foregroundColor(.secondary)
                 }
             } else {
                 Text(name)
-                    .font(.headline)
-                    .fontWeight(.medium)
+                    .font(.app(.headline, weight: .regular))
                     .foregroundColor(.primary)
             }
             
             Spacer()
             
             if showSummary {
-                DisplayCurrencyPriceText(amount: amount, fontWeight: .medium)
+                DisplayCurrencyPriceText(amount: amount)
                     .foregroundColor(color)
             }
             

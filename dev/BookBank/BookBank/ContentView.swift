@@ -34,10 +34,10 @@ struct ContentView: View {
                         VStack(alignment: .leading, spacing: 4) {
                             // 口座名
                             Text(passbook.name)
-                                .font(.headline)
+                                .font(.app(.headline))
                             
                             // 登録書籍数
-                            BooksCountText(count: books.count, font: .subheadline)
+                            BooksCountText(count: books.count, font: .app(.subheadline))
                                 .foregroundColor(.secondary)
                         }
                         
@@ -49,7 +49,7 @@ struct ContentView: View {
                                 in: currencyManager.displayCurrency,
                                 exchangeRates: exchangeRates
                             ),
-                            font: .title3
+                            font: .app(.title3)
                         )
                         .foregroundColor(.blue)
                     }

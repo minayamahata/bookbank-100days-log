@@ -35,19 +35,6 @@ struct BookBankApp: App {
     // MARK: - Initialization
     
     init() {
-        // デバッグ: 利用可能なフォント名を出力
-        #if DEBUG
-        for family in UIFont.familyNames.sorted() {
-            if family.lowercased().contains("fearless") || family.lowercased().contains("inter") {
-                print("🔤 Font Family: \(family)")
-                for name in UIFont.fontNames(forFamilyName: family) {
-                    print("   - \(name)")
-                }
-            }
-        }
-        #endif
-        
-        // ナビゲーションバーのタイトルフォントを設定
         Self.configureNavigationBarAppearance()
         
         // スキーマ定義
@@ -95,21 +82,18 @@ struct BookBankApp: App {
         }
     }
     
-    /// ナビゲーションバーの外観を設定
-    private static func configureNavigationBarAppearance() {
+    /// ナビゲーションバーの外観を設定。言語変更時にも呼び、新しいバーへ反映する。
+    /// `UINavigationBar.appearance()` は既に表示中のバーへは即時反映されないことがある。
+    static func configureNavigationBarAppearance() {
         let appearance = UINavigationBarAppearance()
         appearance.configureWithDefaultBackground()
-        
-        // インラインタイトル用のフォント（.subheadline相当 = 15pt）
+        let titleFont = AppTypography.uiFont(size: 15, relativeTo: .subheadline, weight: .regular)
         appearance.titleTextAttributes = [
-            .font: UIFont.systemFont(ofSize: 15, weight: .regular)
+            .font: titleFont
         ]
-        
-        // ラージタイトル用のフォント
         appearance.largeTitleTextAttributes = [
-            .font: UIFont.systemFont(ofSize: 15, weight: .regular)
+            .font: titleFont
         ]
-        
         UINavigationBar.appearance().standardAppearance = appearance
         UINavigationBar.appearance().compactAppearance = appearance
         UINavigationBar.appearance().scrollEdgeAppearance = appearance
@@ -181,6 +165,9 @@ struct RootView: View {
             .environment(exchangeRateService)
             .environment(repositories)
             .environment(\.locale, languageManager.resolvedLocale)
+        }
+        .onChange(of: languageManager.currentLanguage) { _, _ in
+            BookBankApp.configureNavigationBarAppearance()
         }
         .onAppear {
             if PreviewRuntime.isActive {

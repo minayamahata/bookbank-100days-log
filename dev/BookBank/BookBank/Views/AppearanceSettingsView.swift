@@ -24,7 +24,7 @@ struct AppearanceSettingsView: View {
                     } label: {
                         HStack {
                             Text(theme.titleKey)
-                                .font(.body)
+                                .font(.app(.body))
                                 .foregroundColor(.primary)
                             Spacer()
                             if themeManager.currentTheme == theme {

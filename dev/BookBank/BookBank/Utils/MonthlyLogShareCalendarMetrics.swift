@@ -111,7 +111,11 @@ enum MonthlyLogShareVerticalMonthMetrics {
     static let minimumYearFont: CGFloat = 10
 
     static func textLength(_ text: String, size: CGFloat, weight: UIFont.Weight) -> CGFloat {
-        let font = UIFont.systemFont(ofSize: size, weight: weight)
+        let font = AppTypography.fixedUIFont(
+            size: size,
+            weight: AppTypography.Weight(weight),
+            language: .english
+        )
         return ceil((text as NSString).size(withAttributes: [.font: font]).width)
     }
 

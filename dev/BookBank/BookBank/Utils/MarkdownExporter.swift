@@ -264,7 +264,7 @@ struct ExportSheetView: View {
                     // タイトルと著者名のみプレビュー
                     VStack(alignment: .leading, spacing: 12) {
                         Text("export.title_only")
-                            .font(.headline)
+                            .font(.app(.headline))
                         
                         // VSCode風コードブロック
                         codeBlock(content: titleOnlyAttributedContent)
@@ -278,7 +278,7 @@ struct ExportSheetView: View {
                                 Text("export.download")
                                 Spacer()
                             }
-                            .font(.system(size: 15))
+                            .font(.app(size: 15))
                             .foregroundColor(Color(UIColor.systemBackground))
                             .padding(.vertical, 18)
                             .background(
@@ -293,12 +293,11 @@ struct ExportSheetView: View {
                     VStack(alignment: .leading, spacing: 12) {
                         HStack {
                             Text("export.detailed")
-                                .font(.headline)
+                                .font(.app(.headline))
                             
                             if !unlimitedManager.isUnlimited {
                                 Text("paywall.unlimited")
-                                    .font(.caption2)
-                                    .fontWeight(.semibold)
+                                    .font(.app(.caption2, weight: .bold))
                                     .foregroundColor(.white)
                                     .padding(.horizontal, 6)
                                     .padding(.vertical, 2)
@@ -324,7 +323,7 @@ struct ExportSheetView: View {
                                 Text("export.download")
                                 Spacer()
                             }
-                            .font(.system(size: 15))
+                            .font(.app(size: 15))
                             .foregroundColor(unlimitedManager.isUnlimited ? Color(UIColor.systemBackground) : .white)
                             .padding(.vertical, 18)
                             .background(

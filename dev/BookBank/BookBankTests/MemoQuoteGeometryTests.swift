@@ -348,7 +348,7 @@ struct MemoQuoteGeometryTests {
     /// 囲みの内側の余白（18pt）は引用の行の領域なので、そこを触れば引用に入るのが正しい。
     /// 空行の領域が狭いと指のわずかなずれで余白側に落ちるため、空行は詰めないでおく
     @Test func blankLinesNextToAQuoteStayTappable() throws {
-        let lineHeight = UIFont.preferredFont(forTextStyle: .body).lineHeight
+        let lineHeight = AppTypography.uiFont(.body).lineHeight
 
         for memo in [
             "\n> 引用の行\np.",

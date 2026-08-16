@@ -43,7 +43,7 @@ struct AppMenuView: View {
                     // 設定
                     VStack(alignment: .leading, spacing: 8) {
                         Text("settings.section")
-                            .font(.footnote)
+                            .font(.app(.footnote))
                             .foregroundColor(.secondary)
                             .padding(.horizontal, 20)
                         
@@ -96,7 +96,7 @@ struct AppMenuView: View {
                     // サービス案内
                     VStack(alignment: .leading, spacing: 8) {
                         Text("service.section")
-                            .font(.footnote)
+                            .font(.app(.footnote))
                             .foregroundColor(.secondary)
                             .padding(.horizontal, 20)
                         
@@ -183,7 +183,7 @@ struct AppMenuView: View {
     private var n0SpikeExportSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(verbatim: "DEBUG")
-                .font(.footnote)
+                .font(.app(.footnote))
                 .foregroundColor(.secondary)
                 .padding(.horizontal, 20)
 
@@ -193,7 +193,7 @@ struct AppMenuView: View {
                 } label: {
                     HStack {
                         Text(verbatim: "N0スパイク用JSONエクスポート")
-                            .font(.body)
+                            .font(.app(.body))
                             .foregroundColor(.primary)
                         Spacer()
                     }
@@ -230,7 +230,7 @@ struct AppMenuView: View {
     private var subscriptionSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("subscription.section")
-                .font(.footnote)
+                .font(.app(.footnote))
                 .foregroundColor(.secondary)
                 .padding(.horizontal, 20)
 
@@ -258,7 +258,7 @@ struct AppMenuView: View {
     private func settingsNavigationRow(title: LocalizedStringKey) -> some View {
         HStack(spacing: 8) {
             Text(title)
-                .font(.body)
+                .font(.app(.body))
                 .foregroundColor(.primary)
             Spacer()
             Image(systemName: "chevron.right")
@@ -274,7 +274,7 @@ struct AppMenuView: View {
         Button(action: action) {
             HStack {
                 Text(titleKey)
-                    .font(.body)
+                    .font(.app(.body))
                     .foregroundColor(.primary)
                 Spacer()
             }

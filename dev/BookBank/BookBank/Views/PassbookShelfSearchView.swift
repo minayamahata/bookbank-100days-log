@@ -86,7 +86,7 @@ struct PassbookShelfSearchView: View {
             } emptyFallback: {
                 // 入力前に0冊（カスタム口座に本が無い場合など）: 本棚と同じ登録プロンプト
                 Text("bookshelf.register_prompt")
-                    .font(.body)
+                    .font(.app(.body))
                     .foregroundColor(controlColor)
                     .frame(maxWidth: .infinity)
                     .padding()

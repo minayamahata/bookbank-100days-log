@@ -186,7 +186,7 @@ struct MemoEditorView: View {
                     .scaledToFit()
                     .frame(width: Self.toolbarIconSize, height: Self.toolbarIconSize)
                 Text(label)
-                    .font(.system(size: 10))
+                    .font(.app(size: 10))
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
             }

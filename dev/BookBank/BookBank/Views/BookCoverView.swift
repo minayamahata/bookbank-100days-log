@@ -86,7 +86,7 @@ struct BookCoverView: View {
             .frame(width: width, height: width * 1.5)
             .overlay {
                 Text(book.title)
-                    .font(.caption2)
+                    .font(.app(.caption2))
                     .foregroundColor(.secondary)
                     .lineLimit(2)
                     .multilineTextAlignment(.center)

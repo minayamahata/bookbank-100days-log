@@ -430,7 +430,7 @@ struct BookshelfView: View {
                         ProgressView()
                             .tint(.white)
                         Text("monthly_log_share.preparing")
-                            .font(.footnote)
+                            .font(.app(.footnote))
                             .foregroundStyle(.white)
                     }
                     .padding(.horizontal, 22)
@@ -589,7 +589,7 @@ struct BookshelfView: View {
                         Image(systemName: "xmark")
                             .font(.system(size: 9, weight: .semibold))
                     }
-                    .font(.system(size: 13, weight: .medium))
+                    .font(.app(size: 13))
                     .foregroundColor(linkChipSelectedTextColor)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 7)
@@ -636,11 +636,11 @@ struct BookshelfView: View {
             VStack(spacing: 7) {
                 HStack(spacing: 5) {
                     Text(label)
-                        .font(.system(size: 13, weight: isSelected ? .semibold : .regular))
+                        .font(.app(size: 13, weight: isSelected ? .bold : .regular))
 
                     if alwaysShowCount || count > 0 {
                         Text(count.formatted())
-                            .font(.system(size: 10, weight: .medium))
+                            .font(.app(size: 10))
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
                             .background(
@@ -706,7 +706,7 @@ struct BookshelfView: View {
         } else if hasLoadedUserBooks {
             VStack(spacing: 8) {
                 Text("bookshelf.register_prompt")
-                    .font(.body)
+                    .font(.app(.body))
                     .foregroundColor(bookshelfControlColor)
             }
             .frame(maxWidth: .infinity)
@@ -724,7 +724,7 @@ struct BookshelfView: View {
     /// つながり絞り込みで0件のときの空状態
     private var linkFilterEmptyState: some View {
         Text("bookshelf.link_filter.empty")
-            .font(.subheadline)
+            .font(.app(.subheadline))
             .foregroundColor(bookshelfControlColor.opacity(0.7))
             .multilineTextAlignment(.center)
             .frame(maxWidth: .infinity)

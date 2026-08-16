@@ -4,22 +4,38 @@ import UIKit
 enum MonthlyLogShareRenderer {
     static let logicalSize = CGSize(width: 360, height: 640)
     static let scale: CGFloat = 3
-    static let outputSize = CGSize(width: 1080, height: 1920)
+    /// 内部マスターの画素数。最終 PNG はクロップ後の可変サイズ。
+    static let masterPixelSize = CGSize(width: 1080, height: 1920)
 
+    /// コピー・保存・共有へ渡す、トリミング済み PNG。
     @MainActor
     static func pngData(
         snapshot: MonthlyLogShareSnapshot,
         covers: [String: UIImage],
         template: MonthlyLogShareTemplate
     ) -> Data? {
-        guard let image = uiImage(snapshot: snapshot, covers: covers, template: template) else {
+        guard let image = exportImage(snapshot: snapshot, covers: covers, template: template) else {
             return nil
         }
         return image.pngData()
     }
 
+    /// アルファ境界＋24px を切り出したエクスポート画像。
     @MainActor
-    static func uiImage(
+    static func exportImage(
+        snapshot: MonthlyLogShareSnapshot,
+        covers: [String: UIImage],
+        template: MonthlyLogShareTemplate
+    ) -> UIImage? {
+        guard let master = masterImage(snapshot: snapshot, covers: covers, template: template) else {
+            return nil
+        }
+        return MonthlyLogShareImageTrimmer.cropToOpaqueContent(master)
+    }
+
+    /// 1080×1920 の透明マスター。テンプレート配置はここでは変えない。
+    @MainActor
+    static func masterImage(
         snapshot: MonthlyLogShareSnapshot,
         covers: [String: UIImage],
         template: MonthlyLogShareTemplate
@@ -103,9 +119,9 @@ struct MonthlyLogShareCanvas: View {
             VStack(alignment: .leading, spacing: 0) {
                 VStack(spacing: 0) {
                     Text(verbatim: template.monthHeadline(month: snapshot.month))
-                        .font(.system(size: layout.monthFont, weight: .bold, design: .default))
+                        .font(.appFixed(size: layout.monthFont, weight: .bold, language: .english))
                     Text(verbatim: String(snapshot.year))
-                        .font(.system(size: layout.yearFont, weight: .semibold))
+                        .font(.appFixed(size: layout.yearFont, weight: .bold, language: .english))
                         .padding(.top, -10)
                 }
                 .padding(.top, layout.topPadding)
@@ -142,10 +158,16 @@ struct MonthlyLogShareCanvas: View {
             let spacing = layout.gridSpacing
             let monthName = MonthlyLogShareEnglishLabels.fullMonthName(snapshot.month)
             let year = String(snapshot.year)
-            let monthLine = UIFont.systemFont(ofSize: layout.monthFont, weight: .bold).lineHeight
-            let yearLine = UIFont.systemFont(ofSize: layout.yearFont, weight: .semibold).lineHeight
+            let monthLine = AppTypography.fixedUIFont(
+                size: layout.monthFont, weight: .bold, language: .english
+            ).lineHeight
+            let yearLine = AppTypography.fixedUIFont(
+                size: layout.yearFont, weight: .bold, language: .english
+            ).lineHeight
             let labelWidth = monthLine + yearLine - 4
-            let weekdayLine = UIFont.systemFont(ofSize: layout.weekdayFont, weight: .semibold).lineHeight
+            let weekdayLine = AppTypography.fixedUIFont(
+                size: layout.weekdayFont, weight: .bold, language: .english
+            ).lineHeight
             let reserved = weekdayLine + 8
             let metrics = scaledGridMetrics(
                 availableWidth: max(1, geo.size.width - labelWidth - 10),
@@ -184,18 +206,18 @@ struct MonthlyLogShareCanvas: View {
         monthSize: CGFloat,
         yearSize: CGFloat
     ) -> some View {
-        let monthFont = UIFont.systemFont(ofSize: monthSize, weight: .bold)
-        let yearFont = UIFont.systemFont(ofSize: yearSize, weight: .semibold)
+        let monthFont = AppTypography.fixedUIFont(size: monthSize, weight: .bold, language: .english)
+        let yearFont = AppTypography.fixedUIFont(size: yearSize, weight: .bold, language: .english)
         return HStack(alignment: .top, spacing: -4) {
-            rotatedShareLabel(month, font: monthFont, weight: .bold)
-            rotatedShareLabel(year, font: yearFont, weight: .semibold)
+            rotatedShareLabel(month, font: monthFont)
+            rotatedShareLabel(year, font: yearFont)
         }
     }
 
-    private func rotatedShareLabel(_ text: String, font: UIFont, weight: Font.Weight) -> some View {
+    private func rotatedShareLabel(_ text: String, font: UIFont) -> some View {
         let length = ceil((text as NSString).size(withAttributes: [.font: font]).width)
         return Text(verbatim: text)
-            .font(.system(size: font.pointSize, weight: weight))
+            .font(Font(font))
             .fixedSize()
             .rotationEffect(.degrees(-90))
             .frame(width: font.lineHeight, height: length)
@@ -232,10 +254,10 @@ struct MonthlyLogShareCanvas: View {
             VStack(alignment: .leading, spacing: 0) {
                 HStack(alignment: .lastTextBaseline, spacing: 0) {
                     Text(verbatim: template.monthHeadline(month: snapshot.month))
-                        .font(.system(size: layout.monthFont, weight: .bold))
+                        .font(.appFixed(size: layout.monthFont, weight: .bold, language: .english))
                     Spacer(minLength: 8)
                     Text(verbatim: String(snapshot.year))
-                        .font(.system(size: layout.yearFont, weight: .semibold))
+                        .font(.appFixed(size: layout.yearFont, weight: .bold, language: .english))
                 }
                 .frame(width: metrics.grid.width)
                 .padding(.top, layout.topPadding)
@@ -256,9 +278,9 @@ struct MonthlyLogShareCanvas: View {
         VStack(spacing: 0) {
             Spacer(minLength: 80)
             Text(verbatim: template.monthHeadline(month: snapshot.month))
-                .font(.system(size: layout.monthFont, weight: .bold))
+                .font(.appFixed(size: layout.monthFont, weight: .bold, language: .english))
             Text(verbatim: String(snapshot.year))
-                .font(.system(size: layout.yearFont, weight: .semibold))
+                .font(.appFixed(size: layout.yearFont, weight: .bold, language: .english))
                 .padding(.top, -10)
             minimalSummaryAmountRow
                 .padding(.top, 36)
@@ -309,20 +331,21 @@ struct MonthlyLogShareCanvas: View {
         value: (prefix: String, amount: String, suffix: String),
         alignment: HorizontalAlignment = .leading
     ) -> some View {
-        VStack(alignment: alignment, spacing: 4) {
+        let language = AppTypography.language(from: snapshot.locale)
+        return VStack(alignment: alignment, spacing: 4) {
             Text(verbatim: label)
-                .font(.system(size: 11, weight: .medium))
+                .font(.appFixed(size: 11, weight: .regular, language: language))
                 .opacity(0.7)
             HStack(alignment: .lastTextBaseline, spacing: 2) {
                 if !value.prefix.isEmpty {
                     Text(verbatim: value.prefix)
-                        .font(.system(size: 20, weight: .semibold))
+                        .font(.appFixed(size: 20, weight: .bold, language: language))
                 }
                 Text(verbatim: value.amount)
-                    .font(.system(size: layout.amountFont, weight: .bold))
+                    .font(.appFixed(size: layout.amountFont, weight: .bold, language: language))
                 if !value.suffix.isEmpty {
                     Text(verbatim: value.suffix)
-                        .font(.system(size: 20, weight: .semibold))
+                        .font(.appFixed(size: 20, weight: .bold, language: language))
                 }
             }
         }
@@ -353,7 +376,7 @@ struct MonthlyLogShareCanvas: View {
         return HStack(spacing: spacing) {
             ForEach(Array(symbols.enumerated()), id: \.offset) { _, symbol in
                 Text(verbatim: symbol)
-                    .font(.system(size: layout.weekdayFont, weight: .semibold))
+                    .font(.appFixed(size: layout.weekdayFont, weight: .bold, language: .english))
                     .opacity(0.85)
                     .frame(width: cellWidth, alignment: .center)
                     .frame(maxWidth: cellWidth == nil ? .infinity : nil)
@@ -438,7 +461,7 @@ struct MonthlyLogShareCanvas: View {
             }
             Color.black.opacity(covers[book.id] == nil ? 0 : 0.22)
             Text(verbatim: "\(day)")
-                .font(.system(size: layout.dateFont, weight: .medium))
+                .font(.appFixed(size: layout.dateFont, weight: .regular, language: .english))
         }
         .frame(width: size.width, height: size.height)
         .aspectRatio(MonthlyLogShareCalendarMetrics.cellAspectRatio, contentMode: .fit)
@@ -446,7 +469,7 @@ struct MonthlyLogShareCanvas: View {
         .overlay(alignment: .topTrailing) {
             if extraCount > 0 {
                 Text(verbatim: "+\(extraCount)")
-                    .font(.system(size: layout.badgeFont, weight: .semibold))
+                    .font(.appFixed(size: layout.badgeFont, weight: .bold, language: .english))
                     .padding(.horizontal, 3)
                     .padding(.vertical, 1)
                     .background(Capsule().fill(Color.black.opacity(0.55)))
@@ -468,13 +491,13 @@ struct MonthlyLogShareCanvas: View {
             .aspectRatio(MonthlyLogShareCalendarMetrics.cellAspectRatio, contentMode: .fit)
             .overlay {
                 Text(verbatim: "\(day)")
-                    .font(.system(size: layout.dateFont, weight: .medium))
+                    .font(.appFixed(size: layout.dateFont, weight: .regular, language: .english))
             }
     }
 
     private var wordmark: some View {
         Text(L10n.string("brand.bookbank", locale: snapshot.locale))
-            .font(.custom("Fearlessly Authentic", size: layout.wordmarkSize))
+            .font(.appFixed(size: layout.wordmarkSize, weight: .bold, language: .english))
     }
 }
 

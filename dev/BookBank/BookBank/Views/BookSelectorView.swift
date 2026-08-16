@@ -133,11 +133,10 @@ struct BookSelectorView: View {
             // リスト名
             VStack(spacing: 2) {
                 Text("selector.destination")
-                    .font(.caption2)
+                    .font(.app(.caption2))
                     .foregroundColor(.secondary)
                 Text(listTitle)
-                    .font(.subheadline)
-                    .fontWeight(.medium)
+                    .font(.app(.subheadline))
                     .foregroundColor(.primary)
                     .lineLimit(1)
             }
@@ -149,7 +148,7 @@ struct BookSelectorView: View {
                 addSelectedBooks()
             }) {
                 Text("common.add")
-                    .font(.system(size: 13, weight: .medium))
+                    .font(.app(size: 13))
                     .foregroundColor(selectedBookIDs.isEmpty ? .secondary : .white)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)
@@ -179,9 +178,9 @@ struct BookSelectorView: View {
                         }) {
                             HStack(spacing: 4) {
                                 Text(passbook.name)
-                                    .font(.subheadline)
+                                    .font(.app(.subheadline))
                                 Text(L10n.format("common.book_count_paren", Int64(bookCount)))
-                                    .font(.caption)
+                                    .font(.app(.caption))
                             }
                             .foregroundColor(selectedPassbookIndex == index ? .primary : .secondary)
                             .padding(.horizontal, 16)
@@ -216,7 +215,7 @@ struct BookSelectorView: View {
                 // 選択状態
                 HStack {
                     Text(L10n.format("selector.selected_count", Int64(selectedBookIDs.count)))
-                        .font(.footnote)
+                        .font(.app(.footnote))
                         .foregroundColor(.secondary)
                     Spacer()
                 }
@@ -276,17 +275,17 @@ struct BookSelectorView: View {
                 // 本の情報
                 VStack(alignment: .leading, spacing: 2) {
                     Text(formatDate(book.registeredAt))
-                        .font(.system(size: 10))
+                        .font(.app(size: 10))
                         .foregroundColor(.secondary)
                     
                     Text(book.title)
-                        .font(.subheadline)
+                        .font(.app(.subheadline))
                         .foregroundColor(.primary)
                         .lineLimit(2)
                     
                     if !book.displayAuthor.isEmpty {
                         Text(book.displayAuthor)
-                            .font(.caption2)
+                            .font(.app(.caption2))
                             .foregroundColor(.secondary)
                             .lineLimit(1)
                     }
@@ -328,7 +327,7 @@ struct BookSelectorView: View {
     private var emptyStateView: some View {
         VStack(spacing: 16) {
             Text("selector.recent_prompt")
-                .font(.headline)
+                .font(.app(.headline))
                 .foregroundColor(.secondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

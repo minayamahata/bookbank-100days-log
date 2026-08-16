@@ -172,7 +172,7 @@ struct ReadingListDetailView: View {
                         ProgressView()
                             .scaleEffect(1.5)
                         Text("readinglist.share.creating")
-                            .font(.subheadline)
+                            .font(.app(.subheadline))
                             .foregroundColor(.primary)
                     }
                     .padding(32)
@@ -295,15 +295,14 @@ struct ReadingListDetailView: View {
             
             // タイトル（本棚グリッドとの間隔を確保）
             Text(readingList.title)
-                .font(.title2)
-                .fontWeight(.bold)
+                .font(.app(.title2, weight: .bold))
                 .foregroundColor(.primary)
                 .padding(.top, readingList.books.isEmpty ? 0 : 34)
             
             // 説明文
             if let description = readingList.description, !description.isEmpty {
                 Text(description)
-                    .font(.subheadline)
+                    .font(.app(.subheadline))
                     .foregroundColor(.secondary)
             }
             
@@ -311,13 +310,13 @@ struct ReadingListDetailView: View {
             HStack(alignment: .lastTextBaseline, spacing: 12) {
                 Spacer()
                 
-                BooksCountText(count: readingList.books.count, font: .footnote)
+                BooksCountText(count: readingList.books.count, font: .app(.footnote))
                     .foregroundColor(.secondary)
                 
                 DisplayCurrencyPriceText(
                     amount: displayTotalValue,
-                    font: .system(size: 28, weight: .medium),
-                    symbolFont: .system(size: 17, weight: .medium)
+                    font: .app(size: 28),
+                    symbolFont: .app(size: 17)
                 )
                 .foregroundStyle(
                     LinearGradient(
@@ -343,7 +342,7 @@ struct ReadingListDetailView: View {
                         Image(systemName: "plus")
                             .font(.system(size: 13, weight: .medium))
                         Text("common.add")
-                            .font(.system(size: 13, weight: .medium))
+                            .font(.app(size: 13))
                     }
                     .foregroundColor(.primary)
                     .padding(.horizontal, 16)
@@ -365,7 +364,7 @@ struct ReadingListDetailView: View {
                             .scaledToFit()
                             .frame(width: 13, height: 13)
                         Text("readinglist.sort")
-                            .font(.system(size: 13, weight: .medium))
+                            .font(.app(size: 13))
                     }
                     .foregroundColor(.primary)
                     .padding(.horizontal, 16)
@@ -387,7 +386,7 @@ struct ReadingListDetailView: View {
                             .scaledToFit()
                             .frame(width: 13, height: 13)
                         Text("common.share")
-                            .font(.system(size: 13, weight: .medium))
+                            .font(.app(size: 13))
                     }
                     .foregroundColor(.primary)
                     .padding(.horizontal, 16)
@@ -487,7 +486,7 @@ struct ReadingListDetailView: View {
             if readingList.books.isEmpty {
                 VStack(spacing: 12) {
                     Text("readinglist.empty")
-                        .font(.subheadline)
+                        .font(.app(.subheadline))
                         .foregroundColor(.secondary)
                     
                     Button("book.add_to_list") {
@@ -543,13 +542,13 @@ struct ReadingListDetailView: View {
                 // 本の情報
                 VStack(alignment: .leading, spacing: 2) {
                     Text(book.title)
-                        .font(.subheadline)
+                        .font(.app(.subheadline))
                         .foregroundColor(.primary)
                         .lineLimit(2)
                     
                     if !book.displayAuthor.isEmpty {
                         Text(book.displayAuthor)
-                            .font(.caption2)
+                            .font(.app(.caption2))
                             .foregroundColor(.secondary)
                             .lineLimit(1)
                     }
@@ -559,7 +558,7 @@ struct ReadingListDetailView: View {
                 
                 // 金額
                 if book.priceAtRegistration != nil {
-                    BookPriceText(book: book, font: .subheadline, fontWeight: .medium)
+                    BookPriceText(book: book, font: .app(.subheadline))
                         .foregroundColor(themeColor)
                 }
             }
@@ -744,7 +743,7 @@ struct EditReadingListView: View {
                 Section {
                     VStack(alignment: .leading, spacing: 12) {
                         Text("account.theme_color")
-                            .font(.subheadline)
+                            .font(.app(.subheadline))
                             .foregroundColor(.secondary)
                         
                         HStack(spacing: 0) {
@@ -782,7 +781,7 @@ struct EditReadingListView: View {
                             Text("readinglist.download_data")
                             Spacer()
                         }
-                        .font(.system(size: 15))
+                        .font(.app(size: 15))
                         .foregroundColor(.primary)
                     }
                 }
@@ -999,13 +998,13 @@ struct ReorderBooksView: View {
                         // 本の情報
                         VStack(alignment: .leading, spacing: 4) {
                             Text(book.title)
-                                .font(.subheadline)
+                                .font(.app(.subheadline))
                                 .foregroundColor(.primary)
                                 .lineLimit(1)
                             
                             if !book.displayAuthor.isEmpty {
                                 Text(book.displayAuthor)
-                                    .font(.caption)
+                                    .font(.app(.caption))
                                     .foregroundColor(.secondary)
                                     .lineLimit(1)
                             }
@@ -1043,7 +1042,7 @@ struct ReorderBooksView: View {
                     Button("common.save") {
                         saveChanges()
                     }
-                    .fontWeight(.semibold)
+                    .font(.app(.body, weight: .bold))
                     .disabled(!hasChanges)
                 }
             }
@@ -1065,11 +1064,11 @@ struct ReorderBooksView: View {
                         // タイトルとメッセージ
                         VStack(spacing: 8) {
                             Text("readinglist.discard.title")
-                                .font(.headline)
+                                .font(.app(.headline))
                                 .foregroundColor(.primary)
                             
                             Text("readinglist.discard.message")
-                                .font(.subheadline)
+                                .font(.app(.subheadline))
                                 .foregroundColor(.secondary)
                                 .multilineTextAlignment(.center)
                         }
@@ -1081,7 +1080,7 @@ struct ReorderBooksView: View {
                                 showDiscardAlert = false
                             }) {
                                 Text("readinglist.continue_editing")
-                                    .font(.headline)
+                                    .font(.app(.headline))
                                     .foregroundColor(.white)
                                     .frame(maxWidth: .infinity)
                                     .padding(.vertical, 14)
@@ -1097,7 +1096,7 @@ struct ReorderBooksView: View {
                                 dismiss()
                             }) {
                                 Text("readinglist.quit")
-                                    .font(.subheadline)
+                                    .font(.app(.subheadline))
                                     .foregroundColor(.primary)
                             }
                         }
@@ -1164,7 +1163,7 @@ struct MoreActionsSheet: View {
                         .frame(width: 20, height: 20)
                         .frame(width: 24)
                     Text(L10n.format("readinglist.share.title", title))
-                        .font(.system(size: 16))
+                        .font(.app(size: 16))
                     Spacer()
                 }
                 .foregroundColor(.primary)
@@ -1185,7 +1184,7 @@ struct MoreActionsSheet: View {
                         .frame(width: 16, height: 16)
                         .frame(width: 24)
                     Text("common.download")
-                        .font(.system(size: 16))
+                        .font(.app(size: 16))
                     Spacer()
                 }
                 .foregroundColor(.primary)
@@ -1206,7 +1205,7 @@ struct MoreActionsSheet: View {
                         .frame(width: 18, height: 18)
                         .frame(width: 24)
                     Text("readinglist.edit_name_detail")
-                        .font(.system(size: 16))
+                        .font(.app(size: 16))
                     Spacer()
                 }
                 .foregroundColor(.primary)
@@ -1227,7 +1226,7 @@ struct MoreActionsSheet: View {
                         .frame(width: 18, height: 18)
                         .frame(width: 24)
                     Text("readinglist.delete.this")
-                        .font(.system(size: 16))
+                        .font(.app(size: 16))
                     Spacer()
                 }
                 .foregroundColor(.red)
@@ -1311,7 +1310,7 @@ struct SharePreviewSheet: View {
             // URL（タップでブラウザで開く）
             Button(action: openInBrowser) {
                 Text(shareURL.absoluteString)
-                    .font(.system(size: 13))
+                    .font(.app(size: 13))
                     .foregroundColor(.blue)
                     .lineLimit(1)
                     .truncationMode(.middle)
@@ -1325,7 +1324,7 @@ struct SharePreviewSheet: View {
                     Image(systemName: isCopied ? "checkmark" : "doc.on.doc")
                         .font(.system(size: 12, weight: .medium))
                     Text(isCopied ? "common.copied" : "common.copy")
-                        .font(.system(size: 12))
+                        .font(.app(size: 12))
                 }
                 .foregroundColor(isCopied ? .green : .secondary)
                 .frame(width: 100, alignment: .trailing)
@@ -1385,17 +1384,17 @@ struct SharePreviewSheet: View {
                 // ヘッダー
                 VStack(alignment: .leading, spacing: 4) {
                     Text(readingList.title)
-                        .font(.headline)
+                        .font(.app(.headline))
                         .foregroundColor(.primary)
                     
                     HStack(alignment: .lastTextBaseline, spacing: 8) {
-                        BooksCountText(count: readingList.books.count, font: .subheadline)
+                        BooksCountText(count: readingList.books.count, font: .app(.subheadline))
                             .foregroundColor(.secondary)
                         
                         DisplayCurrencyPriceText(
                             amount: displayTotalValue,
-                            font: .system(size: 20, weight: .medium),
-                            symbolFont: .system(size: 13, weight: .medium)
+                            font: .app(size: 20),
+                            symbolFont: .app(size: 13)
                         )
                         .foregroundStyle(
                             LinearGradient(
@@ -1422,7 +1421,7 @@ struct SharePreviewSheet: View {
                 // 残りの冊数
                 if readingList.books.count > 4 {
                     Text(L10n.format("readinglist.more_books", Int64(readingList.books.count - 4)))
-                        .font(.footnote)
+                        .font(.app(.footnote))
                         .foregroundColor(.secondary)
                         .frame(maxWidth: .infinity, alignment: .center)
                 }
@@ -1520,13 +1519,13 @@ struct SharePreviewSheet: View {
             // 本の情報
             VStack(alignment: .leading, spacing: 2) {
                 Text(book.title)
-                    .font(.subheadline)
+                    .font(.app(.subheadline))
                     .foregroundColor(.primary)
                     .lineLimit(1)
                 
                 if !book.displayAuthor.isEmpty {
                     Text(book.displayAuthor)
-                        .font(.caption)
+                        .font(.app(.caption))
                         .foregroundColor(.secondary)
                         .lineLimit(1)
                 }
@@ -1536,7 +1535,7 @@ struct SharePreviewSheet: View {
             
             // 金額
             if book.priceAtRegistration != nil {
-                BookPriceText(book: book, font: .subheadline, fontWeight: .medium)
+                BookPriceText(book: book, font: .app(.subheadline))
                     .foregroundColor(themeColor)
             }
         }

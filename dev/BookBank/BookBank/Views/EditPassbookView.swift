@@ -84,13 +84,13 @@ struct EditPassbookView: View {
                         // 口座名セクション
                         VStack(alignment: .leading, spacing: 12) {
                             Text("account.name")
-                                .font(.body)
+                                .font(.app(.body))
                             
                             HStack(spacing: 8) {
                                 TextField("account.name", text: $editingName)
                                     .textInputAutocapitalization(.never)
                                     .autocorrectionDisabled()
-                                    .font(.system(size: 18, weight: .light))
+                                    .font(.app(size: 18))
                                     .multilineTextAlignment(.center)
                                     .frame(height: 50)
                                     .background(Color.clear)
@@ -100,7 +100,7 @@ struct EditPassbookView: View {
                                     )
                                 
                                 Text("account.title")
-                                    .font(.system(size: 14))
+                                    .font(.app(size: 14))
                                     .foregroundColor(.secondary)
                             }
                         }
@@ -108,7 +108,7 @@ struct EditPassbookView: View {
                         // テーマカラーセクション
                         VStack(alignment: .leading, spacing: 12) {
                             Text("account.theme_color")
-                                .font(.body)
+                                .font(.app(.body))
                             
                             let columns = 6
                             let totalCount = PassbookColor.count + 1
@@ -201,7 +201,7 @@ struct EditPassbookView: View {
                                             )
                                         
                                         Text("account.custom_color")
-                                            .font(.system(size: 14))
+                                            .font(.app(size: 14))
                                             .foregroundColor(.primary)
                                         
                                         Spacer()
@@ -209,7 +209,7 @@ struct EditPassbookView: View {
                                         Button("common.change") {
                                             showColorPicker = true
                                         }
-                                        .font(.system(size: 14))
+                                        .font(.app(size: 14))
                                     }
                                     .padding(12)
                                     .background(
@@ -241,7 +241,7 @@ struct EditPassbookView: View {
                             Text("account.download_data")
                             Spacer()
                         }
-                        .font(.system(size: 15))
+                        .font(.app(size: 15))
                         .padding(.vertical, 18)
                         .background(
                             RoundedRectangle(cornerRadius: 12)
@@ -271,7 +271,7 @@ struct EditPassbookView: View {
                         
                         if bookCount > 0 {
                             Text(L10n.format("account.delete.warning_books", Int64(bookCount)))
-                                .font(.caption)
+                                .font(.app(.caption))
                                 .foregroundColor(.red)
                         }
                     }

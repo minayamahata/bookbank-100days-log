@@ -130,7 +130,7 @@ struct ShelfSearchView<UnderBar: View, EmptyFallback: View>: View {
                 prompt: Text("bookshelf.search.placeholder")
                     .foregroundColor(controlColor.opacity(0.5))
             )
-            .font(.system(size: 13))
+            .font(.app(size: 13))
             .focused($isFieldFocused)
             .foregroundColor(controlColor)
             .tint(controlColor)
@@ -161,7 +161,7 @@ struct ShelfSearchView<UnderBar: View, EmptyFallback: View>: View {
     private var resultCountRow: some View {
         HStack {
             Text(L10n.format("bookshelf.search.result_count", Int64(filteredBooks.count)))
-                .font(.caption)
+                .font(.app(.caption))
                 .foregroundColor(controlColor.opacity(0.7))
             Spacer()
         }
@@ -181,10 +181,10 @@ struct ShelfSearchView<UnderBar: View, EmptyFallback: View>: View {
                 Text(link.display)
                     .lineLimit(1)
                 Text(link.bookCount.formatted())
-                    .font(.system(size: 10, weight: .medium))
+                    .font(.app(size: 10))
                     .opacity(0.7)
             }
-            .font(.system(size: 13))
+            .font(.app(size: 13))
             .foregroundColor(controlColor)
             .padding(.horizontal, 12)
             .padding(.vertical, 7)
@@ -212,7 +212,7 @@ struct ShelfSearchView<UnderBar: View, EmptyFallback: View>: View {
                     MemoLinkChipIcon(size: 11)
                     Text("bookshelf.links.header")
                 }
-                .font(.system(size: 12, weight: .medium))
+                .font(.app(size: 12))
                 .foregroundColor(controlColor.opacity(0.7))
 
                 ChipFlowLayout(spacing: 8, lineSpacing: 8) {
@@ -239,7 +239,7 @@ struct ShelfSearchView<UnderBar: View, EmptyFallback: View>: View {
                 Image(systemName: "chevron.down")
                     .font(.system(size: 9, weight: .semibold))
             }
-            .font(.system(size: 13))
+            .font(.app(size: 13))
             .foregroundColor(controlColor.opacity(0.7))
             .padding(.horizontal, 12)
             .padding(.vertical, 7)
@@ -308,11 +308,11 @@ struct ShelfSearchView<UnderBar: View, EmptyFallback: View>: View {
                 .foregroundColor(controlColor.opacity(0.5))
 
             Text("bookshelf.search.empty_title")
-                .font(.headline)
+                .font(.app(.headline))
                 .foregroundColor(controlColor)
 
             Text("bookshelf.search.empty_message")
-                .font(.subheadline)
+                .font(.app(.subheadline))
                 .foregroundColor(controlColor.opacity(0.7))
                 .multilineTextAlignment(.center)
 
@@ -322,7 +322,7 @@ struct ShelfSearchView<UnderBar: View, EmptyFallback: View>: View {
                         Image(systemName: "magnifyingglass")
                         Text("book.register")
                     }
-                    .font(.subheadline.weight(.semibold))
+                    .font(.app(.subheadline, weight: .bold))
                     .foregroundColor(controlColor)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 10)

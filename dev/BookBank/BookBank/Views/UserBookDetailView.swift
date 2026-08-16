@@ -319,8 +319,7 @@ struct UserBookDetailView: View {
                         .scaledToFit()
                         .frame(width: 14, height: 14)
                     Text("common.edit")
-                        .font(.subheadline)
-                        .fontWeight(.medium)
+                        .font(.app(.subheadline))
                 }
                 .foregroundColor(colorScheme == .dark && isBlackTheme ? .black : .white)
                 .padding(.horizontal, 20)
@@ -606,7 +605,7 @@ struct UserBookDetailView: View {
                 .offset(y: 20)
             } else {
                 Text("book.cover_none")
-                    .font(.caption)
+                    .font(.app(.caption))
                     .foregroundColor(.secondary)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
@@ -641,18 +640,17 @@ struct UserBookDetailView: View {
     private var titleSection: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(book.title)
-                .font(.title2)
-                .fontWeight(.bold)
+                .font(.app(.title2, weight: .bold))
                 .multilineTextAlignment(.leading)
 
             if !book.displayAuthor.isEmpty {
                 Text(book.displayAuthor)
-                    .font(.subheadline)
+                    .font(.app(.subheadline))
                     .foregroundColor(.secondary)
             }
 
             if book.priceAtRegistration != nil {
-                BookPriceText(book: book, font: .title3, fontWeight: .medium)
+                BookPriceText(book: book, font: .app(.title3))
                     .foregroundColor(themeColor)
                     .frame(maxWidth: .infinity, alignment: .trailing)
             }
@@ -668,7 +666,7 @@ struct UserBookDetailView: View {
                 .padding(.bottom, 24)
 
             Text("book.details.section")
-                .font(.headline)
+                .font(.app(.headline))
                 .padding(.bottom, 8)
 
             VStack(alignment: .leading, spacing: 8) {
@@ -700,7 +698,7 @@ struct UserBookDetailView: View {
                     )
                 }
             }
-            .font(.subheadline)
+            .font(.app(.subheadline))
             .padding(.bottom, 24)
 
             // 詳細情報とメモの区切り
@@ -711,7 +709,7 @@ struct UserBookDetailView: View {
             // 右端に編集アイコンを置く（カレンダーの月別メモボタンと同じ見た目）
             HStack {
                 Text("book.memo")
-                    .font(.headline)
+                    .font(.app(.headline))
 
                 Spacer()
 
@@ -741,12 +739,12 @@ struct UserBookDetailView: View {
                         // 本文は編集画面と同じ .body。subheadline にすると引用（subheadline固定）と
                         // 同じ大きさになり、「引用は本文より少し小さい」の関係が消える
                         MemoFormattedText(memo: memo, accentColor: linkColor)
-                            .font(.body)
+                            .font(.app(.body))
                             .foregroundColor(.primary)
                             .multilineTextAlignment(.leading)
                     } else {
                         Text("book.memo.empty")
-                            .font(.subheadline)
+                            .font(.app(.subheadline))
                             .foregroundColor(.secondary)
                             .italic()
                     }
@@ -783,7 +781,7 @@ struct UserBookDetailView: View {
                 ForEach(memoLinks, id: \.key) { link in
                     Button(action: { filterBookshelf(by: link) }) {
                         Text(link.display)
-                            .font(.system(size: 13))
+                            .font(.app(size: 13))
                             .lineLimit(1)
                             .foregroundColor(linkColor)
                             .padding(.horizontal, 12)

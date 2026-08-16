@@ -140,7 +140,7 @@ struct StatisticsView: View {
                     VStack(spacing: 0) {
                         // 年表示（固定）
                         Text(String(selectedYear))
-                            .font(.title)
+                            .font(.app(.title))
                             .foregroundColor(isOverallAccount ? .primary : .white)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.horizontal)
@@ -169,46 +169,46 @@ struct StatisticsView: View {
                         // 口座サマリー
                         VStack(alignment: .leading, spacing: 12) {
                             Text("account.summary")
-                                .font(.headline)
+                                .font(.app(.headline))
                                 .padding(.bottom, 4)
                             
                             HStack {
                                 Text("statistics.total_amount")
-                                    .font(.subheadline)
+                                    .font(.app(.subheadline))
                                     .foregroundColor(.secondary)
                                 Spacer()
                                 DisplayCurrencyPriceText(
                                     amount: totalAmount,
-                                    symbolFont: .caption2
+                                    symbolFont: .app(.caption2)
                                 )
                             }
                             HStack {
                                 Text("statistics.total_books")
-                                    .font(.subheadline)
+                                    .font(.app(.subheadline))
                                     .foregroundColor(.secondary)
                                 Spacer()
-                                BooksCountText(count: totalBookCount, unitFont: .caption2, locale: locale)
+                                BooksCountText(count: totalBookCount, unitFont: .app(.caption2), locale: locale)
                             }
                             HStack {
                                 Text("bookshelf.favorite")
-                                    .font(.subheadline)
+                                    .font(.app(.subheadline))
                                     .foregroundColor(.secondary)
                                 Spacer()
-                                BooksCountText(count: totalFavoriteCount, unitFont: .caption2, locale: locale)
+                                BooksCountText(count: totalFavoriteCount, unitFont: .app(.caption2), locale: locale)
                             }
                             HStack {
                                 Text("statistics.memo_count")
-                                    .font(.subheadline)
+                                    .font(.app(.subheadline))
                                     .foregroundColor(.secondary)
                                 Spacer()
-                                BooksCountText(count: totalMemoCount, unitFont: .caption2, locale: locale)
+                                BooksCountText(count: totalMemoCount, unitFont: .app(.caption2), locale: locale)
                             }
                             HStack {
                                 Text("statistics.memo_chars")
-                                    .font(.subheadline)
+                                    .font(.app(.subheadline))
                                     .foregroundColor(.secondary)
                                 Spacer()
-                                CharacterCountText(count: totalMemoCharacterCount, unitFont: .caption2, locale: locale)
+                                CharacterCountText(count: totalMemoCharacterCount, unitFont: .app(.caption2), locale: locale)
                             }
                         }
                         .padding()
@@ -263,11 +263,11 @@ struct StatisticsView: View {
                 .foregroundColor(.gray)
             
             Text("statistics.empty")
-                .font(.headline)
+                .font(.app(.headline))
                 .foregroundColor(.secondary)
             
             Text("statistics.empty_message")
-                .font(.subheadline)
+                .font(.app(.subheadline))
                 .foregroundColor(.secondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -488,13 +488,12 @@ struct YearlyChartContent: View {
     private func statsCard(titleKey: LocalizedStringKey, amount: Int) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             Text(titleKey)
-                .font(.caption)
+                .font(.app(.caption))
                 .foregroundColor(.secondary)
             DisplayCurrencyPriceText(
                 amount: amount,
-                font: .title,
-                fontWeight: .medium,
-                symbolFont: .caption.weight(.medium)
+                font: .app(.title),
+                symbolFont: .app(.caption)
             )
                 .foregroundStyle(
                     LinearGradient(
@@ -517,9 +516,9 @@ struct YearlyChartContent: View {
     private func statsCard(titleKey: LocalizedStringKey, count: Int) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             Text(titleKey)
-                .font(.caption)
+                .font(.app(.caption))
                 .foregroundColor(.secondary)
-            BooksCountText(count: count, font: .title, fontWeight: .medium, locale: locale)
+            BooksCountText(count: count, font: .app(.title), locale: locale)
                 .foregroundStyle(
                     LinearGradient(
                         stops: [
@@ -543,7 +542,7 @@ struct YearlyChartContent: View {
             // 金額グラフ（上段）
             VStack(alignment: .leading, spacing: 12) {
                 Text("statistics.amount")
-                    .font(.subheadline)
+                    .font(.app(.subheadline))
                     .foregroundColor(.secondary)
                 
                 Chart {
@@ -585,7 +584,7 @@ struct YearlyChartContent: View {
                         .annotation(position: dataPoint.month % 2 == 0 ? .top : .bottom, spacing: 4) {
                             if dataPoint.amount > 0 {
                                 Text(chartAmountLabel(chartMajorAmount(dataPoint.amount)))
-                                    .font(.system(size: 7))
+                                    .font(.app(size: 7))
                                     .foregroundColor(.secondary)
                             }
                         }
@@ -609,7 +608,7 @@ struct YearlyChartContent: View {
                         AxisValueLabel {
                             if let doubleValue = value.as(Double.self) {
                                 Text(chartAmountLabel(doubleValue))
-                                    .font(.system(size: 10))
+                                    .font(.app(size: 10))
                                     .frame(width: 50, alignment: .trailing)
                             }
                         }
@@ -621,7 +620,7 @@ struct YearlyChartContent: View {
             // 冊数グラフ（下段）
             VStack(alignment: .leading, spacing: 12) {
                 Text("statistics.book_count")
-                    .font(.subheadline)
+                    .font(.app(.subheadline))
                     .foregroundColor(.secondary)
                 
                 Chart {
@@ -648,7 +647,7 @@ struct YearlyChartContent: View {
                             .annotation(position: .top, spacing: 4) {
                                 if dataPoint.count > 0 {
                                     Text("\(dataPoint.count)")
-                                        .font(.system(size: 10))
+                                        .font(.app(size: 10))
                                         .foregroundColor(.secondary)
                                 }
                             }
@@ -671,7 +670,7 @@ struct YearlyChartContent: View {
                         AxisValueLabel {
                             if let intValue = value.as(Int.self) {
                                 Text(intValue.formatted())
-                                    .font(.system(size: 10))
+                                    .font(.app(size: 10))
                                     .frame(width: 50, alignment: .trailing)
                             }
                         }
@@ -683,7 +682,7 @@ struct YearlyChartContent: View {
                         AxisValueLabel(verticalSpacing: 20) {
                             if let label = value.as(String.self) {
                                 Text(label)
-                                    .font(.system(size: 10))
+                                    .font(.app(size: 10))
                             }
                         }
                     }
@@ -758,10 +757,10 @@ struct ReadingReportView: View {
                 .foregroundColor(themeColor)
             
             Text("statistics.report.title")
-                .font(.title2)
+                .font(.app(.title2))
             
             Text("statistics.report.subtitle")
-                .font(.subheadline)
+                .font(.app(.subheadline))
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
         }

@@ -46,12 +46,12 @@ struct AddPassbookView: View {
                 // 入力フィールド
                 VStack(alignment: .leading, spacing: 12) {
                     Text("account.name")
-                        .font(.body)
+                        .font(.app(.body))
 
                     
                     HStack(spacing: 8) {
                         TextField("account.name_placeholder", text: $accountName)
-                            .font(.system(size: 18, weight: .light))
+                            .font(.app(size: 18))
                             .multilineTextAlignment(.center)
                             .frame(height: 50)
                             .background(Color.clear)
@@ -67,7 +67,7 @@ struct AddPassbookView: View {
                             }
                         
                         Text("account.title")
-                            .font(.system(size: 14))
+                            .font(.app(size: 14))
                             .foregroundColor(.secondary)
                     }
                 }
@@ -83,7 +83,7 @@ struct AddPassbookView: View {
                                     accountName = String(localized: String.LocalizationValue(key))
                                 }) {
                                     Text(LocalizedStringKey(key))
-                                        .font(.system(size: 12))
+                                        .font(.app(size: 12))
                                         .lineLimit(1)
                                         .fixedSize(horizontal: true, vertical: false)
                                         .foregroundColor(accountName == String(localized: String.LocalizationValue(key)) ? (colorScheme == .dark ? .black : .white) : .primary)
@@ -112,7 +112,7 @@ struct AddPassbookView: View {
                 // テーマカラー選択
                 VStack(alignment: .leading, spacing: 12) {
                     Text("account.theme_color")
-                        .font(.body)
+                        .font(.app(.body))
                     
                     let columns = 6
                     let totalCount = PassbookColor.count + 1
@@ -205,7 +205,7 @@ struct AddPassbookView: View {
                                     )
                                 
                                 Text("account.custom_color")
-                                    .font(.system(size: 14))
+                                    .font(.app(size: 14))
                                     .foregroundColor(.primary)
                                 
                                 Spacer()
@@ -213,7 +213,7 @@ struct AddPassbookView: View {
                                 Button("common.change") {
                                     showColorPicker = true
                                 }
-                                .font(.system(size: 14))
+                                .font(.app(size: 14))
                             }
                             .padding(12)
                             .background(

@@ -21,11 +21,11 @@ struct LanguageSettingsView: View {
                         HStack {
                             if language == .system {
                                 Text("language.automatic")
-                                    .font(.body)
+                                    .font(.app(.body))
                                     .foregroundColor(.primary)
                             } else {
                                 Text(language.nativeDisplayName)
-                                    .font(.body)
+                                    .font(.app(.body))
                                     .foregroundColor(.primary)
                             }
                             Spacer()
@@ -76,10 +76,10 @@ struct CurrencySettingsView: View {
                         HStack {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(LocalizedStringKey(currency.nameKey))
-                                    .font(.body)
+                                    .font(.app(.body))
                                     .foregroundColor(.primary)
                                 Text(currency.code)
-                                    .font(.caption)
+                                    .font(.app(.caption))
                                     .foregroundColor(.secondary)
                             }
                             Spacer()

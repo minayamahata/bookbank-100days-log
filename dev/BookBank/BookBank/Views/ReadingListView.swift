@@ -127,7 +127,7 @@ struct ReadingListView: View {
     private var emptyStateView: some View {
         VStack(spacing: 16) {
             Text("readinglist.create_prompt")
-                .font(.body)
+                .font(.app(.body))
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
         }
@@ -148,21 +148,21 @@ struct ReadingListView: View {
             // リスト情報
             VStack(alignment: .leading, spacing: 4) {
                 Text(list.title)
-                    .font(.subheadline)
+                    .font(.app(.subheadline))
                     .foregroundColor(.primary)
                     .lineLimit(1)
                 
                 HStack(spacing: 4) {
-                    BooksCountText(count: list.books.count, font: .caption)
+                    BooksCountText(count: list.books.count, font: .app(.caption))
                         .foregroundColor(.secondary)
                     
                     if convertedTotalValue(for: list) > 0 {
                         Text("・")
-                            .font(.caption)
+                            .font(.app(.caption))
                             .foregroundColor(.secondary)
                         DisplayCurrencyPriceText(
                             amount: convertedTotalValue(for: list),
-                            font: .caption
+                            font: .app(.caption)
                         )
                         .foregroundColor(.secondary)
                     }

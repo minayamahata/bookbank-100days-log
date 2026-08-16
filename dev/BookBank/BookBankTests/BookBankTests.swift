@@ -832,14 +832,14 @@ struct BookBankTests {
         // 太字と重なってもつながりの見た目を優先（設計メモ 4.6節・2026-08-12 確定）。
         // 印はセミボールドから下線へ変更（2026-08-13 オーナー指示——白/黒テーマで
         // テーマ色が本文と同色になると、太字との区別がつかないため）
-        let bold = Font.body.weight(MemoLinkText.boldWeight)
+        let bold = Font.app(.body, weight: .bold)
         let attributed = MemoLinkText.highlighted("**[[京都]]**", color: .blue, boldFont: bold)
         #expect(String(attributed.characters) == "京都")
 
         let run = try #require(attributed.runs.first)
         #expect(run.foregroundColor == .blue)
         #expect(run.underlineStyle == .single)
-        #expect(run.font == nil, "太字の heavy を当てず、フォントは周囲に合わせる")
+        #expect(run.font == nil, "太字フォントを当てず、フォントは周囲に合わせる")
     }
 
     @Test func memoLinkHighlightHidesBracketsAndKeepsRestIntact() {
@@ -859,8 +859,8 @@ struct BookBankTests {
     }
 
     @Test func memoLinkTextRendersBoldPairHidingMarkers() throws {
-        // 太字は標準の太字より一段太いフォントを当てる（設計メモ 4.6節）
-        let bold = Font.body.weight(MemoLinkText.boldWeight)
+        // 太字は LINE Seed Bold を当てる（設計メモ 4.6節）
+        let bold = Font.app(.body, weight: .bold)
         let attributed = MemoLinkText.highlighted("**大事** なメモ", color: .blue, boldFont: bold)
         #expect(String(attributed.characters) == "大事 なメモ")
 
@@ -872,7 +872,7 @@ struct BookBankTests {
 
     @Test func memoLinkTextLeavesUnpairedOrSpanningBoldMarkersAsLiterals() {
         // ペアが同じ行で閉じているときだけ太字。閉じない ** はただの文字として出す
-        let bold = Font.body.weight(MemoLinkText.boldWeight)
+        let bold = Font.app(.body, weight: .bold)
         for memo in ["**閉じていない", "行を **またぐ\n太字** は解釈しない"] {
             let attributed = MemoLinkText.highlighted(memo, color: .blue, boldFont: bold)
             #expect(String(attributed.characters) == memo)

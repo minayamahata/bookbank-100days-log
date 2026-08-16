@@ -106,9 +106,9 @@ struct PassbookRow: View {
         HStack {
             VStack(alignment: .leading, spacing: 4) {
                 Text(name)
-                    .font(.body)
+                    .font(.app(.body))
                 
-                BooksCountText(count: bookCount, font: .caption)
+                BooksCountText(count: bookCount, font: .app(.caption))
                     .foregroundColor(.secondary)
             }
             
@@ -118,7 +118,7 @@ struct PassbookRow: View {
                 DisplayCurrencyPriceText(amount: totalValue)
                 
                 Text("account.balance")
-                    .font(.caption2)
+                    .font(.app(.caption2))
                     .foregroundColor(.secondary)
             }
         }

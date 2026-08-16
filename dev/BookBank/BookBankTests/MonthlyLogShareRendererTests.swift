@@ -12,10 +12,16 @@ struct MonthlyLogShareRendererTests {
         return calendar
     }
 
-    private func book(id: String, day: Int, price: Int?) -> BookDTO {
+    private func book(
+        id: String,
+        year: Int = 2026,
+        month: Int = 8,
+        day: Int,
+        price: Int?
+    ) -> BookDTO {
         let calendar = calendar()
         let registeredAt = calendar.date(
-            from: DateComponents(year: 2026, month: 8, day: day, hour: 12)
+            from: DateComponents(year: year, month: month, day: day, hour: 12)
         )!
         return BookDTO(
             id: id,
@@ -43,12 +49,14 @@ struct MonthlyLogShareRendererTests {
     }
 
     private func snapshot(
+        year: Int = 2026,
+        month: Int = 8,
         books: [BookDTO],
         locale: Locale = Locale(identifier: "ja")
     ) -> MonthlyLogShareSnapshot {
         MonthlyLogShareSnapshot.make(
-            year: 2026,
-            month: 8,
+            year: year,
+            month: month,
             passbookBooks: books,
             displayCurrency: .jpy,
             exchangeRates: .shared,
@@ -82,70 +90,37 @@ struct MonthlyLogShareRendererTests {
         #expect(!MonthlyLogShareTemplate.minimalSummary.showsCalendar)
     }
 
-    @Test func fourRowMonthAlsoRendersTransparent1080x1920() throws {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(identifier: "Asia/Tokyo")!
-        calendar.firstWeekday = 1
-        let registeredAt = calendar.date(from: DateComponents(year: 2026, month: 2, day: 10, hour: 12))!
-        let februaryBook = BookDTO(
-            id: "feb",
-            title: "feb",
-            author: nil,
-            isbn: nil,
-            publisher: nil,
-            publishedYear: nil,
-            seriesName: nil,
-            price: 800,
-            imageURL: nil,
-            bookFormat: nil,
-            pageCount: nil,
-            source: .manual,
-            memo: nil,
-            isFavorite: false,
-            priceAtRegistration: 800,
-            currencyCode: "JPY",
-            registeredAt: registeredAt,
-            createdAt: registeredAt,
-            updatedAt: registeredAt,
-            passbookId: "pb",
-            hasCoverImage: false
-        )
-        let february = MonthlyLogShareSnapshot.make(
-            year: 2026,
-            month: 2,
-            passbookBooks: [februaryBook],
-            displayCurrency: .jpy,
-            exchangeRates: .shared,
-            calendar: calendar,
-            locale: Locale(identifier: "ja")
-        )
-        #expect(february.layout.rowCount == 4)
-        let data = png(february, .calendarSummary)
-        let image = try #require(UIImage(data: data))
-        let cgImage = try #require(image.cgImage)
-        #expect(cgImage.width == 1080)
-        #expect(cgImage.height == 1920)
+    @Test func fourToSixRowMonthsRenderCroppedTransparentPNG() throws {
+        let cases: [(month: Int, day: Int, rows: Int)] = [
+            (2, 10, 4),
+            (1, 10, 5),
+            (8, 16, 6)
+        ]
+        for item in cases {
+            let monthSnapshot = snapshot(
+                year: 2026,
+                month: item.month,
+                books: [book(id: "m\(item.month)", year: 2026, month: item.month, day: item.day, price: 800)]
+            )
+            #expect(monthSnapshot.layout.rowCount == item.rows)
+            try assertMasterAndCroppedExport(monthSnapshot, .calendarSummary)
+        }
     }
 
-    @Test func allTemplatesRender1080x1920PNGWithAlpha() throws {
+    @Test func allTemplatesRenderCroppedTransparentPNG() throws {
         let snapshot = snapshot(books: [book(id: "a", day: 16, price: 1200)])
         #expect(snapshot.layout.rowCount == 6)
         for template in MonthlyLogShareTemplate.allCases {
+            try assertMasterAndCroppedExport(snapshot, template)
             let data = png(snapshot, template)
-            let image = try #require(UIImage(data: data))
-            #expect(Int(image.size.width * image.scale) == 1080 || Int(image.size.width) == 1080)
-            #expect(Int(image.size.height * image.scale) == 1920 || Int(image.size.height) == 1920)
-            let cgImage = try #require(image.cgImage)
-            #expect(cgImage.width == 1080)
-            #expect(cgImage.height == 1920)
-            let alpha = cgImage.alphaInfo
-            #expect(
-                alpha == .premultipliedLast
-                    || alpha == .premultipliedFirst
-                    || alpha == .last
-                    || alpha == .first
+            let export = try #require(
+                MonthlyLogShareRenderer.exportImage(
+                    snapshot: snapshot,
+                    covers: [:],
+                    template: template
+                )
             )
-            #expect(hasTransparentCorner(cgImage), "\(template) の角は透明")
+            #expect(data == export.pngData(), "コピー・保存・共有は同じトリミング済みPNG")
         }
     }
 
@@ -222,6 +197,22 @@ struct MonthlyLogShareRendererTests {
         #expect(size == preferred)
     }
 
+    @Test func verticalMonthMeasurementMatchesEnglishDrawingFont() {
+        let size: CGFloat = 54
+        let drawing = AppTypography.fixedUIFont(size: size, weight: .bold, language: .english)
+        let length = MonthlyLogShareVerticalMonthMetrics.textLength(
+            "February",
+            size: size,
+            weight: .bold
+        )
+        let measured = ceil(("February" as NSString).size(withAttributes: [.font: drawing]).width)
+        #expect(length == measured)
+        #expect(
+            drawing.fontName == AppTypography.enBoldName
+                || drawing.fontName.contains("LINESeedSans")
+        )
+    }
+
     @Test func monthAndWeekdayDoNotDependOnAppLanguage() {
         let books = [book(id: "a", day: 6, price: 500)]
         let ja = snapshot(books: books, locale: Locale(identifier: "ja"))
@@ -232,18 +223,46 @@ struct MonthlyLogShareRendererTests {
         #expect(png(ja, .largeMonth) == png(ko, .largeMonth))
     }
 
-    private func hasTransparentCorner(_ image: CGImage) -> Bool {
-        guard let provider = image.dataProvider, let data = provider.data else { return false }
-        let pointer = CFDataGetBytePtr(data)
-        let bytesPerPixel = image.bitsPerPixel / 8
-        guard bytesPerPixel >= 4 else { return false }
-        let alphaIndex: Int
-        switch image.alphaInfo {
-        case .premultipliedFirst, .first:
-            alphaIndex = 0
-        default:
-            alphaIndex = bytesPerPixel - 1
-        }
-        return pointer?[alphaIndex] == 0
+    private func assertMasterAndCroppedExport(
+        _ snapshot: MonthlyLogShareSnapshot,
+        _ template: MonthlyLogShareTemplate
+    ) throws {
+        let master = try #require(
+            MonthlyLogShareRenderer.masterImage(
+                snapshot: snapshot,
+                covers: [:],
+                template: template
+            )
+        )
+        let masterCG = try #require(master.cgImage)
+        #expect(masterCG.width == Int(MonthlyLogShareRenderer.masterPixelSize.width))
+        #expect(masterCG.height == Int(MonthlyLogShareRenderer.masterPixelSize.height))
+
+        let data = png(snapshot, template)
+        let image = try #require(UIImage(data: data))
+        let cgImage = try #require(image.cgImage)
+        #expect(cgImage.width <= masterCG.width)
+        #expect(cgImage.height <= masterCG.height)
+        #expect(cgImage.width < masterCG.width || cgImage.height < masterCG.height)
+        let alpha = cgImage.alphaInfo
+        #expect(
+            alpha == .premultipliedLast
+                || alpha == .premultipliedFirst
+                || alpha == .last
+                || alpha == .first
+        )
+
+        let masterOpaque = try #require(MonthlyLogShareImageTrimmer.opaquePixelBounds(in: masterCG))
+        let opaque = try #require(MonthlyLogShareImageTrimmer.opaquePixelBounds(in: cgImage))
+        let expectedLeft = min(24, Int(masterOpaque.minX.rounded(.towardZero)))
+        let expectedTop = min(24, Int(masterOpaque.minY.rounded(.towardZero)))
+        let expectedRight = min(24, masterCG.width - Int(masterOpaque.maxX.rounded(.towardZero)))
+        let expectedBottom = min(24, masterCG.height - Int(masterOpaque.maxY.rounded(.towardZero)))
+        #expect(Int(opaque.minX.rounded(.towardZero)) == expectedLeft, "\(template) 左余白")
+        #expect(Int(opaque.minY.rounded(.towardZero)) == expectedTop, "\(template) 上余白")
+        #expect(cgImage.width - Int(opaque.maxX.rounded(.towardZero)) == expectedRight, "\(template) 右余白")
+        #expect(cgImage.height - Int(opaque.maxY.rounded(.towardZero)) == expectedBottom, "\(template) 下余白")
+        #expect(opaque.minX > 0 || expectedLeft == 0)
+        #expect(opaque.maxX < CGFloat(cgImage.width) || expectedRight == 0)
     }
 }

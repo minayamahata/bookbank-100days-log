@@ -97,7 +97,7 @@ struct OnboardingView: View {
 
                 // BookBank タイトル
                 Text("brand.bookbank")
-                    .font(.custom("Fearlessly Authentic", size: 36))
+                    .font(.app(size: 36, relativeTo: .largeTitle, weight: .bold, language: .english))
                     .foregroundColor(.white)
             }
 
@@ -106,7 +106,7 @@ struct OnboardingView: View {
                 Text("onboarding.subtitle1")
                 Text("onboarding.subtitle2")
             }
-            .font(.system(size: 24, weight: .light))
+            .font(.app(size: 24, relativeTo: .title2, weight: .regular))
             .foregroundColor(.white)
             .multilineTextAlignment(.center)
         }
@@ -119,13 +119,13 @@ struct OnboardingView: View {
         VStack(alignment: .leading, spacing: 16) {
             // 説明テキストと入力フィールド
             Text("onboarding.prompt")
-                .font(.system(size: 17, weight: .light))
+                .font(.app(size: 17, relativeTo: .body, weight: .regular))
                 .foregroundColor(.white)
 
             // 入力フィールド
             HStack(spacing: 8) {
                 TextField("account.name_placeholder", text: $accountName)
-                    .font(.system(size: 18, weight: .light))
+                    .font(.app(size: 18, relativeTo: .body, weight: .regular))
                     .foregroundColor(.white)
                     .multilineTextAlignment(.center)
                     .frame(height: 50)
@@ -142,7 +142,7 @@ struct OnboardingView: View {
                     }
 
                 Text("account.title")
-                    .font(.system(size: 14))
+                    .font(.app(size: 14, relativeTo: .subheadline, weight: .regular))
                     .foregroundColor(.white)
             }
 
@@ -187,7 +187,7 @@ struct OnboardingView: View {
     private var openAccountButton: some View {
         Button(action: createAccount) {
             Text("account.create")
-                .font(.system(size: 16))
+                .font(.app(size: 16, relativeTo: .callout, weight: .regular))
                 .foregroundColor(accountName.isEmpty ? .white.opacity(0.5) : .white)
                 .frame(maxWidth: .infinity)
                 .frame(height: 60)
@@ -247,7 +247,7 @@ struct CategoryTag: View {
     var body: some View {
         Button(action: action) {
             Text(titleKey)
-                .font(.system(size: 12))
+                .font(.app(size: 12, relativeTo: .caption, weight: .regular))
                 .foregroundColor(isSelected ? .black : .white)
                 .lineLimit(1)
                 .fixedSize(horizontal: true, vertical: false)

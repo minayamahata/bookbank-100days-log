@@ -47,13 +47,13 @@ struct SplashScreenView: View {
                     // 上部: Imagination / Depth
                     HStack {
                         Text("splash.imagination")
-                            .font(.custom("Inter-Regular", size: 12))
+                            .font(.app(size: 12, relativeTo: .caption, weight: .regular, language: .english))
                             .foregroundColor(.white)
 
                         Spacer()
 
                         Text("splash.depth")
-                            .font(.custom("Inter-Regular", size: 12))
+                            .font(.app(size: 12, relativeTo: .caption, weight: .regular, language: .english))
                             .foregroundColor(.white)
                     }
                     .padding(.horizontal, 30)
@@ -81,12 +81,12 @@ struct SplashScreenView: View {
                         // テキスト
                         VStack(spacing: 0) {
                             Text("brand.bookbank")
-                                .font(.custom("Fearlessly Authentic", size: 42))
+                                .font(.app(size: 42, relativeTo: .largeTitle, weight: .bold, language: .english))
                                 .foregroundColor(.white)
                                 .opacity(showLogo ? 1 : 0)
 
                             Text("splash.tagline")
-                                .font(.custom("Fearlessly Authentic Italic", size: 25))
+                                .font(.app(size: 25, relativeTo: .title2, weight: .regular, language: .english))
                                 .foregroundColor(.white.opacity(0.7))
                                 .blendMode(.overlay)
                                 .opacity(showTagline ? 1 : 0)
@@ -99,13 +99,13 @@ struct SplashScreenView: View {
                     // 下部: Growth / Reverie
                     HStack {
                         Text("splash.growth")
-                            .font(.custom("Inter-Regular", size: 12))
+                            .font(.app(size: 12, relativeTo: .caption, weight: .regular, language: .english))
                             .foregroundColor(.white)
 
                         Spacer()
 
                         Text("splash.reverie")
-                            .font(.custom("Inter-Regular", size: 12))
+                            .font(.app(size: 12, relativeTo: .caption, weight: .regular, language: .english))
                             .foregroundColor(.white)
                     }
                     .padding(.horizontal, 30)

@@ -321,7 +321,7 @@ struct EditBookView: View {
                     .buttonStyle(.plain)
                 }
             }
-            .font(.subheadline)
+            .font(.app(.subheadline))
             .scrollDismissesKeyboard(.interactively)
             .navigationTitle("book.edit.title")
             .navigationBarTitleDisplayMode(.inline)
@@ -459,7 +459,7 @@ struct EditBookView: View {
                                 }
                             } label: {
                                 Text("common.edit")
-                                    .font(.subheadline)
+                                    .font(.app(.subheadline))
                                     .foregroundColor(.white)
                                     .padding(.horizontal, 20)
                                     .padding(.vertical, 6)
@@ -483,7 +483,7 @@ struct EditBookView: View {
                             .frame(width: 120, height: 180)
                             .overlay {
                                 Text("book.cover")
-                                    .font(.subheadline)
+                                    .font(.app(.subheadline))
                                     .foregroundColor(.secondary)
                             }
                             .frame(maxWidth: .infinity)
@@ -505,7 +505,7 @@ struct EditBookView: View {
                             }
                         } label: {
                             Text("book.cover_register")
-                                .font(.subheadline)
+                                .font(.app(.subheadline))
                                 .padding(.horizontal, 16)
                                 .padding(.vertical, 8)
                                 .background(Color.primary.opacity(0.06))
@@ -537,7 +537,7 @@ struct EditBookView: View {
                         .frame(width: 120, height: 180)
                         .overlay {
                             Text("book.cover_none")
-                                .font(.subheadline)
+                                .font(.app(.subheadline))
                                 .foregroundColor(.secondary)
                         }
                         .frame(maxWidth: .infinity)

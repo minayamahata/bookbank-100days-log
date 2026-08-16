@@ -25,10 +25,10 @@ struct SearchDatabaseSettingsView: View {
                         HStack {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(LocalizedStringKey(database.nameKey))
-                                    .font(.body)
+                                    .font(.app(.body))
                                     .foregroundColor(.primary)
                                 Text(database.displayProviderName)
-                                    .font(.caption)
+                                    .font(.app(.caption))
                                     .foregroundColor(.secondary)
                             }
                             Spacer()

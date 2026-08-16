@@ -29,7 +29,7 @@ struct HomeView: View {
                         .foregroundColor(.gray)
                     
                     Text("account.empty")
-                        .font(.headline)
+                        .font(.app(.headline))
                         .foregroundColor(.secondary)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)

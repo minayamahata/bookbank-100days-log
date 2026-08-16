@@ -99,19 +99,34 @@ let themeColor = PassbookColor.color(for: passbook, in: customPassbooks)
 
 ## 2. タイポグラフィ
 
+アプリが所有する文字は `AppTypography`（`Font.app` / `AppTypography.uiFont`）を使う。
+実効言語（`AppLanguage.effective`）に応じて LINE Seed Regular / Bold を切り替える。
+詳細は `docs/typography-design.md`。
+
+| 実効言語 | フォント |
+|----------|----------|
+| 日本語 | LINE Seed JP |
+| 英語 | LINE Seed Sans EN |
+| 韓国語 | LINE Seed KR |
+| 繁体字 | LINE Seed TW |
+| 簡体字 | PingFang SC / システムフォント（TW は使わない） |
+
+ウェイトは Regular と Bold の2段階（thin〜medium → Regular、semibold〜black → Bold）。
+`.headline` の既定は Bold。SF Symbols のサイズ指定はシステムフォントのまま。
+
 ### フォントサイズ一覧
 
 | 用途 | フォント | 例 |
 |------|---------|---|
-| 大きな金額表示 | `.system(size: 32)` | 総資産 |
-| 中程度の金額表示 | `.system(size: 22)` | カード内金額 |
-| タイトル（大） | `.title2` + `.fontWeight(.bold)` | リスト詳細タイトル |
-| タイトル（中） | `.title3` | 本の詳細タイトル |
-| 見出し | `.headline` | カルーセルタイトル |
-| 本文 | `.subheadline` | リスト行タイトル |
-| 補助テキスト | `.footnote` | 説明文、冊数 |
-| キャプション | `.caption` | 著者名、日付 |
-| 小さいキャプション | `.caption2` | 登録済みバッジ |
+| 大きな金額表示 | `.app(size: 32)` | 総資産 |
+| 中程度の金額表示 | `.app(size: 22)` | カード内金額 |
+| タイトル（大） | `.app(.title2, weight: .bold)` | リスト詳細タイトル |
+| タイトル（中） | `.app(.title3)` | 本の詳細タイトル |
+| 見出し | `.app(.headline)` | カルーセルタイトル |
+| 本文 | `.app(.subheadline)` | リスト行タイトル |
+| 補助テキスト | `.app(.footnote)` | 説明文、冊数 |
+| キャプション | `.app(.caption)` | 著者名、日付 |
+| 小さいキャプション | `.app(.caption2)` | 登録済みバッジ |
 
 ### 金額表示の統一パターン
 
@@ -119,9 +134,9 @@ let themeColor = PassbookColor.color(for: passbook, in: customPassbooks)
 // 金額 + 「円」のレイアウト
 HStack(alignment: .lastTextBaseline, spacing: 2) {
     Text("\(amount.formatted())")
-        .font(.system(size: 20))  // サイズは用途による
+        .font(.app(size: 20))  // サイズは用途による
     Text("円")
-        .font(.system(size: 13))  // 金額の約65%サイズ
+        .font(.app(size: 13))  // 金額の約65%サイズ
 }
 .foregroundColor(themeColor)
 ```
@@ -707,4 +722,5 @@ struct LiquidGlassButton: View {
 
 ## 更新履歴
 
+- 2026.08.16: タイポグラフィを LINE Seed へ全面移行（`docs/typography-design.md`）
 - 2026.02.02: 初版作成

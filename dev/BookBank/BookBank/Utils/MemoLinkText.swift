@@ -114,8 +114,8 @@ struct MemoFormattedText: View {
                 case .quote(let content):
                     // 引用の文字は本文より少し小さく・少し薄い黒、囲みの内側に余白18（編集画面と同じ）。
                     // 太字も囲みの中の大きさに合わせる（編集画面はその行のフォントから拾っている）
-                    inline(content, boldFont: .subheadline.weight(MemoLinkText.boldWeight))
-                        .font(.subheadline)
+                    inline(content, boldFont: .app(.subheadline, weight: .bold))
+                        .font(.app(.subheadline))
                         .foregroundStyle(Color(MemoEditorTextView.quoteTextColor))
                         // 折り返したぶんの高さを必ず確保する。書籍詳細のパネルは高さを固定した
                         // 入れ物の中にあり、上位から詰めた高さを提案されると引用が「…」で
@@ -132,7 +132,7 @@ struct MemoFormattedText: View {
                     // 未入力の行は保存時に消えるのでここには来ない
                     if !digits.isEmpty {
                         Text(verbatim: "p.\(digits)")
-                            .font(.footnote)
+                            .font(.app(.footnote))
                             .frame(maxWidth: .infinity, alignment: .trailing)
                             .padding(.bottom, Self.gapBelow(index, in: blocks))
                     }
@@ -160,7 +160,7 @@ struct MemoFormattedText: View {
 
     private func inline(
         _ content: String,
-        boldFont: Font = .body.weight(MemoLinkText.boldWeight)
+        boldFont: Font = .app(.body, weight: .bold)
     ) -> some View {
         MemoLinkText.text(content, accentColor: accentColor, boldFont: boldFont)
             .textRenderer(
@@ -174,8 +174,9 @@ struct MemoFormattedText: View {
 // MARK: - インライン装飾
 
 enum MemoLinkText {
-    /// 太字の太さ。編集画面（`MemoEditorTextView.boldWeight`）と同じ段
-    static let boldWeight: Font.Weight = .heavy
+    /// 太字の太さ。編集画面（`MemoEditorTextView.boldWeight`）と同じ段。
+    /// LINE Seed に存在する Bold 面を使う（従来の heavy 合成はやめる）
+    static let boldWeight: Font.Weight = .bold
 
     /// 1ブロックぶんの本文を装飾付きの `AttributedString` にする。
     ///
@@ -186,13 +187,12 @@ enum MemoLinkText {
     /// 記号を隠すため表示文字列は原文と一致しない。不変条件は「**解釈対象の記号以外の
     /// 文字は一切加工しない**」（設計メモ 4.6節・テストで固定)。編集画面も同じ規則で隠す。
     /// 行頭 `> ` の引用はここでは扱わない（`MemoTextBlocks` が囲みに変換する）
-    /// - Parameter boldFont: 太字に当てるフォント。太さは標準の太字より一段上なので
-    ///   「太く」の指定だけでは出せず、行の大きさに合ったフォントを呼び出し側から渡す
-    ///   （引用の中は本文より小さい）
+    /// - Parameter boldFont: 太字に当てるフォント。行の大きさに合った Bold を
+    ///   呼び出し側から渡す（引用の中は本文より小さい）
     static func highlighted(
         _ memo: String,
         color: Color,
-        boldFont: Font = .body.weight(MemoLinkText.boldWeight)
+        boldFont: Font = .app(.body, weight: .bold)
     ) -> AttributedString {
         let links = MemoLinkParser.parse(memo)
         let linksByStart = Dictionary(uniqueKeysWithValues: links.map { ($0.range.lowerBound, $0) })
@@ -239,7 +239,7 @@ enum MemoLinkText {
                 }
                 var badge = AttributedString(String(memo[page]))
                 badge.foregroundColor = color
-                badge.font = .footnote.weight(.medium)
+                badge.font = .app(.footnote)
                 badge.memoPageNumber = true
                 if let last = badge.characters.indices.last {
                     badge[last...].kern = spacing
@@ -275,7 +275,7 @@ enum MemoLinkText {
     static func text(
         _ memo: String,
         accentColor: Color,
-        boldFont: Font = .body.weight(MemoLinkText.boldWeight)
+        boldFont: Font = .app(.body, weight: .bold)
     ) -> Text {
         let attributed = highlighted(memo, color: accentColor, boldFont: boldFont)
         var result = Text(verbatim: "")

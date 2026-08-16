@@ -343,15 +343,15 @@ struct MemoEditorTextView: UIViewRepresentable {
     /// 編集画面だけの手当てで、書籍詳細は文字色のままにする（背景は「いま書いている」印）
     static let linkBackgroundAlpha: CGFloat = 0.1
 
-    /// 太字の太さ。`bold` では本文との差が弱いので一段上げる（**2026-08-12 オーナー指示**）。
+    /// 太字の太さ。LINE Seed に存在する Bold 面を使う（従来の heavy 合成はやめる）。
     /// 書籍詳細（`MemoFormattedText`）と共有する
-    static let boldWeight: UIFont.Weight = .heavy
+    static let boldWeight: UIFont.Weight = .bold
 
     /// Enterで分けた段落のあいだに足す空き。折り返しの行と行送りが同じだと改行できたのか
     /// 分からないため、段落の行送りが2倍になるぶんだけ空ける（**2026-08-12 オーナー指示**）。
     /// 書籍詳細（`MemoFormattedText`）と共有する
     static var paragraphSpacing: CGFloat {
-        UIFont.preferredFont(forTextStyle: .body).lineHeight
+        AppTypography.uiFont(.body).lineHeight
     }
 
     func makeCoordinator() -> Coordinator {
@@ -372,19 +372,10 @@ struct MemoEditorTextView: UIViewRepresentable {
         storage.addLayoutManager(layoutManager)
 
         let textView = MemoCaretAlignedTextView(frame: .zero, textContainer: container)
-        let hintAttributes: [NSAttributedString.Key: Any] = [
-            .font: UIFont.preferredFont(forTextStyle: .footnote),
-            .foregroundColor: UIColor.tertiaryLabel
-        ]
         // 案内の文言は `L10n` で引く——`String(localized:)` は端末の言語で解決するため、
         // アプリ内の言語設定（`LanguageManager`）が効かない。SwiftUI の `Text` は
-        // `environment(\.locale)` を見るので問題にならないが、ここは UIKit の層にある
-        layoutManager.pageHint = NSAttributedString(
-            string: L10n.string("memo.quote.page.hint"), attributes: hintAttributes
-        )
-        layoutManager.linkHint = NSAttributedString(
-            string: L10n.string("memo.link.hint"), attributes: hintAttributes
-        )
+        // `environment(\.locale)` を見るので問題にならないが、ここは UIKit の層にある。
+        // フォントは `applyStyling` で当て直す（言語変更に追従させる）
         context.coordinator.textStorage = storage
         context.coordinator.quoteLayoutManager = layoutManager
         textView.delegate = context.coordinator
@@ -399,7 +390,7 @@ struct MemoEditorTextView: UIViewRepresentable {
         escapeTap.cancelsTouchesInView = false
         textView.addGestureRecognizer(escapeTap)
         textView.backgroundColor = .clear
-        textView.font = .preferredFont(forTextStyle: .body)
+        textView.font = AppTypography.uiFont(.body)
         textView.adjustsFontForContentSizeCategory = true
         textView.textContainerInset = UIEdgeInsets(
             top: Self.baseTextInset, left: 0, bottom: Self.baseTextInset, right: 0
@@ -812,7 +803,19 @@ struct MemoEditorTextView: UIViewRepresentable {
             let storage = textView.textStorage
             let fullRange = NSRange(location: 0, length: storage.length)
 
-            let bodyFont = UIFont.preferredFont(forTextStyle: .body)
+            let bodyFont = AppTypography.uiFont(.body)
+            textView.font = bodyFont
+            // 案内も見える文字なので共通定義へ。言語変更時はここで当て直す
+            let hintAttributes: [NSAttributedString.Key: Any] = [
+                .font: AppTypography.uiFont(.footnote),
+                .foregroundColor: UIColor.tertiaryLabel
+            ]
+            quoteLayoutManager?.pageHint = NSAttributedString(
+                string: L10n.string("memo.quote.page.hint"), attributes: hintAttributes
+            )
+            quoteLayoutManager?.linkHint = NSAttributedString(
+                string: L10n.string("memo.link.hint"), attributes: hintAttributes
+            )
             // Enterで分けた段落は折り返しの行より広く空ける（段落の行送りが2倍になる）
             let bodyStyle = NSMutableParagraphStyle()
             bodyStyle.paragraphSpacing = MemoEditorTextView.paragraphSpacing
@@ -821,7 +824,8 @@ struct MemoEditorTextView: UIViewRepresentable {
                 .foregroundColor: UIColor.label,
                 .paragraphStyle: bodyStyle
             ]
-            // 記号の消し方: 文字は残したまま、極小フォント＋透明で幅も見た目も無くす
+            // 記号の消し方: 文字は残したまま、極小フォント＋透明で幅も見た目も無くす。
+            // 見える文字ではない内部用途なので、システムフォントの 0.01pt は残す
             let hiddenAttributes: [NSAttributedString.Key: Any] = [
                 .font: UIFont.systemFont(ofSize: 0.01),
                 .foregroundColor: UIColor.clear
@@ -838,7 +842,7 @@ struct MemoEditorTextView: UIViewRepresentable {
             // `MemoQuoteBackgroundLayoutManager` が描く
             let nsText = text as NSString
             let quoteBlocks = MemoTextBlocks.quoteBlockRanges(in: text)
-            let quoteFont = UIFont.preferredFont(forTextStyle: .subheadline)
+            let quoteFont = AppTypography.uiFont(.subheadline)
             for block in quoteBlocks {
                 nsText.enumerateSubstrings(
                     in: block, options: [.byLines, .substringNotRequired]
@@ -866,7 +870,9 @@ struct MemoEditorTextView: UIViewRepresentable {
             quoteLayoutManager?.quoteRanges = quoteBlocks
             applyNeighborGaps(around: quoteBlocks, in: nsText, storage: storage)
             // 本文の端の引用は囲みを外へ広げて余白を補うので、その分の余地を作る。
-            // 作らないと囲みがヘッダー側へはみ出して見切れる
+            // 作らないと囲みがヘッダー側へはみ出して見切れる。
+            // inset の代入は layoutManager を動かすので、beginEditing 中にはやらない
+            // （LINE Seed の行高で端の引用が増えたとき、ここが落ちた）
             let padding = MemoQuoteBackgroundLayoutManager.padding
             let insets = UIEdgeInsets(
                 top: MemoEditorTextView.baseTextInset
@@ -876,9 +882,6 @@ struct MemoEditorTextView: UIViewRepresentable {
                     + (quoteBlocks.last.map { NSMaxRange($0) == nsText.length } == true ? padding : 0),
                 right: 0
             )
-            if textView.textContainerInset != insets {
-                textView.textContainerInset = insets
-            }
 
             // 太字: 中身を太く、記号 ** は隠す
             let boldMarkers = MemoLinkText
@@ -890,10 +893,11 @@ struct MemoEditorTextView: UIViewRepresentable {
                 let contentStart = text.index(opening, offsetBy: 2)
                 let content = NSRange(contentStart..<closing, in: text)
                 // 引用の中は文字が小さいので、太字もその行の大きさに合わせる。
-                // 太さは `bold` より一段上（**2026-08-12 オーナー指示**——本文との差をはっきり出す）
-                let boldFont = UIFont.systemFont(
-                    ofSize: Self.fontSize(at: content.location, in: storage, fallback: bodyFont),
-                    weight: MemoEditorTextView.boldWeight
+                // 実在する Bold 面を使う（従来の heavy 合成はやめる）
+                let boldFont = AppTypography.fixedUIFont(
+                    size: Self.fontSize(at: content.location, in: storage, fallback: bodyFont),
+                    weight: AppTypography.Weight(MemoEditorTextView.boldWeight),
+                    language: AppTypography.resolvedLanguage()
                 )
                 storage.addAttribute(.font, value: boldFont, range: content)
                 for marker in [opening..<contentStart, closing..<text.index(closing, offsetBy: 2)] {
@@ -903,9 +907,7 @@ struct MemoEditorTextView: UIViewRepresentable {
 
             // ページ番号: 表示と同じバッジ風（つながりのラベル内と、引用の出典ページの行は除外）
             let quotePageLines = MemoTextBlocks.quotePageLineRanges(in: text)
-            let pageFont = UIFont.systemFont(
-                ofSize: UIFont.preferredFont(forTextStyle: .footnote).pointSize, weight: .medium
-            )
+            let pageFont = AppTypography.uiFont(.footnote)
             var pageBadges: [NSRange] = []
             for page in MemoPageMarker.ranges(in: text)
             where !linkRanges.contains(where: { $0.contains(page.lowerBound) }) {
@@ -946,7 +948,7 @@ struct MemoEditorTextView: UIViewRepresentable {
             // 数字が未入力なら `p.` を隠して案内を描く
             // （行の高さは残す——潰れるとカーソルも案内も置き場を失う）
             var emptyPageLines: [NSRange] = []
-            let pageLineFont = UIFont.preferredFont(forTextStyle: .footnote)
+            let pageLineFont = AppTypography.uiFont(.footnote)
             let caret = textView.selectedRange
             for line in quotePageLines {
                 let style = NSMutableParagraphStyle()
@@ -977,9 +979,10 @@ struct MemoEditorTextView: UIViewRepresentable {
             // つながりの見た目を優先する規則（設計メモ 4.6節）は保つ
             for link in links {
                 let range = NSRange(link.range, in: text)
-                let linkFont = UIFont.systemFont(
-                    ofSize: Self.fontSize(at: range.location, in: storage, fallback: bodyFont),
-                    weight: .regular
+                let linkFont = AppTypography.fixedUIFont(
+                    size: Self.fontSize(at: range.location, in: storage, fallback: bodyFont),
+                    weight: .regular,
+                    language: AppTypography.resolvedLanguage()
                 )
                 storage.addAttribute(.font, value: linkFont, range: range)
                 storage.addAttribute(.foregroundColor, value: accent, range: range)
@@ -1014,6 +1017,9 @@ struct MemoEditorTextView: UIViewRepresentable {
             )
 
             storage.endEditing()
+            if textView.textContainerInset != insets {
+                textView.textContainerInset = insets
+            }
             textView.typingAttributes = typingAttributes(
                 base: baseAttributes, writingLink: writingLink,
                 in: text, caret: caret, storage: storage, accent: accent
@@ -1046,9 +1052,9 @@ struct MemoEditorTextView: UIViewRepresentable {
             }
             let isQuoteLine = line.length >= 2
                 && nsText.substring(with: NSRange(location: line.location, length: 2)) == "> "
-            let font = UIFont.preferredFont(forTextStyle: isQuoteLine ? .subheadline : .body)
-
-            attributes[.font] = UIFont.systemFont(ofSize: font.pointSize, weight: .regular)
+            attributes[.font] = AppTypography.uiFont(
+                isQuoteLine ? .subheadline : .body, weight: .regular
+            )
             attributes[.foregroundColor] = accent
             attributes[.underlineStyle] = NSUnderlineStyle.single.rawValue
             attributes[.backgroundColor] = accent
@@ -1131,7 +1137,7 @@ struct MemoEditorTextView: UIViewRepresentable {
                     ) as? NSParagraphStyle
                     let style = inherited?.mutableCopy() as? NSMutableParagraphStyle
                         ?? NSMutableParagraphStyle()
-                    style.minimumLineHeight = UIFont.preferredFont(forTextStyle: .body).lineHeight
+                    style.minimumLineHeight = AppTypography.uiFont(.body).lineHeight
                     storage.addAttribute(.paragraphStyle, value: style, range: line)
                 }
 

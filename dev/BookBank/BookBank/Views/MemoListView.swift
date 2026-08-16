@@ -168,7 +168,7 @@ struct MemoListView: View {
                                 selectedBook = item.book
                             } label: {
                                 Text(item.text)
-                                    .font(.subheadline)
+                                    .font(.app(.subheadline))
                                     .foregroundStyle(.primary)
                                     .multilineTextAlignment(.leading)
                                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -206,7 +206,7 @@ struct MemoListView: View {
                 prompt: Text("memo.list.search.placeholder")
                     .foregroundStyle(Color.primary.opacity(0.5))
             )
-            .font(.system(size: 13))
+            .font(.app(size: 13))
             .focused($isSearchFieldFocused)
             .foregroundStyle(Color.primary)
             .submitLabel(.done)
@@ -243,7 +243,7 @@ struct MemoListView: View {
                 Int64(filteredMemoItems.count)
             )
         )
-        .font(.caption)
+        .font(.app(.caption))
         .foregroundStyle(Color.primary.opacity(0.7))
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 20)
@@ -252,7 +252,7 @@ struct MemoListView: View {
 
     private var searchEmptyState: some View {
         Text("memo.list.search.empty")
-            .font(.subheadline)
+            .font(.app(.subheadline))
             .foregroundStyle(.secondary)
             .multilineTextAlignment(.center)
             .frame(maxWidth: .infinity)
@@ -267,7 +267,7 @@ struct MemoListView: View {
                 .foregroundStyle(.gray)
 
             Text("memo.list.empty")
-                .font(.subheadline)
+                .font(.app(.subheadline))
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
         }

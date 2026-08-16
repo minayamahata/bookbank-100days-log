@@ -32,7 +32,7 @@ struct UnlimitedPaywallView: View {
                         purchaseButton
                         
                         Text("paywall.auto_renew")
-                            .font(.system(size: 14))
+                            .font(.app(size: 14, relativeTo: .subheadline, weight: .regular))
                             .foregroundColor(.white.opacity(0.5))
                             .multilineTextAlignment(.center)
                             .padding(.top, 13)
@@ -106,7 +106,7 @@ struct UnlimitedPaywallView: View {
                 
                 VStack(spacing: 0) {
                     Text("paywall.unlimited")
-                        .font(.custom("Fearlessly Authentic", size: 42))
+                        .font(.app(size: 42, relativeTo: .largeTitle, weight: .bold, language: .english))
                     .foregroundStyle(
                         LinearGradient(
                             stops: [
@@ -120,7 +120,7 @@ struct UnlimitedPaywallView: View {
                     )
                     
                     Text("paywall.tagline")
-                        .font(.system(size: 14))
+                        .font(.app(size: 14, relativeTo: .subheadline, weight: .regular))
                         .foregroundColor(.white.opacity(0.7))
                 }
                 .padding(.bottom, 30)
@@ -148,7 +148,7 @@ struct UnlimitedPaywallView: View {
                 .frame(width: 16)
             
             Text(titleKey)
-                .font(.system(size: 16, weight: .medium))
+                .font(.app(size: 16, relativeTo: .callout, weight: .regular))
                 .foregroundColor(.white)
         }
         .padding(.horizontal, 16)
@@ -160,7 +160,7 @@ struct UnlimitedPaywallView: View {
     private var plansSection: some View {
         VStack(spacing: 12) {
             Text("paywall.select_plan")
-                .font(.system(size: 14, weight: .semibold))
+                .font(.app(size: 14, relativeTo: .subheadline, weight: .bold))
                 .foregroundColor(.white.opacity(0.7))
                 .frame(maxWidth: .infinity, alignment: .leading)
             
@@ -201,7 +201,7 @@ struct UnlimitedPaywallView: View {
                     .tint(.white.opacity(0.7))
             } else {
                 Text("paywall.products_load_failed")
-                    .font(.system(size: 14))
+                    .font(.app(size: 14, relativeTo: .subheadline, weight: .regular))
                     .foregroundColor(.white.opacity(0.7))
                     .multilineTextAlignment(.center)
                 
@@ -209,7 +209,7 @@ struct UnlimitedPaywallView: View {
                     Task { await unlimitedManager.reloadProducts() }
                 } label: {
                     Text("paywall.reload_products")
-                        .font(.system(size: 14, weight: .semibold))
+                        .font(.app(size: 14, relativeTo: .subheadline, weight: .bold))
                         .foregroundColor(themeColor)
                         .padding(.horizontal, 24)
                         .padding(.vertical, 8)
@@ -229,7 +229,7 @@ struct UnlimitedPaywallView: View {
         }) {
             VStack(spacing: 16) {
                 Text(product.displayName)
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(.app(size: 14, relativeTo: .subheadline, weight: .bold))
                     .foregroundColor(.white)
                     .multilineTextAlignment(.center)
                     .lineLimit(2)
@@ -239,10 +239,10 @@ struct UnlimitedPaywallView: View {
                     // StoreKit がロケール・通貨に応じて整形した価格文字列をそのまま表示する
                     // （地域ごとの通貨記号・小数桁に対応するため、手動整形はしない）
                     Text(product.displayPrice)
-                        .font(.system(size: 26, weight: .bold))
+                        .font(.app(size: 26, relativeTo: .title2, weight: .bold))
                     if isYearly {
                         Text("paywall.per_year")
-                            .font(.system(size: 14, weight: .medium))
+                            .font(.app(size: 14, relativeTo: .subheadline, weight: .regular))
                     }
                 }
                 .foregroundColor(isSelected ? themeColor : .white)
@@ -257,7 +257,7 @@ struct UnlimitedPaywallView: View {
                                 .frame(width: 12, height: 12)
                         }
                         Text(subtextKey)
-                            .font(.system(size: 13))
+                            .font(.app(size: 13, relativeTo: .footnote, weight: .regular))
                     }
                     .foregroundColor(.white.opacity(0.6))
                 } else {
@@ -282,7 +282,7 @@ struct UnlimitedPaywallView: View {
             .overlay(alignment: .top) {
                 if let badgeKey {
                     Text(badgeKey)
-                        .font(.system(size: 12, weight: .bold))
+                        .font(.app(size: 12, relativeTo: .caption, weight: .bold))
                         .foregroundColor(isSelected ? .black : .white)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 4)
@@ -311,7 +311,7 @@ struct UnlimitedPaywallView: View {
                         .tint(.black)
                 } else {
                     Text("paywall.upgrade")
-                        .font(.system(size: 17, weight: .semibold))
+                        .font(.app(size: 17, relativeTo: .body, weight: .bold))
                 }
             }
             .foregroundColor(.black)
@@ -351,7 +351,7 @@ struct UnlimitedPaywallView: View {
             
             Link("service.privacy", destination: LegalLink.privacy)
         }
-        .font(.system(size: 12))
+        .font(.app(size: 12, relativeTo: .caption, weight: .regular))
         .foregroundColor(.white.opacity(0.4))
     }
     

@@ -68,7 +68,7 @@ struct MonthlyLogShareView: View {
                 }
                 .animation(.easeOut(duration: 0.15), value: actionFeedback)
             pageDots
-                .padding(.top, 12)
+                .padding(.top, 8)
             recommendedRow
                 .padding(.top, 20)
             actionRow
@@ -124,7 +124,7 @@ struct MonthlyLogShareView: View {
             .frame(width: 24, height: 24)
 
             Text(feedback.title)
-                .font(.subheadline.weight(.semibold))
+                .font(.app(.subheadline, weight: .bold))
                 .foregroundStyle(.black)
         }
         .padding(.horizontal, 18)
@@ -154,7 +154,7 @@ struct MonthlyLogShareView: View {
             Spacer()
 
             Text("monthly_log_share.title")
-                .font(.headline)
+                .font(.app(.headline))
                 .foregroundStyle(.white)
 
             Spacer()
@@ -170,10 +170,15 @@ struct MonthlyLogShareView: View {
         GeometryReader { geometry in
             let spacing: CGFloat = 12
             let desiredPeek: CGFloat = 28
+            let displayScale: CGFloat = 0.85
             let maxCardWidth = max(1, geometry.size.width - 2 * (desiredPeek + spacing))
             let maxCardHeight = max(1, geometry.size.height - 8)
-            let actualCardSize = fittedPreviewSize(
+            let fitted = fittedPreviewSize(
                 in: CGSize(width: maxCardWidth, height: maxCardHeight)
+            )
+            let actualCardSize = CGSize(
+                width: fitted.width * displayScale,
+                height: fitted.height * displayScale
             )
             let sideInset = max(0, (geometry.size.width - actualCardSize.width) / 2)
 
@@ -185,7 +190,11 @@ struct MonthlyLogShareView: View {
                             template: template,
                             cardSize: actualCardSize
                         )
-                        .frame(width: actualCardSize.width, height: geometry.size.height)
+                        .frame(
+                            width: actualCardSize.width,
+                            height: geometry.size.height,
+                            alignment: .bottom
+                        )
                         .id(index)
                     }
                 }
@@ -215,6 +224,7 @@ struct MonthlyLogShareView: View {
                     .resizable()
                     .interpolation(.high)
                     .aspectRatio(contentMode: .fit)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 MonthlyLogShareCanvas(
                     snapshot: session.snapshot,
@@ -255,10 +265,10 @@ struct MonthlyLogShareView: View {
     private var recommendedRow: some View {
         VStack(spacing: 4) {
             Text("monthly_log_share.recommended")
-                .font(.caption)
+                .font(.app(.caption))
                 .foregroundStyle(.white.opacity(0.55))
             Text("monthly_log_share.recommended_destination")
-                .font(.subheadline.weight(.semibold))
+                .font(.app(.subheadline, weight: .bold))
                 .foregroundStyle(.white)
         }
     }
@@ -300,7 +310,7 @@ struct MonthlyLogShareView: View {
                     .frame(width: 52, height: 52)
                     .background(Circle().fill(Color.white.opacity(0.12)))
                 Text(title)
-                    .font(.caption)
+                    .font(.app(.caption))
             }
             .foregroundStyle(.white.opacity(enabled ? 1 : 0.35))
             .contentShape(Rectangle())

@@ -331,7 +331,7 @@ struct BookSearchView: View {
     ) -> some View {
         Button(action: action) {
             Text(title)
-                .font(.system(size: 13, weight: isSelected ? .semibold : .regular))
+                .font(.app(size: 13, weight: isSelected ? .bold : .regular))
                 .foregroundColor(isSelected ? Color(.systemBackground) : .primary)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 10)
@@ -390,7 +390,7 @@ struct BookSearchView: View {
                     Image(systemName: "info.circle")
                         .font(.caption2)
                     Text(creditTextKey)
-                        .font(.caption2)
+                        .font(.app(.caption2))
                 }
                 .foregroundColor(.primary)
             }
@@ -406,7 +406,7 @@ struct BookSearchView: View {
                         Int64(total)
                     )
                 )
-                .font(.caption2)
+                .font(.app(.caption2))
                 .foregroundColor(.secondary)
             }
         }
@@ -423,7 +423,7 @@ struct BookSearchView: View {
                     .foregroundColor(.secondary)
                 
                 TextField("book.search.placeholder", text: $searchText)
-                    .font(.system(size: 17))
+                    .font(.app(size: 17))
                     .textFieldStyle(.plain)
                     .focused($isSearchFocused)
                     .submitLabel(.search)
@@ -476,11 +476,11 @@ struct BookSearchView: View {
                 // 検索がエラーで失敗（0件とは区別し、再試行導線を出す・A-4）
                 VStack(spacing: 24) {
                     Text("book.search.error.title")
-                        .font(.headline)
+                        .font(.app(.headline))
                         .foregroundColor(.secondary)
                     
                     Text("book.search.error.message")
-                        .font(.subheadline)
+                        .font(.app(.subheadline))
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
                     
@@ -488,8 +488,7 @@ struct BookSearchView: View {
                         performSearch()
                     }) {
                         Text("book.search.retry")
-                            .font(.subheadline)
-                            .fontWeight(.medium)
+                            .font(.app(.subheadline))
                             .foregroundColor(.white)
                             .padding(.horizontal, 32)
                             .padding(.vertical, 14)
@@ -502,11 +501,11 @@ struct BookSearchView: View {
                 // 検索結果が0件の場合
                 VStack(spacing: 24) {
                     Text("book.search.not_found")
-                        .font(.headline)
+                        .font(.app(.headline))
                         .foregroundColor(.secondary)
                     
                     Text("book.search.try_other")
-                        .font(.subheadline)
+                        .font(.app(.subheadline))
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
                     
@@ -514,8 +513,7 @@ struct BookSearchView: View {
                         isShowingManualEntry = true
                     }) {
                         Text("book.search.manual_register")
-                            .font(.subheadline)
-                            .fontWeight(.medium)
+                            .font(.app(.subheadline))
                             .foregroundColor(.white)
                             .padding(.horizontal, 32)
                             .padding(.vertical, 14)
@@ -551,7 +549,7 @@ struct BookSearchView: View {
                                 ProgressView()
                                     .controlSize(.small)
                                 Text("book.search.loading_filtered")
-                                    .font(.caption)
+                                    .font(.app(.caption))
                                     .foregroundColor(.secondary)
                             }
                         }
@@ -589,7 +587,7 @@ struct BookSearchView: View {
                                         .frame(width: 20, height: 20)
 
                                         Text("book.search.register_destination")
-                                            .font(.system(size: 14))
+                                            .font(.app(size: 14))
                                             .foregroundColor(.primary)
 
                                         Text(
@@ -599,7 +597,7 @@ struct BookSearchView: View {
                                                 selectedPassbook?.name ?? L10n.string("account.title", locale: languageManager.resolvedLocale)
                                             )
                                         )
-                                        .font(.system(size: 14))
+                                        .font(.app(size: 14))
                                         .foregroundColor(themeColor)
                                     }
                                     .fixedSize()
@@ -632,7 +630,7 @@ struct BookSearchView: View {
                                         .foregroundColor(.primary)
 
                                     Text("book.search.sort_label")
-                                        .font(.system(size: 10))
+                                        .font(.app(size: 10))
                                         .foregroundColor(.primary)
                                 }
                                 .fixedSize()
@@ -653,7 +651,7 @@ struct BookSearchView: View {
                                 Text("book.search.no_format_match")
                             }
                         }
-                        .font(.subheadline)
+                        .font(.app(.subheadline))
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
                         .frame(maxWidth: .infinity, alignment: .center)
@@ -689,7 +687,7 @@ struct BookSearchView: View {
                                 Text(isLoadingMore ? "common.loading" : "book.search.load_more")
                             }
                             .frame(maxWidth: .infinity)
-                            .font(.subheadline)
+                            .font(.app(.subheadline))
                             .foregroundColor(.blue)
                             .padding(.vertical, 12)
                         }
@@ -732,7 +730,7 @@ struct BookSearchView: View {
                 Button("book.search.manual") {
                     isShowingManualEntry = true
                 }
-                .font(.footnote)
+                .font(.app(.footnote))
                 .foregroundColor(.primary)
             }
         }
@@ -1147,7 +1145,7 @@ struct ToastView: View {
 
     var body: some View {
         Text(message)
-            .font(.system(size: 13))
+            .font(.app(size: 13))
             .foregroundColor(textColor)
             .padding(.horizontal, 20)
             .padding(.vertical, 12)
@@ -1181,7 +1179,7 @@ struct BookSearchResultRow: View {
                         .frame(width: 50, height: 75)
                         .overlay {
                             Text("book.cover_none")
-                                .font(.system(size: 8))
+                                .font(.app(size: 8))
                                 .foregroundColor(.secondary)
                                 .multilineTextAlignment(.center)
                                 .padding(.horizontal, 4)
@@ -1191,7 +1189,7 @@ struct BookSearchResultRow: View {
                 // 登録済みバッジ（画像の下部にオーバーレイ）
                 if isRegistered {
                     Text("book.search.registered")
-                        .font(.system(size: 9))
+                        .font(.app(size: 9))
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 3)
@@ -1205,14 +1203,14 @@ struct BookSearchResultRow: View {
             VStack(alignment: .leading, spacing: 2) {
                 // タイトル
                 Text(result.title)
-                    .font(.subheadline)
+                    .font(.app(.subheadline))
                     .foregroundColor(isRegistered ? .secondary : .primary)
                     .lineLimit(2)
                 
                 // 著者名
                 if !result.author.isEmpty {
                     Text(result.author)
-                        .font(.caption2)
+                        .font(.app(.caption2))
                         .foregroundColor(.secondary)
                         .lineLimit(1)
                 }
@@ -1220,7 +1218,7 @@ struct BookSearchResultRow: View {
                 // 発行形態（文庫・単行本・コミック等）
                 if let format = result.displayFormat {
                     Text(format)
-                        .font(.caption2)
+                        .font(.app(.caption2))
                         .foregroundColor(.secondary)
                         .lineLimit(1)
                 }
@@ -1234,12 +1232,12 @@ struct BookSearchResultRow: View {
                 FormattedPriceText(
                     amount: price,
                     sourceCurrency: AppCurrency(code: result.sourceCurrencyCode) ?? .jpy,
-                    font: .subheadline
+                    font: .app(.subheadline)
                 )
                     .foregroundColor(isRegistered ? .secondary : themeColor)
             } else {
                 Text(verbatim: "-")
-                    .font(.subheadline)
+                    .font(.app(.subheadline))
                     .foregroundColor(isRegistered ? .secondary : themeColor)
             }
         }

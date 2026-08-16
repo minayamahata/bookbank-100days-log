@@ -71,7 +71,7 @@ struct AddReadingListView: View {
                 } else if allBooks.isEmpty {
                     VStack(spacing: 20) {
                         Text("readinglist.empty_register_first")
-                            .font(.body)
+                            .font(.app(.body))
                             .foregroundColor(.secondary)
                             .multilineTextAlignment(.center)
                         
@@ -80,8 +80,7 @@ struct AddReadingListView: View {
                             onNavigateToPassbook?()
                         }) {
                             Text("book.register")
-                                .font(.subheadline)
-                                .fontWeight(.medium)
+                                .font(.app(.subheadline))
                                 .foregroundColor(.white)
                                 .padding(.horizontal, 32)
                                 .padding(.vertical, 14)
@@ -91,12 +90,12 @@ struct AddReadingListView: View {
                 } else {
                     VStack(spacing: 32) {
                         Text("readinglist.name_prompt")
-                            .font(.body)
+                            .font(.app(.body))
                             .multilineTextAlignment(.center)
                             .foregroundColor(.primary)
                         
                         TextField("", text: $title)
-                            .font(.system(size: 20))
+                            .font(.app(size: 20))
                             .foregroundColor(.primary)
                             .multilineTextAlignment(.center)
                             .focused($isFocused)
@@ -116,7 +115,7 @@ struct AddReadingListView: View {
                             startBookSelection()
                         }) {
                             Text("common.create")
-                                .font(.subheadline)
+                                .font(.app(.subheadline))
                                 .foregroundColor(.white)
                                 .padding(.horizontal, 32)
                                 .padding(.vertical, 14)

@@ -69,7 +69,7 @@ struct BarcodeScannerView: View {
                         
                         // ガイドテキスト（枠の下に配置）
                         Text("barcode.align")
-                            .font(.subheadline)
+                            .font(.app(.subheadline))
                             .foregroundColor(.white)
                             .shadow(color: .black, radius: 2, x: 0, y: 1)
                             .position(
@@ -118,17 +118,17 @@ struct BarcodeScannerView: View {
                         .foregroundColor(.gray)
                     
                     Text("barcode.camera_required")
-                        .font(.headline)
+                        .font(.app(.headline))
                         .foregroundColor(.white)
                     
                     Text("barcode.camera_permission")
-                        .font(.subheadline)
+                        .font(.app(.subheadline))
                         .foregroundColor(.gray)
                         .multilineTextAlignment(.center)
                     
                     Button(action: openSettings) {
                         Text("book.camera.open_settings")
-                            .font(.headline)
+                            .font(.app(.headline))
                             .foregroundColor(.white)
                             .padding()
                             .frame(maxWidth: .infinity)
@@ -156,7 +156,7 @@ struct BarcodeScannerView: View {
                     Spacer()
                     
                     Text(error)
-                        .font(.subheadline)
+                        .font(.app(.subheadline))
                         .foregroundColor(.white)
                         .padding()
                         .background(Color.red.opacity(0.8))

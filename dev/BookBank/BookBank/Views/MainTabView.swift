@@ -697,7 +697,7 @@ struct MainTabView: View {
                         Text(passbookSwitcherTitle)
                     }
                 }
-                .font(.caption)
+                .font(.app(.caption))
                 .lineLimit(1)
 
                 Image(systemName: "chevron.down")
@@ -773,7 +773,7 @@ struct MainTabView: View {
                     .foregroundColor(.gray)
                 
                 Text("account.empty")
-                    .font(.headline)
+                    .font(.app(.headline))
                     .foregroundColor(.secondary)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)

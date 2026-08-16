@@ -173,7 +173,7 @@ struct BookshelfCalendarView<Header: View>: View {
 
     private func yearHeader(year: Int) -> some View {
         Text(verbatim: String(year))
-            .font(.system(size: 34, weight: .bold))
+            .font(.app(size: 34, weight: .bold))
             .foregroundColor(colorScheme == .dark ? .white : .black)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 16)
@@ -187,22 +187,21 @@ struct BookshelfCalendarView<Header: View>: View {
             // 月ヘッダー
             HStack(spacing: 8) {
                 Text(formattedMonth(month: month))
-                    .font(.title3)
-                    .fontWeight(.semibold)
+                    .font(.app(.title3, weight: .bold))
                     .foregroundColor(colorScheme == .dark ? .white : .black)
 
                 if !books.isEmpty {
                     HStack(spacing: 0) {
                         DisplayCurrencyPriceText(
                             amount: books.totalDisplayAmount(in: currencyManager.displayCurrency, exchangeRates: exchangeRates),
-                            font: .system(size: 16)
+                            font: .app(size: 16)
                         )
 
                         Text(" （")
-                            .font(.system(size: 16))
-                        BooksCountText(count: books.count, font: .system(size: 16), locale: languageManager.resolvedLocale)
+                            .font(.app(size: 16))
+                        BooksCountText(count: books.count, font: .app(size: 16), locale: languageManager.resolvedLocale)
                         Text(" ）")
-                            .font(.system(size: 16))
+                            .font(.app(size: 16))
                     }
                     .foregroundColor(.primary)
                 }
@@ -284,7 +283,7 @@ struct BookshelfCalendarView<Header: View>: View {
         LazyVGrid(columns: weekColumns, spacing: 4) {
             ForEach(Array(weekdaySymbols.enumerated()), id: \.offset) { _, symbol in
                 Text(symbol)
-                    .font(.system(size: 11, weight: .medium))
+                    .font(.app(size: 11))
                     .foregroundColor(colorScheme == .dark ? .white.opacity(0.5) : .black.opacity(0.5))
                     .frame(maxWidth: .infinity)
             }
@@ -374,18 +373,18 @@ struct BookshelfCalendarView<Header: View>: View {
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(book.title)
-                    .font(.subheadline)
+                    .font(.app(.subheadline))
                     .foregroundColor(.primary)
                     .lineLimit(2)
 
                 if let author = book.author, !author.isEmpty {
                     Text(author)
-                        .font(.caption)
+                        .font(.app(.caption))
                         .foregroundColor(.secondary)
                         .lineLimit(1)
                 }
 
-                BookPriceText(book: book, font: .caption, symbolFont: .caption2)
+                BookPriceText(book: book, font: .app(.caption), symbolFont: .app(.caption2))
                     .foregroundColor(.secondary)
             }
 
@@ -436,13 +435,13 @@ struct BookshelfCalendarView<Header: View>: View {
             .clipShape(RoundedRectangle(cornerRadius: 2))
             .overlay {
                 Text("\(day)")
-                    .font(.system(size: 17, weight: .medium))
+                    .font(.app(size: 17))
                     .foregroundColor(.white)
             }
             .overlay(alignment: .topTrailing) {
                 if extraCount > 0 {
                     Text("+\(extraCount)")
-                        .font(.system(size: 9, weight: .semibold))
+                        .font(.app(size: 9, weight: .bold))
                         .foregroundColor(.white)
                         .padding(.horizontal, 4)
                         .padding(.vertical, 1)
@@ -462,7 +461,7 @@ struct BookshelfCalendarView<Header: View>: View {
             .frame(maxWidth: .infinity)
             .overlay {
                 Text("\(day)")
-                    .font(.system(size: 17, weight: .medium))
+                    .font(.app(size: 17))
                     .foregroundColor(colorScheme == .dark ? .white.opacity(0.3) : .black.opacity(0.3))
             }
     }
