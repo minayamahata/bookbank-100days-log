@@ -24,6 +24,15 @@ struct BookshelfCalendarView<Header: View>: View {
     /// （`docs/bug-review-2026-07-06.md` D-4の後日変更・2026-08-13）
     let onSelectDayBook: (BookDTO) -> Void
 
+    /// 月ヘッダーの共有ボタン。その月を対象にマンスリーログ共有画面を開く
+    var onShareMonth: (Int, Int) -> Void = { _, _ in }
+
+    /// 同日複数冊シートの表示状態。スクリーンショット検知の二重表示防止に使う
+    var onDaySheetPresentedChange: (Bool) -> Void = { _ in }
+
+    /// カレンダーViewが実際に前面か。push先では onDisappear で false になる
+    var onForegroundChange: (Bool) -> Void = { _ in }
+
     /// スクロールに追従して流れる先頭要素（フィルター行など）
     @ViewBuilder var header: () -> Header
 
@@ -145,6 +154,7 @@ struct BookshelfCalendarView<Header: View>: View {
             .padding(.bottom, 100)
         }
         .sheet(item: $selectedDay, onDismiss: {
+            onDaySheetPresentedChange(false)
             // 本を選ばずスワイプで閉じた場合は pendingDayBook が nil のまま＝何も開かない
             guard let book = pendingDayBook else { return }
             pendingDayBook = nil
@@ -152,6 +162,11 @@ struct BookshelfCalendarView<Header: View>: View {
         }) { selection in
             dayBooksSheet(selection)
         }
+        .onChange(of: selectedDay != nil) { _, presented in
+            onDaySheetPresentedChange(presented)
+        }
+        .onAppear { onForegroundChange(true) }
+        .onDisappear { onForegroundChange(false) }
     }
 
     // MARK: - 年見出し（スクロール時に上部固定）
@@ -194,6 +209,25 @@ struct BookshelfCalendarView<Header: View>: View {
 
                 Spacer()
 
+                Button {
+                    onShareMonth(year, month)
+                } label: {
+                    Image("icon-share")
+                        .renderingMode(.template)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 16, height: 16)
+                        .foregroundColor(colorScheme == .dark ? .white : .black)
+                        .frame(width: 32, height: 32)
+                        .background(
+                            Circle()
+                                .fill(colorScheme == .dark ? Color.white.opacity(0.12) : Color.black.opacity(0.06))
+                        )
+                        .contentShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(Text("monthly_log_share.share_month"))
+
                 // 月別メモは口座横断（年月ごとに1つ）のため、全口座のカレンダーで表示する
                 Button {
                     onMonthlyMemo(year, month)
@@ -219,6 +253,20 @@ struct BookshelfCalendarView<Header: View>: View {
             calendarGrid(year: year, month: month, books: books)
         }
         .padding(.horizontal, 16)
+        .background {
+            GeometryReader { geometry in
+                Color.clear.preference(
+                    key: MonthlyLogShareMonthFrameKey.self,
+                    value: [
+                        MonthlyLogShareVisibleMonth.Candidate(
+                            year: year,
+                            month: month,
+                            frame: geometry.frame(in: .global)
+                        )
+                    ]
+                )
+            }
+        }
     }
 
     // MARK: - 曜日見出し
@@ -246,13 +294,11 @@ struct BookshelfCalendarView<Header: View>: View {
     // MARK: - カレンダーグリッド
 
     private func calendarGrid(year: Int, month: Int, books: [BookDTO]) -> some View {
-        let booksByDay = groupByDay(books)
-        let leadingBlanks = leadingBlankCount(year: year, month: month)
-        let dayCount = daysInMonth(year: year, month: month)
+        let layout = MonthlyCalendarLayout.make(year: year, month: month, books: books, calendar: calendar)
 
         return LazyVGrid(columns: weekColumns, spacing: 4) {
             // 月初の曜日に合わせた空白セル
-            ForEach(0..<leadingBlanks, id: \.self) { index in
+            ForEach(0..<layout.leadingBlankCount, id: \.self) { index in
                 Color.clear
                     .aspectRatio(2 / 3, contentMode: .fit)
                     .frame(maxWidth: .infinity)
@@ -260,8 +306,8 @@ struct BookshelfCalendarView<Header: View>: View {
             }
 
             // 1〜月末の各日
-            ForEach(1...max(dayCount, 1), id: \.self) { day in
-                dayCell(year: year, month: month, day: day, books: booksByDay[day] ?? [])
+            ForEach(layout.days) { day in
+                dayCell(year: year, month: month, day: day.day, books: day.books)
             }
         }
     }
@@ -449,42 +495,6 @@ struct BookshelfCalendarView<Header: View>: View {
     }
 
     // MARK: - ヘルパー
-
-    /// その月の本を「日 -> 書籍配列（新しい順）」にまとめる
-    private func groupByDay(_ books: [BookDTO]) -> [Int: [BookDTO]] {
-        var result: [Int: [BookDTO]] = [:]
-        for book in books {
-            let day = calendar.component(.day, from: book.registeredAt)
-            result[day, default: []].append(book)
-        }
-        for key in result.keys {
-            result[key]?.sort { $0.registeredAt > $1.registeredAt }
-        }
-        return result
-    }
-
-    /// 月初の曜日に合わせた先頭空白セル数
-    private func leadingBlankCount(year: Int, month: Int) -> Int {
-        var components = DateComponents()
-        components.year = year
-        components.month = month
-        components.day = 1
-        guard let firstDay = calendar.date(from: components) else { return 0 }
-        let weekday = calendar.component(.weekday, from: firstDay) // 1 = 日曜
-        return (weekday - calendar.firstWeekday + 7) % 7
-    }
-
-    /// その月の日数
-    private func daysInMonth(year: Int, month: Int) -> Int {
-        var components = DateComponents()
-        components.year = year
-        components.month = month
-        guard let date = calendar.date(from: components),
-              let range = calendar.range(of: .day, in: .month, for: date) else {
-            return 30
-        }
-        return range.count
-    }
 
     /// 言語に応じた月表記（例: 6月 / June）
     private func formattedMonth(month: Int) -> String {

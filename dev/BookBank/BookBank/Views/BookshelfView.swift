@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import UIKit
 
 /// 本棚画面
 struct BookshelfView: View {
@@ -19,7 +20,10 @@ struct BookshelfView: View {
     let managesCalendarChrome: Bool
 
     @Environment(LanguageManager.self) private var languageManager
+    @Environment(CurrencyManager.self) private var currencyManager
+    @Environment(ExchangeRateService.self) private var exchangeRates
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.scenePhase) private var scenePhase
     @Environment(AppRepositories.self) private var repos
     @Environment(BookshelfChromeState.self) private var bookshelfChromeState
     
@@ -53,10 +57,9 @@ struct BookshelfView: View {
     /// NavigationLink ではなくここで item ベースのpushにする）
     @State private var searchRegistrationTarget: BookSearchDestination?
 
-    /// 月別メモ編集用（口座横断・年月ごとに1つ。全口座のカレンダーから編集可能）
-    /// 年・月・本文を1つの値で持ち、`.sheet(item:)` で開くことで
-    /// 常に正しい月のデータで開き直され、別の月のメモを保存してしまう不具合を防ぐ
-    @State private var monthlyMemoTarget: MonthlyMemoTarget?
+    /// 月別メモとマンスリーログ共有は同じ `.sheet(item:)` から出す。
+    /// 2つの sheet modifier を並べると、片方しか開かないことがあるため。
+    @State private var calendarSheet: CalendarSheetRoute?
 
     /// 月別メモシートの対象
     private struct MonthlyMemoTarget: Identifiable {
@@ -66,11 +69,32 @@ struct BookshelfView: View {
         var id: String { "\(year)-\(month)" }
     }
 
+    private enum CalendarSheetRoute: Identifiable {
+        case monthlyMemo(MonthlyMemoTarget)
+        case monthlyLogShare(MonthlyLogShareSession)
+
+        var id: String {
+            switch self {
+            case .monthlyMemo(let target):
+                return "memo-\(target.id)"
+            case .monthlyLogShare(let session):
+                return "share-\(session.id)"
+            }
+        }
+    }
+
     /// 通常のNavigationStackから詳細をpushする対象の本。使い道は2つ:
     /// - カレンダーの同日複数冊一覧シートで選ばれた本（一覧シートのdismiss完了後にセット。
     ///   シート内へpushすると詳細を物理画面最上端まで展開できないため。D-4の後日変更・2026-08-13）
     /// - 検索結果グリッドで選ばれた本（`ShelfSearchView` のコールバック経由）
     @State private var selectedDetailBook: BookDTO?
+
+    /// マンスリーログ共有の表紙準備（スクリーンショットまたは月ヘッダーの共有ボタン）
+    @State private var monthlyLogSharePreparation = MonthlyLogSharePreparation()
+    @State private var isCalendarInForeground = false
+    @State private var visibleMonthCandidates: [MonthlyLogShareVisibleMonth.Candidate] = []
+    @State private var calendarViewport: CGRect = .zero
+    @State private var isDaySheetPresented = false
     
     /// 口座に紐づく書籍（総合口座の場合は全書籍）
     private var passbookBooks: [BookDTO] {
@@ -225,7 +249,7 @@ struct BookshelfView: View {
         _showFavoritesOnly = State(initialValue: false)
         _showWithMemoOnly = State(initialValue: false)
         _showCalendarView = State(initialValue: startsWithCalendarView)
-        _monthlyMemoTarget = State(initialValue: nil)
+        _calendarSheet = State(initialValue: nil)
     }
     
     // MARK: - Body
@@ -245,10 +269,30 @@ struct BookshelfView: View {
                         // 一覧シートのdismiss完了後に呼ばれる。通常のNavigationStackから詳細をpushする
                         selectedDetailBook = book
                     },
+                    onShareMonth: { year, month in
+                        openMonthlyLogShare(year: year, month: month)
+                    },
+                    onDaySheetPresentedChange: { presented in
+                        isDaySheetPresented = presented
+                    },
+                    onForegroundChange: { isFront in
+                        isCalendarInForeground = isFront
+                        if !isFront {
+                            monthlyLogSharePreparation.cancel()
+                        }
+                    },
                     header: {
                         EmptyView()
                     }
                 )
+                .onPreferenceChange(MonthlyLogShareMonthFrameKey.self) { candidates in
+                    visibleMonthCandidates = candidates
+                }
+                .onGeometryChange(for: CGRect.self) { proxy in
+                    proxy.frame(in: .global)
+                } action: { _, frame in
+                    calendarViewport = frame
+                }
             } else {
                 // 本棚内検索（R4.6）は通常表示を残したまま上に重ねる。
                 // 差し替え（作り直し）にすると閉じるたびにグリッドの再構築が走って
@@ -335,6 +379,9 @@ struct BookshelfView: View {
             // カレンダーへ切り替えたら本棚内検索モードを解除する（仕様3.5）
             if newValue {
                 exitShelfSearch()
+            } else {
+                isCalendarInForeground = false
+                monthlyLogSharePreparation.cancel()
             }
         }
         .onChange(of: bookshelfChromeState.isCalendar) { _, newValue in
@@ -350,19 +397,47 @@ struct BookshelfView: View {
                 isSearching = newValue
             }
         }
-        .sheet(item: $monthlyMemoTarget) { target in
-            MemoEditorView(
-                memo: .constant(target.text),
-                title: "bookshelf.monthly_log"
-            ) { newText in
-                // 失敗は現行同様に静かに飲む（リポジトリ内でOSLog記録・rollback済み。設計メモ 4.5節）
-                Task {
-                    try? await repos.monthlyMemos.saveMemo(
-                        year: target.year,
-                        month: target.month,
-                        text: newText
-                    )
+        .sheet(item: $calendarSheet) { route in
+            switch route {
+            case .monthlyMemo(let target):
+                MemoEditorView(
+                    memo: .constant(target.text),
+                    title: "bookshelf.monthly_log"
+                ) { newText in
+                    // 失敗は現行同様に静かに飲む（リポジトリ内でOSLog記録・rollback済み。設計メモ 4.5節）
+                    Task {
+                        try? await repos.monthlyMemos.saveMemo(
+                            year: target.year,
+                            month: target.month,
+                            text: newText
+                        )
+                    }
                 }
+            case .monthlyLogShare(let session):
+                MonthlyLogShareView(session: session) {
+                    calendarSheet = nil
+                }
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.userDidTakeScreenshotNotification)) { notification in
+            handleScreenshot(notification)
+        }
+        .overlay {
+            if monthlyLogSharePreparation.isPreparing {
+                ZStack {
+                    Color.black.opacity(0.28).ignoresSafeArea()
+                    VStack(spacing: 12) {
+                        ProgressView()
+                            .tint(.white)
+                        Text("monthly_log_share.preparing")
+                            .font(.footnote)
+                            .foregroundStyle(.white)
+                    }
+                    .padding(.horizontal, 22)
+                    .padding(.vertical, 18)
+                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
+                }
+                .allowsHitTesting(true)
             }
         }
     }
@@ -659,6 +734,80 @@ struct BookshelfView: View {
 
     // MARK: - Monthly Memo
 
+    private var isMonthlyMemoPresented: Bool {
+        if case .monthlyMemo = calendarSheet { return true }
+        return false
+    }
+
+    private var isMonthlyLogSharePresented: Bool {
+        if case .monthlyLogShare = calendarSheet { return true }
+        return false
+    }
+
+    private var screenshotGate: MonthlyLogShareScreenshotGate {
+        MonthlyLogShareScreenshotGate(
+            isAppActive: scenePhase == .active,
+            isCalendarVisible: showCalendarView,
+            isCalendarInForeground: isCalendarInForeground,
+            isSharePresented: isMonthlyLogSharePresented,
+            isPreparing: monthlyLogSharePreparation.isPreparing,
+            isMonthlyMemoPresented: isMonthlyMemoPresented,
+            isDaySheetPresented: isDaySheetPresented,
+            hasOtherCoveringModal: selectedDetailBook != nil || searchRegistrationTarget != nil
+        )
+    }
+
+    private func handleScreenshot(_ notification: Notification) {
+        guard MonthlyLogShareScreenshotRouting.shouldPresent(notification: notification, gate: screenshotGate) else {
+            return
+        }
+        let selected = MonthlyLogShareVisibleMonth.select(
+            candidates: visibleMonthCandidates,
+            viewport: calendarViewport
+        ) ?? MonthlyLogShareVisibleMonth.currentMonth(calendar: .current)
+        openMonthlyLogShare(year: selected.year, month: selected.month)
+    }
+
+    private func openMonthlyLogShare(year: Int, month: Int) {
+        let books = passbookBooks
+        let currency = currencyManager.displayCurrency
+        let locale = languageManager.resolvedLocale
+        monthlyLogSharePreparation.start(
+            shouldStart: MonthlyLogShareScreenshotRouting.shouldStartPreparation(gate: screenshotGate),
+            prepare: {
+                let snapshot = MonthlyLogShareSnapshot.make(
+                    year: year,
+                    month: month,
+                    passbookBooks: books,
+                    displayCurrency: currency,
+                    exchangeRates: exchangeRates,
+                    calendar: .current,
+                    locale: locale
+                )
+                try Task.checkCancellation()
+                let covers = await MonthlyLogShareCoverResolver.resolve(
+                    books: snapshot.books,
+                    loadLocalCover: { bookId in
+                        await repos.books.loadCoverImage(bookId: bookId)
+                    }
+                )
+                try Task.checkCancellation()
+                return MonthlyLogShareSession(
+                    year: year,
+                    month: month,
+                    snapshot: snapshot,
+                    covers: covers
+                )
+            },
+            canCommit: {
+                MonthlyLogShareScreenshotRouting.canCommitPreparedSession(gate: screenshotGate)
+            },
+            commit: { session in
+                calendarSheet = .monthlyLogShare(session)
+            }
+        )
+    }
+
     private func openMonthlyMemo(year: Int, month: Int) {
         // observeMemo は購読開始時に現在値を即yieldするため、先頭値の取得＝現行fetchと同義
         Task {
@@ -667,7 +816,9 @@ struct BookshelfView: View {
                 text = memo?.text ?? ""
                 break
             }
-            monthlyMemoTarget = MonthlyMemoTarget(year: year, month: month, text: text)
+            calendarSheet = .monthlyMemo(
+                MonthlyMemoTarget(year: year, month: month, text: text)
+            )
         }
     }
 }

@@ -6,6 +6,8 @@
 	<string>AppIcon</string>
 	<key>UILaunchScreen</key>
 	<dict/>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>マンスリーログの画像を写真に保存するために使用します</string>
 	<key>UIAppFonts</key>
 	<array>
 		<string>Inter-Regular.otf</string>
