@@ -493,7 +493,8 @@ struct YearlyChartContent: View {
             DisplayCurrencyPriceText(
                 amount: amount,
                 font: .app(.title),
-                symbolFont: .app(.caption)
+                symbolFont: .app(.caption),
+                scalesToFit: true
             )
                 .foregroundStyle(
                     LinearGradient(
@@ -540,7 +541,7 @@ struct YearlyChartContent: View {
     private var combinedChart: some View {
         VStack(spacing: 36) {
             // 金額グラフ（上段）
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 24) {
                 Text("statistics.amount")
                     .font(.app(.subheadline))
                     .foregroundColor(.secondary)
@@ -618,7 +619,7 @@ struct YearlyChartContent: View {
             }
             
             // 冊数グラフ（下段）
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 24) {
                 Text("statistics.book_count")
                     .font(.app(.subheadline))
                     .foregroundColor(.secondary)
@@ -699,8 +700,8 @@ struct YearlyChartContent: View {
 /// 集計サマリーカード専用のガラス背景。
 /// 共通の `glassSectionCard`（ダークは `.clear` で透明）とは異なり、
 /// ライト・ダークとも同じ `.regular` マテリアルを使って透過レベルを揃える。
-/// ダークはテーマ色グラデ数字と干渉しないよう、`.regular` を黒でティントする
-/// （ライトの半透明な白と対になる、半透明な黒）。
+/// ライトは白 25% をティントしてガラスを少し濃くする。
+/// ダークはテーマ色グラデ数字と干渉しないよう、`.regular` を黒でティントする。
 private struct StatsGlassCardModifier: ViewModifier {
     var cornerRadius: CGFloat = 8
 
@@ -720,7 +721,10 @@ private struct StatsGlassCardModifier: ViewModifier {
                     .glassEffect(.regular.tint(.black), in: .rect(cornerRadius: cornerRadius))
             } else {
                 content
-                    .glassEffect(.regular, in: .rect(cornerRadius: cornerRadius))
+                    .glassEffect(
+                        .regular.tint(Color.white.opacity(0.25)),
+                        in: .rect(cornerRadius: cornerRadius)
+                    )
             }
         }
         .overlay(

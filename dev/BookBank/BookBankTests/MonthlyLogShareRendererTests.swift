@@ -78,6 +78,11 @@ struct MonthlyLogShareRendererTests {
         return try! #require(data)
     }
 
+    @Test func shareCanvasKeepsZeroLineSpacing() {
+        #expect(AppTypography.shareImageLineSpacing == 0)
+        #expect(AppTypography.interfaceLineSpacing(for: .japanese) == 1)
+    }
+
     @Test func templatesHaveExpectedFlags() {
         #expect(MonthlyLogShareTemplate.calendarSummary.showsAmount)
         #expect(MonthlyLogShareTemplate.minimalSummary.showsAmount)
@@ -211,6 +216,24 @@ struct MonthlyLogShareRendererTests {
             drawing.fontName == AppTypography.enBoldName
                 || drawing.fontName.contains("LINESeedSans")
         )
+    }
+
+    @Test func japaneseAmountTemplatesKeepContentInsetFromEdges() throws {
+        let snapshot = snapshot(
+            books: [book(id: "yen", day: 16, price: 472_511)],
+            locale: Locale(identifier: "ja")
+        )
+        for template in [MonthlyLogShareTemplate.calendarSummary, .minimalSummary] {
+            try assertMasterAndCroppedExport(snapshot, template)
+            let data = png(snapshot, template)
+            let image = try #require(UIImage(data: data))
+            let cgImage = try #require(image.cgImage)
+            let opaque = try #require(MonthlyLogShareImageTrimmer.opaquePixelBounds(in: cgImage))
+            #expect(opaque.minX >= 1, "\(template) 左端に文字が接しない")
+            #expect(opaque.minY >= 1, "\(template) 上端に文字が接しない")
+            #expect(opaque.maxX <= CGFloat(cgImage.width) - 1, "\(template) 右端に文字が接しない")
+            #expect(opaque.maxY <= CGFloat(cgImage.height) - 1, "\(template) 下端に文字が接しない")
+        }
     }
 
     @Test func monthAndWeekdayDoNotDependOnAppLanguage() {

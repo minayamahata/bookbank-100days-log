@@ -37,9 +37,9 @@ enum AppTypography {
         }
     }
 
-    /// OTF から実測した PostScript 名。ファイル名とは一致しない。
-    static let jpRegularName = "LINESeedJPApp_OTF-Regular"
-    static let jpBoldName = "LINESeedJPApp_OTF-Bold"
+    /// 実測した PostScript 名。日本語 TTF はファイル名と一致し、他言語 OTF は一致しない。
+    static let jpRegularName = "LINESeedJP-Regular"
+    static let jpBoldName = "LINESeedJP-Bold"
     static let enRegularName = "LINESeedSansApp-Regular"
     static let enBoldName = "LINESeedSansApp-Bold"
     static let krRegularName = "LINESeedSansKR-Regular"
@@ -49,16 +49,16 @@ enum AppTypography {
     static let pingFangRegularName = "PingFangSC-Regular"
     static let pingFangBoldName = "PingFangSC-Semibold"
 
-    /// バンドルへ入れるファイル（拡張子なし）と、対応する PostScript 名。
-    static let bundledFonts: [(resource: String, postScriptName: String)] = [
-        ("LINESeedJP_A_OTF_Rg", jpRegularName),
-        ("LINESeedJP_A_OTF_Bd", jpBoldName),
-        ("LINESeedSans_A_Rg", enRegularName),
-        ("LINESeedSans_A_Bd", enBoldName),
-        ("LINESeedKR-Rg", krRegularName),
-        ("LINESeedKR-Bd", krBoldName),
-        ("LINESeedTW_OTF_Rg", twRegularName),
-        ("LINESeedTW_OTF_Bd", twBoldName)
+    /// バンドルへ入れるファイル（拡張子なし）と、拡張子・PostScript 名。
+    static let bundledFonts: [(resource: String, fileExtension: String, postScriptName: String)] = [
+        ("LINESeedJP-Regular", "ttf", jpRegularName),
+        ("LINESeedJP-Bold", "ttf", jpBoldName),
+        ("LINESeedSans_A_Rg", "otf", enRegularName),
+        ("LINESeedSans_A_Bd", "otf", enBoldName),
+        ("LINESeedKR-Rg", "otf", krRegularName),
+        ("LINESeedKR-Bd", "otf", krBoldName),
+        ("LINESeedTW_OTF_Rg", "otf", twRegularName),
+        ("LINESeedTW_OTF_Bd", "otf", twBoldName)
     ]
 
     static func language(from locale: Locale) -> AppLanguage {
@@ -69,6 +69,16 @@ enum AppTypography {
     static func resolvedLanguage(_ language: AppLanguage? = nil) -> AppLanguage {
         let value = language ?? AppLanguage.effective
         return value == .system ? AppLanguage.inferred() : value
+    }
+
+    /// 日本語の通常 SwiftUI 画面だけ、複数行の行間へ足す値。1行の高さは変わらない。
+    static let japaneseInterfaceLineSpacing: CGFloat = 1
+    /// 共有 PNG は通常 UI の行間を継承しない。
+    static let shareImageLineSpacing: CGFloat = 0
+
+    /// 通常 SwiftUI 画面の行間。`system` は実効言語へ解決してから判定する。
+    static func interfaceLineSpacing(for language: AppLanguage? = nil) -> CGFloat {
+        resolvedLanguage(language) == .japanese ? japaneseInterfaceLineSpacing : 0
     }
 
     static func defaultWeight(for style: Font.TextStyle) -> Weight {

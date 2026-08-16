@@ -1,7 +1,7 @@
 # マンスリーログ共有 設計メモ（R4.6「スクリーンショットの画像候補」）
 
 作成日: 2026-08-16
-更新日: 2026-08-16
+更新日: 2026-08-16（共有キャンバスは通常 UI の日本語行間を継承せず `lineSpacing(0)`）
 ステータス: **オーナー確定（2026-08-16）・実装済み**
 関連文書:
 
@@ -102,15 +102,17 @@ Utils の純粋関数と、クライアント内の画像生成・写真保存�
 - プレビューの市松模様は出力画像へ含めない
 - 月名・曜日は英語固定
 - 合計金額・冊数・通貨単位はアプリ言語と表示通貨
-- BookBank ワードマークは既存の `brand.bookbank` を LINE Seed Sans EN Bold で描く（完成済みワードマーク SVG は未提供。差し替えは別作業）
+- BookBank ワードマークはオーナー提供の `img_bookbank_logo.svg`（Fearlessly Authentic の字形）を使う。高さは従来の 18／22pt に合わせる
 - 0冊でも生成可能
 - 表紙取得失敗時はプレースホルダーで生成を続ける
 
 共有画像の文字:
 
-- 月名・曜日・年（月の隣）・カレンダー日付・`+N`・ワードマークは LINE Seed Sans EN（固定サイズ。Dynamic Type は掛けない）
+- 月名・曜日・年（月の隣）・カレンダー日付・`+N` は LINE Seed Sans EN（固定サイズ。Dynamic Type は掛けない）
+- BookBank ワードマークは `img_bookbank_logo.svg`。文字フォントでは描かない
 - 金額・冊数・単位などローカライズ文字は `snapshot.locale` に対応するフォント
 - SwiftUI の描画と `UIFont` による事前計測は同じ `AppTypography.fixedUIFont` を使う
+- `MonthlyLogShareCanvas` は `lineSpacing(0)` で固定する。通常 UI の日本語 `lineSpacing(1)` を継承しない。共有画面のタイトルやボタンは通常 UI の行間を使ってよい
 
 LINE Seed の再配布・画像焼き込み条件はリポジトリ内に無い。App Store 提出前のライセンス確認は `docs/typography-design.md` の人間タスクに集約する。
 

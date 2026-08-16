@@ -110,6 +110,7 @@ struct BookBankApp: App {
                 .environment(exchangeRateService)
                 .environment(repositories)
                 .environment(\.locale, languageManager.resolvedLocale)
+                .lineSpacing(AppTypography.interfaceLineSpacing(for: languageManager.currentLanguage))
                 .preferredColorScheme(themeManager.currentTheme.colorScheme)
         }
         .modelContainer(modelContainer)
@@ -165,6 +166,7 @@ struct RootView: View {
             .environment(exchangeRateService)
             .environment(repositories)
             .environment(\.locale, languageManager.resolvedLocale)
+            .lineSpacing(AppTypography.interfaceLineSpacing(for: languageManager.currentLanguage))
         }
         .onChange(of: languageManager.currentLanguage) { _, _ in
             BookBankApp.configureNavigationBarAppearance()

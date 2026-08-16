@@ -114,6 +114,12 @@ let themeColor = PassbookColor.color(for: passbook, in: customPassbooks)
 ウェイトは Regular と Bold の2段階（thin〜medium → Regular、semibold〜black → Bold）。
 `.headline` の既定は Bold。SF Symbols のサイズ指定はシステムフォントのまま。
 
+日本語は Google Fonts 公式の LINE Seed JP（コンパクトな縦メトリクス）を使う。
+通常の SwiftUI 画面だけ、日本語のとき行間を 1pt 足す（`lineSpacing(1)`。1行の高さは変わらない）。
+英語・韓国語・繁体字・簡体字は 0pt。マンスリーログ共有 PNG など固定画像は 0pt。
+`leading(.tight)` / `leading(.loose)`、負の `lineSpacing`、baselineOffset による調整はしない。
+英語・韓国語・繁体字は公式配布パッケージの OTF、簡体字は PingFang SC／システムフォント。
+
 ### フォントサイズ一覧
 
 | 用途 | フォント | 例 |

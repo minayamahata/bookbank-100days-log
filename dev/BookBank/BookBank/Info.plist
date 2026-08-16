@@ -10,8 +10,8 @@
 	<string>マンスリーログの画像を写真に保存するために使用します</string>
 	<key>UIAppFonts</key>
 	<array>
-		<string>LINESeedJP_A_OTF_Rg.otf</string>
-		<string>LINESeedJP_A_OTF_Bd.otf</string>
+		<string>LINESeedJP-Regular.ttf</string>
+		<string>LINESeedJP-Bold.ttf</string>
 		<string>LINESeedSans_A_Rg.otf</string>
 		<string>LINESeedSans_A_Bd.otf</string>
 		<string>LINESeedKR-Rg.otf</string>

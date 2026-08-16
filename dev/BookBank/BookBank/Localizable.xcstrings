@@ -10623,6 +10623,7 @@
       }
     },
     "splash.tagline" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {

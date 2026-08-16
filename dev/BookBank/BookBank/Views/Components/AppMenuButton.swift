@@ -40,6 +40,8 @@ struct FormattedPriceText: View {
     var fontWeight: Font.Weight = .regular
     /// 通貨記号用フォント（nil の場合は数字より小さめのサイズ）
     var symbolFont: Font?
+    /// 狭い枠だけで数字を縮小する。通常の合計表示では使わない。
+    var scalesToFit: Bool = false
 
     private var resolvedSymbolFont: Font {
         symbolFont ?? .app(.caption, weight: AppTypography.Weight(fontWeight))
@@ -53,24 +55,16 @@ struct FormattedPriceText: View {
 
         if let amount {
             let converted = exchangeRates.convert(amount, from: sourceCurrency, to: displayCurrency)
-            let parts = MoneyDisplay.formatParts(
-                amount: converted,
-                currency: displayCurrency,
-                locale: languageManager.resolvedLocale
+            PricePartsStack(
+                parts: MoneyDisplay.formatParts(
+                    amount: converted,
+                    currency: displayCurrency,
+                    locale: languageManager.resolvedLocale
+                ),
+                font: font,
+                symbolFont: resolvedSymbolFont,
+                scalesToFit: scalesToFit
             )
-
-            HStack(alignment: .lastTextBaseline, spacing: 2) {
-                if !parts.prefix.isEmpty {
-                    Text(parts.prefix)
-                        .font(resolvedSymbolFont)
-                }
-                Text(parts.amount)
-                    .font(font)
-                if !parts.suffix.isEmpty {
-                    Text(parts.suffix)
-                        .font(resolvedSymbolFont)
-                }
-            }
         }
     }
 }
@@ -86,6 +80,8 @@ struct DisplayCurrencyPriceText: View {
     var fontWeight: Font.Weight = .regular
     /// 通貨記号用フォント（nil の場合は数字より小さめのサイズ）
     var symbolFont: Font?
+    /// 狭い枠だけで数字を縮小する。通常の合計表示では使わない。
+    var scalesToFit: Bool = false
 
     private var resolvedSymbolFont: Font {
         symbolFont ?? .app(.caption, weight: AppTypography.Weight(fontWeight))
@@ -95,25 +91,46 @@ struct DisplayCurrencyPriceText: View {
         let _ = currencyManager.displayCurrency
 
         if let amount {
-            let parts = MoneyDisplay.formatParts(
-                amount: amount,
-                currency: currencyManager.displayCurrency,
-                locale: languageManager.resolvedLocale
+            PricePartsStack(
+                parts: MoneyDisplay.formatParts(
+                    amount: amount,
+                    currency: currencyManager.displayCurrency,
+                    locale: languageManager.resolvedLocale
+                ),
+                font: font,
+                symbolFont: resolvedSymbolFont,
+                scalesToFit: scalesToFit
             )
+        }
+    }
+}
 
-            HStack(alignment: .lastTextBaseline, spacing: 2) {
-                if !parts.prefix.isEmpty {
-                    Text(parts.prefix)
-                        .font(resolvedSymbolFont)
-                }
-                Text(parts.amount)
-                    .font(font)
-                if !parts.suffix.isEmpty {
-                    Text(parts.suffix)
-                        .font(resolvedSymbolFont)
-                }
+/// 記号と金額を分けて描く。`scalesToFit` がオフなら指定サイズのまま幅を取る。
+private struct PricePartsStack: View {
+    let parts: (prefix: String, amount: String, suffix: String)
+    let font: Font
+    let symbolFont: Font
+    var scalesToFit: Bool = false
+
+    var body: some View {
+        HStack(alignment: .lastTextBaseline, spacing: 2) {
+            if !parts.prefix.isEmpty {
+                Text(parts.prefix)
+                    .font(symbolFont)
+                    .fixedSize(horizontal: true, vertical: false)
+            }
+            Text(parts.amount)
+                .font(font)
+                .lineLimit(1)
+                .minimumScaleFactor(scalesToFit ? 0.5 : 1)
+                .fixedSize(horizontal: !scalesToFit, vertical: false)
+            if !parts.suffix.isEmpty {
+                Text(parts.suffix)
+                    .font(symbolFont)
+                    .fixedSize(horizontal: true, vertical: false)
             }
         }
+        .fixedSize(horizontal: !scalesToFit, vertical: false)
     }
 }
 

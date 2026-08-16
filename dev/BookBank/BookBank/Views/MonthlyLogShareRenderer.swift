@@ -84,6 +84,7 @@ struct MonthlyLogShareCanvas: View {
         }
         .frame(width: MonthlyLogShareRenderer.logicalSize.width, height: MonthlyLogShareRenderer.logicalSize.height)
         .foregroundStyle(.white)
+        .lineSpacing(AppTypography.shareImageLineSpacing)
     }
 
     // MARK: - Template 1
@@ -496,8 +497,12 @@ struct MonthlyLogShareCanvas: View {
     }
 
     private var wordmark: some View {
-        Text(L10n.string("brand.bookbank", locale: snapshot.locale))
-            .font(.appFixed(size: layout.wordmarkSize, weight: .bold, language: .english))
+        Image("img_bookbank_logo")
+            .renderingMode(.template)
+            .resizable()
+            .scaledToFit()
+            .frame(height: layout.wordmarkSize)
+            .accessibilityLabel(L10n.string("brand.bookbank", locale: snapshot.locale))
     }
 }
 

@@ -459,15 +459,19 @@ struct PassbookDetailView: View {
 
             HStack {
                 Text(L10n.string("account.bookbank_overall", locale: languageManager.resolvedLocale))
-                    .font(.app(.subheadline))
+                    .font(.app(.footnote))
                     .foregroundColor(.black)
 
                 Spacer()
 
                 if UnlimitedManager.shared.isUnlimited {
-                    Text("paywall.unlimited")
-                        .font(.app(size: 16))
+                    Image("img_unlimited_logo")
+                        .renderingMode(.template)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(height: 14)
                         .foregroundColor(.black)
+                        .accessibilityLabel(L10n.string("paywall.unlimited"))
                 }
 
                 Button {
@@ -477,7 +481,7 @@ struct PassbookDetailView: View {
                         .renderingMode(.template)
                         .resizable()
                         .aspectRatio(contentMode: .fit)
-                        .frame(width: 16, height: 16)
+                        .frame(width: 18, height: 18)
                         .foregroundColor(.black)
                 }
                 .buttonStyle(.plain)
@@ -506,10 +510,11 @@ struct PassbookDetailView: View {
                 HStack(alignment: .lastTextBaseline) {
                     DisplayCurrencyPriceText(
                         amount: totalValue,
-                        font: .app(size: 36),
-                        symbolFont: .app(size: 21)
+                        font: .app(size: 34),
+                        symbolFont: .app(size: 16)
                     )
                     .foregroundColor(.white)
+                    .layoutPriority(1)
 
                     Spacer(minLength: 8)
 
@@ -520,7 +525,7 @@ struct PassbookDetailView: View {
             }
             .padding(.top, 20)
             .padding(.horizontal, 20)
-            .padding(.bottom, 20)
+            .padding(.bottom, 16)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background {
                 Image(currentOverallBackgroundName)
@@ -542,7 +547,7 @@ struct PassbookDetailView: View {
 
     /// 総合口座：丸アイコン + ラベルのアクションボタン
     private var overallAccountActionButtons: some View {
-        HStack(alignment: .top, spacing: 8) {
+        HStack(alignment: .top, spacing: 4) {
             if let registrationPassbook {
                 NavigationLink(value: BookSearchDestination(passbook: registrationPassbook)) {
                     overallAccountActionButtonLabel(title: "passbook.register_book", systemImage: "plus")
@@ -569,18 +574,18 @@ struct PassbookDetailView: View {
             }
             .buttonStyle(.plain)
         }
-        .frame(maxWidth: .infinity)
+        .frame(maxWidth: .infinity, alignment: .center)
     }
 
     /// 総合口座：各カスタム口座へのカプセルリンク
     private var overallAccountPassbookLinks: some View {
-        FlowLayout(spacing: 8, horizontalAlignment: .center) {
+        FlowLayout(spacing: 4, horizontalAlignment: .center) {
             ForEach(customPassbooks) { passbook in
                 Button {
                     appShellState.selectPassbook(passbook)
                 } label: {
                     Text(passbook.name)
-                        .font(.app(.subheadline))
+                        .font(.app(.footnote))
                         .foregroundColor(.white)
                         .padding(.horizontal, 20)
                         .padding(.vertical, 12)
@@ -620,13 +625,14 @@ struct PassbookDetailView: View {
             .passbookCircleGlass(tint: accountActionButtonGlassTint)
 
             Text(title)
-                .font(.app(.footnote))
+                .font(.app(size: 10, relativeTo: .caption2))
                 .foregroundColor(.primary)
                 .multilineTextAlignment(.center)
                 .lineLimit(2)
                 .minimumScaleFactor(0.8)
+                .fixedSize(horizontal: false, vertical: true)
         }
-        .frame(width: 72)
+        .frame(maxWidth: 72)
         .contentShape(Rectangle())
     }
 
@@ -642,8 +648,8 @@ struct PassbookDetailView: View {
 
             DisplayCurrencyPriceText(
                 amount: totalValue,
-                font: .app(size: 48),
-                symbolFont: .app(size: 28)
+                font: .app(size: 40),
+                symbolFont: .app(size: 18)
             )
             .foregroundStyle(
                 LinearGradient(
@@ -660,6 +666,7 @@ struct PassbookDetailView: View {
             Text(L10n.format("passbook.registered_books", locale: languageManager.resolvedLocale, Int64(bookCount)))
                 .font(.app(.subheadline))
                 .foregroundColor(accountHeaderPrimaryTextColor)
+                .padding(.top, 16)
         }
     }
     
