@@ -364,31 +364,38 @@ struct BookshelfCalendarView<Header: View>: View {
         .presentationDetents([.medium, .large])
     }
 
-    /// リスト1行（表紙サムネイル + タイトル / 著者 / 登録日 + 金額）
+    /// リスト1行（表紙｜書名・著者｜右端に金額）
     private func dayBookRow(_ book: BookDTO) -> some View {
-        HStack(spacing: 12) {
+        HStack(alignment: .center, spacing: 12) {
             rowCover(for: book)
                 .frame(width: 50, height: 75)
                 .clipShape(RoundedRectangle(cornerRadius: 4))
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(book.title)
-                    .font(.app(.subheadline))
+                    .font(.app(.callout))
                     .foregroundColor(.primary)
                     .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
 
-                if let author = book.author, !author.isEmpty {
-                    Text(author)
+                if !book.displayAuthor.isEmpty {
+                    Text(book.displayAuthor)
                         .font(.app(.caption))
                         .foregroundColor(.secondary)
                         .lineLimit(1)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
-
-                BookPriceText(book: book, font: .app(.caption), symbolFont: .app(.caption2))
-                    .foregroundColor(.secondary)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
 
-            Spacer(minLength: 0)
+            if book.priceAtRegistration != nil {
+                BookPriceText(book: book, font: .app(.headline, weight: .regular))
+                    .foregroundColor(.primary)
+                    .lineLimit(1)
+                    .multilineTextAlignment(.trailing)
+                    .fixedSize(horizontal: true, vertical: false)
+            }
         }
         .padding(.vertical, 8)
         .contentShape(Rectangle())

@@ -6,6 +6,8 @@ import UIKit
 enum MonthlyLogShareCalendarMetrics {
     static let cellAspectRatio: CGFloat = 2.0 / 3.0
     static let columnCount = 7
+    /// 本が登録されていない日付セル。表紙なし登録済みセルの 0.14 とは別。
+    static let emptyShareCellOpacity: CGFloat = 0.20
 
     static func cellSize(
         availableWidth: CGFloat,
@@ -45,6 +47,7 @@ struct MonthlyLogShareTemplateLayout: Equatable, Sendable {
     var horizontalPadding: CGFloat
     var topPadding: CGFloat
     var wordmarkSize: CGFloat
+    var cellScale: CGFloat
 
     static func make(template: MonthlyLogShareTemplate, rowCount: Int) -> MonthlyLogShareTemplateLayout {
         let compact = rowCount >= 6
@@ -60,24 +63,26 @@ struct MonthlyLogShareTemplateLayout: Equatable, Sendable {
                 gridSpacing: compact ? 2 : 3,
                 horizontalPadding: compact ? 18 : 24,
                 topPadding: compact ? 14 : 28,
-                wordmarkSize: compact ? 18 : 22
+                wordmarkSize: compact ? 16 : 18,
+                cellScale: 0.86
             )
         case .verticalMonth:
             return MonthlyLogShareTemplateLayout(
-                monthFont: compact ? 40 : 54,
-                yearFont: compact ? 15 : 19,
+                monthFont: 34,
+                yearFont: 12,
                 amountFont: 28,
-                weekdayFont: compact ? 10 : 11,
-                dateFont: compact ? 8 : 10,
-                badgeFont: compact ? 6 : 7,
+                weekdayFont: compact ? 8 : 10,
+                dateFont: compact ? 7 : 9,
+                badgeFont: compact ? 5 : 6,
                 gridSpacing: compact ? 2 : 3,
-                horizontalPadding: compact ? 14 : 20,
-                topPadding: compact ? 24 : 48,
-                wordmarkSize: compact ? 18 : 22
+                horizontalPadding: compact ? 12 : 16,
+                topPadding: compact ? 18 : 22,
+                wordmarkSize: compact ? 14 : 16,
+                cellScale: compact ? 0.88 : 0.90
             )
         case .largeMonth:
             return MonthlyLogShareTemplateLayout(
-                monthFont: 70,
+                monthFont: 60,
                 yearFont: compact ? 15 : 19,
                 amountFont: 28,
                 weekdayFont: compact ? 10 : 11,
@@ -86,26 +91,28 @@ struct MonthlyLogShareTemplateLayout: Equatable, Sendable {
                 gridSpacing: compact ? 2 : 3,
                 horizontalPadding: compact ? 18 : 24,
                 topPadding: compact ? 16 : 36,
-                wordmarkSize: compact ? 18 : 22
+                wordmarkSize: compact ? 16 : 18,
+                cellScale: 0.86
             )
         case .minimalSummary:
             return MonthlyLogShareTemplateLayout(
-                monthFont: 96,
-                yearFont: 22,
-                amountFont: 36,
+                monthFont: 60,
+                yearFont: compact ? 15 : 19,
+                amountFont: 32,
                 weekdayFont: 11,
                 dateFont: 11,
                 badgeFont: 7,
                 gridSpacing: 3,
                 horizontalPadding: 24,
-                topPadding: 80,
-                wordmarkSize: 22
+                topPadding: 28,
+                wordmarkSize: compact ? 16 : 18,
+                cellScale: 0.86
             )
         }
     }
 }
 
-/// 2枚目の縦倒し月名が、カレンダー列の高さに収まるようフォントを決める。
+/// 縦倒し月名が、カレンダー列の高さに収まるようフォントを決める。
 enum MonthlyLogShareVerticalMonthMetrics {
     static let minimumMonthFont: CGFloat = 22
     static let minimumYearFont: CGFloat = 10

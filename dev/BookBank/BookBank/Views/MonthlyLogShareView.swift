@@ -42,7 +42,7 @@ struct MonthlyLogShareView: View {
     let onClose: () -> Void
 
     @State private var page = 0
-    @State private var rendered: [Int: Data] = [:]
+    @State private var exportedPNGs: [Int: Data] = [:]
     @State private var isRendering = true
     @State private var actionFeedback: ActionFeedback?
     @State private var feedbackDismissTask: Task<Void, Never>?
@@ -52,7 +52,9 @@ struct MonthlyLogShareView: View {
     @State private var isSaving = false
     @State private var shareSourceView: UIView?
 
-    private var templates: [MonthlyLogShareTemplate] { MonthlyLogShareTemplate.allCases }
+    private var templates: [MonthlyLogShareTemplate] {
+        [.calendarSummary, .largeMonth, .verticalMonth, .minimalSummary]
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -154,7 +156,7 @@ struct MonthlyLogShareView: View {
             Spacer()
 
             Text("monthly_log_share.title")
-                .font(.app(.headline))
+                .font(.app(.subheadline))
                 .foregroundStyle(.white)
 
             Spacer()
@@ -168,30 +170,39 @@ struct MonthlyLogShareView: View {
 
     private var carousel: some View {
         GeometryReader { geometry in
-            let spacing: CGFloat = 12
-            let desiredPeek: CGFloat = 28
-            let displayScale: CGFloat = 0.85
+            let spacing = MonthlyLogSharePreviewMetrics.pageSpacing
+            let desiredPeek = MonthlyLogSharePreviewMetrics.desiredPeek
             let maxCardWidth = max(1, geometry.size.width - 2 * (desiredPeek + spacing))
             let maxCardHeight = max(1, geometry.size.height - 8)
-            let fitted = fittedPreviewSize(
+            let fitted = MonthlyLogSharePreviewMetrics.referenceCardSize(
                 in: CGSize(width: maxCardWidth, height: maxCardHeight)
             )
-            let actualCardSize = CGSize(
-                width: fitted.width * displayScale,
-                height: fitted.height * displayScale
+            let referenceWidth = fitted.width * MonthlyLogSharePreviewMetrics.displayScale
+            let portraitCardSize = MonthlyLogSharePreviewMetrics.cardSize(
+                format: .portrait,
+                referenceWidth: referenceWidth
             )
-            let sideInset = max(0, (geometry.size.width - actualCardSize.width) / 2)
+            let pageWidth = portraitCardSize.width
+            let sideInset = max(0, (geometry.size.width - pageWidth) / 2)
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: spacing) {
                     ForEach(Array(templates.enumerated()), id: \.offset) { index, template in
+                        let cardSize = MonthlyLogSharePreviewMetrics.cardSize(
+                            format: template.canvasFormat,
+                            referenceWidth: referenceWidth
+                        )
                         previewPage(
-                            index: index,
                             template: template,
-                            cardSize: actualCardSize
+                            cardSize: cardSize
                         )
                         .frame(
-                            width: actualCardSize.width,
+                            width: pageWidth,
+                            height: portraitCardSize.height,
+                            alignment: .center
+                        )
+                        .frame(
+                            width: pageWidth,
                             height: geometry.size.height,
                             alignment: .bottom
                         )
@@ -213,40 +224,23 @@ struct MonthlyLogShareView: View {
     }
 
     private func previewPage(
-        index: Int,
         template: MonthlyLogShareTemplate,
         cardSize: CGSize
     ) -> some View {
-        ZStack {
+        let logicalSize = template.canvasFormat.logicalSize
+        let scale = logicalSize.width > 0 ? cardSize.width / logicalSize.width : 1
+        return ZStack {
             CheckerboardBackground()
-            if let data = rendered[index], let image = UIImage(data: data) {
-                Image(uiImage: image)
-                    .resizable()
-                    .interpolation(.high)
-                    .aspectRatio(contentMode: .fit)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                MonthlyLogShareCanvas(
-                    snapshot: session.snapshot,
-                    covers: session.covers,
-                    template: template
-                )
-                .frame(
-                    width: MonthlyLogShareRenderer.logicalSize.width,
-                    height: MonthlyLogShareRenderer.logicalSize.height
-                )
-                .scaleEffect(cardSize.width / MonthlyLogShareRenderer.logicalSize.width)
-            }
+            MonthlyLogShareCanvas(
+                snapshot: session.snapshot,
+                covers: session.covers,
+                template: template
+            )
+            .frame(width: logicalSize.width, height: logicalSize.height)
+            .scaleEffect(scale)
         }
         .frame(width: cardSize.width, height: cardSize.height)
         .clipShape(RoundedRectangle(cornerRadius: 8))
-    }
-
-    private func fittedPreviewSize(in bounds: CGSize) -> CGSize {
-        let aspect = MonthlyLogShareRenderer.logicalSize.width / MonthlyLogShareRenderer.logicalSize.height
-        let height = min(bounds.height, bounds.width / aspect)
-        let width = height * aspect
-        return CGSize(width: width, height: height)
     }
 
     private var pageDots: some View {
@@ -320,23 +314,23 @@ struct MonthlyLogShareView: View {
     }
 
     private var currentPNG: Data? {
-        rendered[page]
+        exportedPNGs[page]
     }
 
     @MainActor
     private func renderAll() async {
         isRendering = true
         var next: [Int: Data] = [:]
-        for template in templates {
+        for (index, template) in templates.enumerated() {
             if let data = MonthlyLogShareRenderer.pngData(
                 snapshot: session.snapshot,
                 covers: session.covers,
                 template: template
             ) {
-                next[template.rawValue] = data
+                next[index] = data
             }
         }
-        rendered = next
+        exportedPNGs = next
         isRendering = false
     }
 

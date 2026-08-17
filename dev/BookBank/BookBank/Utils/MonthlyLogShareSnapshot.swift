@@ -1,4 +1,43 @@
+import CoreGraphics
 import Foundation
+
+/// マンスリーログ共有テンプレートのキャンバス形式。表示順の index には依存しない。
+enum MonthlyLogShareCanvasFormat: Equatable, Sendable {
+    case portrait
+    case portraitFourFive
+    case square
+
+    var logicalSize: CGSize {
+        switch self {
+        case .portrait:
+            return CGSize(width: 360, height: 640)
+        case .portraitFourFive:
+            return CGSize(width: 360, height: 450)
+        case .square:
+            return CGSize(width: 360, height: 360)
+        }
+    }
+
+    var masterPixelSize: CGSize {
+        switch self {
+        case .portrait:
+            return CGSize(width: 1080, height: 1920)
+        case .portraitFourFive:
+            return CGSize(width: 1080, height: 1350)
+        case .square:
+            return CGSize(width: 1080, height: 1080)
+        }
+    }
+
+    var shouldTrimTransparentMargins: Bool {
+        switch self {
+        case .portrait:
+            return true
+        case .portraitFourFive, .square:
+            return false
+        }
+    }
+}
 
 /// 共有画面を開いた時点で固定する月次ログ。開いたあとの書籍・為替の変化は反映しない。
 ///
@@ -63,6 +102,17 @@ enum MonthlyLogShareTemplate: Int, CaseIterable, Identifiable, Sendable {
     case minimalSummary
 
     var id: Int { rawValue }
+
+    var canvasFormat: MonthlyLogShareCanvasFormat {
+        switch self {
+        case .calendarSummary, .largeMonth:
+            return .portrait
+        case .verticalMonth:
+            return .portraitFourFive
+        case .minimalSummary:
+            return .square
+        }
+    }
 
     var showsAmount: Bool {
         self == .calendarSummary || self == .minimalSummary

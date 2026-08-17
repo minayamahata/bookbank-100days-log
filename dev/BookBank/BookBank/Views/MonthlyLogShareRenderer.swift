@@ -2,12 +2,9 @@ import SwiftUI
 import UIKit
 
 enum MonthlyLogShareRenderer {
-    static let logicalSize = CGSize(width: 360, height: 640)
     static let scale: CGFloat = 3
-    /// 内部マスターの画素数。最終 PNG はクロップ後の可変サイズ。
-    static let masterPixelSize = CGSize(width: 1080, height: 1920)
 
-    /// コピー・保存・共有へ渡す、トリミング済み PNG。
+    /// コピー・保存・共有へ渡す PNG。portrait はトリミング済み、ほかはマスター全体。
     @MainActor
     static func pngData(
         snapshot: MonthlyLogShareSnapshot,
@@ -20,7 +17,7 @@ enum MonthlyLogShareRenderer {
         return image.pngData()
     }
 
-    /// アルファ境界＋24px を切り出したエクスポート画像。
+    /// portrait はアルファ境界＋24px。portraitFourFive / square はマスターをそのまま返す。
     @MainActor
     static func exportImage(
         snapshot: MonthlyLogShareSnapshot,
@@ -30,16 +27,20 @@ enum MonthlyLogShareRenderer {
         guard let master = masterImage(snapshot: snapshot, covers: covers, template: template) else {
             return nil
         }
-        return MonthlyLogShareImageTrimmer.cropToOpaqueContent(master)
+        if template.canvasFormat.shouldTrimTransparentMargins {
+            return MonthlyLogShareImageTrimmer.cropToOpaqueContent(master)
+        }
+        return master
     }
 
-    /// 1080×1920 の透明マスター。テンプレート配置はここでは変えない。
+    /// テンプレート形式の論理サイズで描画した透明マスター。
     @MainActor
     static func masterImage(
         snapshot: MonthlyLogShareSnapshot,
         covers: [String: UIImage],
         template: MonthlyLogShareTemplate
     ) -> UIImage? {
+        let logicalSize = template.canvasFormat.logicalSize
         let renderer = ImageRenderer(
             content: MonthlyLogShareCanvas(
                 snapshot: snapshot,
@@ -57,8 +58,11 @@ enum MonthlyLogShareRenderer {
 
 /// プレビューと保存出力で共用するテンプレート。背景は透明（市松は含めない）。
 struct MonthlyLogShareCanvas: View {
-    private static let shareCellScale: CGFloat = 0.86
-    private static let verticalMonthCellScale: CGFloat = 0.92
+    /// 1枚目の月数字と年の間隔。行箱を相殺したうえで 4pt 空ける。
+    private static let calendarSummaryMonthYearSpacing: CGFloat = 4
+    private static let calendarSummaryMonthYearOpticalOverlap: CGFloat = 18
+    /// 3枚目だけ、細い月名＋重いカレンダーを視覚的に中央へ寄せる。
+    private static let verticalMonthOpticalShift: CGFloat = 6
 
     let snapshot: MonthlyLogShareSnapshot
     let covers: [String: UIImage]
@@ -66,6 +70,10 @@ struct MonthlyLogShareCanvas: View {
 
     private var layout: MonthlyLogShareTemplateLayout {
         MonthlyLogShareTemplateLayout.make(template: template, rowCount: snapshot.layout.rowCount)
+    }
+
+    private var canvasSize: CGSize {
+        template.canvasFormat.logicalSize
     }
 
     var body: some View {
@@ -82,7 +90,7 @@ struct MonthlyLogShareCanvas: View {
                 minimalSummary
             }
         }
-        .frame(width: MonthlyLogShareRenderer.logicalSize.width, height: MonthlyLogShareRenderer.logicalSize.height)
+        .frame(width: canvasSize.width, height: canvasSize.height)
         .foregroundStyle(.white)
         .lineSpacing(AppTypography.shareImageLineSpacing)
     }
@@ -107,7 +115,7 @@ struct MonthlyLogShareCanvas: View {
             let spacing = layout.gridSpacing
             let amountTop: CGFloat = snapshot.layout.rowCount >= 6 ? 28 : 44
             let weekdayTop: CGFloat = snapshot.layout.rowCount >= 6 ? 14 : 24
-            let monthHeight = layout.topPadding + layout.monthFont + 2 + layout.yearFont
+            let monthHeight = layout.topPadding + layout.monthFont + Self.calendarSummaryMonthYearSpacing + layout.yearFont
             let amountHeight = 11 + 4 + layout.amountFont + 2
             let weekdayHeight = layout.weekdayFont + 2
             let reserved = monthHeight + amountTop + amountHeight + weekdayTop + weekdayHeight + 8
@@ -118,12 +126,12 @@ struct MonthlyLogShareCanvas: View {
             )
 
             VStack(alignment: .leading, spacing: 0) {
-                VStack(spacing: 0) {
+                VStack(spacing: Self.calendarSummaryMonthYearSpacing) {
                     Text(verbatim: template.monthHeadline(month: snapshot.month))
                         .font(.appFixed(size: layout.monthFont, weight: .bold, language: .english))
                     Text(verbatim: String(snapshot.year))
                         .font(.appFixed(size: layout.yearFont, weight: .bold, language: .english))
-                        .padding(.top, -10)
+                        .padding(.top, -Self.calendarSummaryMonthYearOpticalOverlap)
                 }
                 .padding(.top, layout.topPadding)
                 calendarSummaryAmountRow
@@ -145,15 +153,17 @@ struct MonthlyLogShareCanvas: View {
         VStack(spacing: 0) {
             alignedVerticalMonthBlock
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .padding(.leading, 8)
-                .padding(.trailing, layout.horizontalPadding)
             wordmark
+                .frame(maxWidth: .infinity)
                 .padding(.top, 16)
-                .padding(.bottom, 24)
+                .padding(.bottom, 20)
         }
+        .padding(.leading, layout.horizontalPadding - Self.verticalMonthOpticalShift)
+        .padding(.trailing, layout.horizontalPadding + Self.verticalMonthOpticalShift)
+        .padding(.top, layout.topPadding)
     }
 
-    /// 曜日幅を実セル幅に合わせ、カレンダー下端を BookBank に固定する。
+    /// 4:5 内で回転月名とカレンダーを並べ、増えた高さをカレンダーへ使い 4〜6行でも枠内に収める。
     private var alignedVerticalMonthBlock: some View {
         GeometryReader { geo in
             let spacing = layout.gridSpacing
@@ -197,7 +207,7 @@ struct MonthlyLogShareCanvas: View {
                 }
                 .frame(width: metrics.grid.width, alignment: .leading)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
         }
     }
 
@@ -276,20 +286,27 @@ struct MonthlyLogShareCanvas: View {
     // MARK: - Template 4
 
     private var minimalSummary: some View {
-        VStack(spacing: 0) {
-            Spacer(minLength: 80)
-            Text(verbatim: template.monthHeadline(month: snapshot.month))
-                .font(.appFixed(size: layout.monthFont, weight: .bold, language: .english))
-            Text(verbatim: String(snapshot.year))
-                .font(.appFixed(size: layout.yearFont, weight: .bold, language: .english))
-                .padding(.top, -10)
-            minimalSummaryAmountRow
-                .padding(.top, 36)
-            Spacer(minLength: 24)
-            wordmark
-            Spacer(minLength: 80)
+        GeometryReader { geo in
+            let inset = layout.horizontalPadding
+            VStack(spacing: 0) {
+                Spacer(minLength: 16)
+                VStack(spacing: 0) {
+                    Text(verbatim: template.monthHeadline(month: snapshot.month))
+                        .font(.appFixed(size: layout.monthFont, weight: .bold, language: .english))
+                    Text(verbatim: String(snapshot.year))
+                        .font(.appFixed(size: layout.yearFont, weight: .bold, language: .english))
+                        .padding(.top, -10)
+                }
+                Spacer(minLength: 16)
+                minimalSummaryAmountRow
+                Spacer(minLength: 16)
+                wordmark
+                Spacer(minLength: 16)
+            }
+            .frame(width: max(1, geo.size.width - inset * 2), height: max(1, geo.size.height - 8))
+            .frame(width: geo.size.width, height: geo.size.height)
         }
-        .padding(.horizontal, layout.horizontalPadding)
+        .padding(.horizontal, 0)
     }
 
     // MARK: - Shared pieces
@@ -312,16 +329,18 @@ struct MonthlyLogShareCanvas: View {
     }
 
     private var minimalSummaryAmountRow: some View {
-        HStack(alignment: .top, spacing: 36) {
+        HStack(alignment: .top, spacing: 20) {
             amountBlock(
                 label: L10n.string("statistics.yearly_amount", locale: snapshot.locale),
                 value: amountParts,
-                alignment: .center
+                alignment: .center,
+                scalesToFit: true
             )
             amountBlock(
                 label: L10n.string("statistics.book_count", locale: snapshot.locale),
                 value: bookCountParts,
-                alignment: .center
+                alignment: .center,
+                scalesToFit: true
             )
         }
         .frame(maxWidth: .infinity)
@@ -330,13 +349,16 @@ struct MonthlyLogShareCanvas: View {
     private func amountBlock(
         label: String,
         value: (prefix: String, amount: String, suffix: String),
-        alignment: HorizontalAlignment = .leading
+        alignment: HorizontalAlignment = .leading,
+        scalesToFit: Bool = false
     ) -> some View {
         let language = AppTypography.language(from: snapshot.locale)
         return VStack(alignment: alignment, spacing: 4) {
             Text(verbatim: label)
                 .font(.appFixed(size: 11, weight: .regular, language: language))
                 .opacity(0.7)
+                .lineLimit(scalesToFit ? 1 : nil)
+                .minimumScaleFactor(scalesToFit ? 0.75 : 1)
             HStack(alignment: .lastTextBaseline, spacing: 2) {
                 if !value.prefix.isEmpty {
                     Text(verbatim: value.prefix)
@@ -349,6 +371,8 @@ struct MonthlyLogShareCanvas: View {
                         .font(.appFixed(size: 20, weight: .bold, language: language))
                 }
             }
+            .lineLimit(scalesToFit ? 1 : nil)
+            .minimumScaleFactor(scalesToFit ? 0.7 : 1)
         }
     }
 
@@ -404,9 +428,7 @@ struct MonthlyLogShareCanvas: View {
         availableHeight: CGFloat,
         spacing: CGFloat
     ) -> (cell: CGSize, grid: CGSize) {
-        let cellScale = template == .verticalMonth
-            ? Self.verticalMonthCellScale
-            : Self.shareCellScale
+        let cellScale = layout.cellScale
         let raw = MonthlyLogShareCalendarMetrics.cellSize(
             availableWidth: availableWidth,
             availableHeight: availableHeight,
@@ -487,7 +509,7 @@ struct MonthlyLogShareCanvas: View {
 
     private func emptyShareCell(day: Int, size: CGSize) -> some View {
         RoundedRectangle(cornerRadius: 3)
-            .fill(Color.white.opacity(0.14))
+            .fill(Color.white.opacity(MonthlyLogShareCalendarMetrics.emptyShareCellOpacity))
             .frame(width: size.width, height: size.height)
             .aspectRatio(MonthlyLogShareCalendarMetrics.cellAspectRatio, contentMode: .fit)
             .overlay {

@@ -579,7 +579,7 @@ struct PassbookDetailView: View {
 
     /// 総合口座：各カスタム口座へのカプセルリンク
     private var overallAccountPassbookLinks: some View {
-        FlowLayout(spacing: 4, horizontalAlignment: .center) {
+        FlowLayout(spacing: 8, horizontalAlignment: .center) {
             ForEach(customPassbooks) { passbook in
                 Button {
                     appShellState.selectPassbook(passbook)
