@@ -487,6 +487,8 @@ Menu {
 | テキストボタン | `.plain` + `.foregroundColor(.primary)` |
 | 破壊的アクション | `.destructive` role |
 
+削除確認などのアラートのキャンセルもテーマ色にしない。画面に `.tint(.primary)` を付け、DatePicker などテーマ色が必要な部品だけ個別に `.tint(themeColor)` する（口座編集・書籍編集と同じ）。
+
 ### ツールバーボタン（重要ルール）
 
 モーダル/編集画面のキャンセル・保存ボタンは以下のルールに従う：

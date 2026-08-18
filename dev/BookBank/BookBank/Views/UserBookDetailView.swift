@@ -48,12 +48,6 @@ struct UserBookDetailView: View {
     /// ルートは safe area を無視しないため、global の minY がそのままこの距離になる
     @State private var contentTopInset: CGFloat = 0
 
-    /// コンテンツ領域の global 下端（シート高の下端補正の算出に使う）
-    @State private var containerGlobalMaxY: CGFloat = 0
-
-    /// 物理画面の global 下端（全端無視の背景で実測）
-    @State private var screenGlobalMaxY: CGFloat = 0
-
     /// ツールバーの表示切り替え。シートのspringアニメーションに項目の出現・消失が
     /// 巻き込まれて左上へバウンドしないよう、`sheetDetent` とは別にアニメーション無効で更新する
     /// （`PassbookDetailView` のchrome切り替えと同じ構成。共有状態は使わずこのView内で完結させる）
@@ -70,12 +64,6 @@ struct UserBookDetailView: View {
     /// 上端距離を計測済みか。未計測の1フレームはシートを出さない（初回の位置ジャンプ防止）
     private var hasMeasuredTopInset: Bool {
         contentTopInset > 0
-    }
-
-    /// コンテンツ下端から物理画面下端までの距離（ホームインジケータ等）。
-    /// 展開時に負方向へ動かした分と合わせてシート高を補い、画面下部に隙間を出さないために使う
-    private var bottomCoverage: CGFloat {
-        max(screenGlobalMaxY - containerGlobalMaxY, 0)
     }
 
     /// 折りたたみ時のシート上端（コンテンツ座標）。物理画面上の330ptに合わせる
@@ -214,26 +202,10 @@ struct UserBookDetailView: View {
                 }
                 .ignoresSafeArea(edges: .top)
 
-                // ヘッダー吸い付き型の詳細パネル。位置(offset)だけ動かして
-                // ドラッグ中の再レイアウトを避けつつ、負方向へ動かした分は
-                // 高さで補って画面下部に隙間を出さない
+                // ヘッダー吸い付き型の詳細パネル。通帳の PassbookDepositSheet と同じく
+                // 容器を物理下端（タブバーの裏）まで伸ばし、位置は offset だけ動かす
                 bookSheet
-                    .frame(
-                        width: geometry.size.width,
-                        height: geometry.size.height - currentSheetTop + bottomCoverage,
-                        alignment: .top
-                    )
-                    .offset(y: currentSheetTop)
-                    .animation(.spring(response: 0.35, dampingFraction: 0.88), value: sheetDetent)
-                    .transaction { transaction in
-                        if dragOffset != 0 {
-                            transaction.animation = nil
-                        }
-                    }
-                    // 上端距離の計測が済むまではアニメーションさせずに隠し、初回フレームの
-                    // 位置ジャンプを防ぐ（カバー・FAB・ナビバーは計測に依存しないので出したまま）
-                    .opacity(hasMeasuredTopInset ? 1 : 0)
-                    .allowsHitTesting(hasMeasuredTopInset)
+                    .ignoresSafeArea(.container, edges: .bottom)
             }
         }
         .onGeometryChange(for: CGRect.self) { proxy in
@@ -242,20 +214,10 @@ struct UserBookDetailView: View {
             if frame.minY > 0, abs(contentTopInset - frame.minY) > 0.5 {
                 contentTopInset = frame.minY
             }
-            if abs(containerGlobalMaxY - frame.maxY) > 0.5 {
-                containerGlobalMaxY = frame.maxY
-            }
         }
         .background {
-            // 背景色を全面に敷きつつ、物理画面の下端を実測する（シート高の下端補正用）
             Color.appGroupedBackground
                 .ignoresSafeArea()
-                .onGeometryChange(for: CGFloat.self) { proxy in
-                    proxy.frame(in: .global).maxY
-                } action: { _, maxY in
-                    guard abs(screenGlobalMaxY - maxY) > 0.5 else { return }
-                    screenGlobalMaxY = maxY
-                }
         }
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
@@ -377,6 +339,28 @@ struct UserBookDetailView: View {
     // MARK: - 詳細パネル（ドラッグ可能なボトムシート）
 
     private var bookSheet: some View {
+        GeometryReader { geometry in
+            sheetPanel
+                .frame(
+                    width: geometry.size.width,
+                    height: max(geometry.size.height - currentSheetTop, 0),
+                    alignment: .top
+                )
+                .offset(y: currentSheetTop)
+                .animation(.spring(response: 0.35, dampingFraction: 0.88), value: sheetDetent)
+                .transaction { transaction in
+                    if dragOffset != 0 {
+                        transaction.animation = nil
+                    }
+                }
+                // 上端距離の計測が済むまではアニメーションさせずに隠し、初回フレームの
+                // 位置ジャンプを防ぐ（カバー・FAB・ナビバーは計測に依存しないので出したまま）
+                .opacity(hasMeasuredTopInset ? 1 : 0)
+                .allowsHitTesting(hasMeasuredTopInset)
+        }
+    }
+
+    private var sheetPanel: some View {
         VStack(spacing: 0) {
             sheetHandle
 
@@ -386,8 +370,8 @@ struct UserBookDetailView: View {
                     detailSection
                 }
                 .padding(.top, 4)
-                .padding(.bottom, 90)
             }
+            .contentMargins(.bottom, 90, for: .scrollContent)
             .scrollDisabled(sheetDetent == .collapsed)
             // 折りたたみ時：シートのどこからでも上方向ドラッグで展開できる
             // （simultaneous なので、メモ欄などシート内ボタンのタップは奪わない）

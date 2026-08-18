@@ -732,9 +732,19 @@ struct PassbookDetailView: View {
                         .foregroundColor(.secondary)
 
                     if occurrence.isReread {
-                        Text("book.reread.entry")
-                            .font(.app(size: 11))
-                            .foregroundColor(.secondary)
+                        HStack(spacing: 4) {
+                            Image("icn_repeat")
+                                .renderingMode(.template)
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 8, height: 10)
+                                .foregroundStyle(expandedAddIconColor)
+                                .frame(width: 16, height: 16)
+                                .background(Circle().fill(expandedAddTint))
+                            Text("book.reread.entry")
+                                .font(.app(size: 11))
+                                .foregroundColor(.secondary)
+                        }
                     }
                 }
 

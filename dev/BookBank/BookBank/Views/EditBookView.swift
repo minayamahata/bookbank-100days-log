@@ -459,6 +459,8 @@ struct EditBookView: View {
             } message: {
                 Text("book.camera.denied.message")
             }
+            // タブのテーマ色がアラートのキャンセルに乗らないようにする（口座編集と同じ）
+            .tint(.primary)
             .sheet(isPresented: $showMemoEditor) {
                 MemoEditorView(
                     memo: Binding(

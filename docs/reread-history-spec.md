@@ -1,7 +1,7 @@
 # BookBank 再読履歴 仕様書
 
 作成日: 2026-08-17
-更新日: 2026-08-18（読書履歴の●と縦棒は透過なしの `Color.primary`。同日の再読は1件ずつ消す。詳細の「再読を記録」を削除。追加は検索、日付変更・削除は編集画面。読書履歴は詳細情報の上の別枠、初回表記は登録日）／2026-08-17（R4.7 / v1.7.0 初版）
+更新日: 2026-08-18（通帳の再読行は「再読」の左にテーマ色の丸＋`icn_repeat`。読書履歴の●と縦棒は透過なしの `Color.primary`。同日の再読は1件ずつ消す。詳細の「再読を記録」を削除。追加は検索、日付変更・削除は編集画面。読書履歴は詳細情報の上の別枠、初回表記は登録日）／2026-08-17（R4.7 / v1.7.0 初版）
 ステータス: 実装完了（R4.7 / v1.7.0。残るのは人間タスク）
 関連文書: `docs/implementation-roadmap.md` / `docs/cloud-migration-architecture.md` 3章 / `docs/r4-repository-abstraction-notes.md` / `docs/monthly-log-share-design.md` / `docs/agent-implementation-guide.md`
 
@@ -123,7 +123,7 @@ var rereads: [RereadRecord] = []
 
 | 画面 | 内容 |
 |---|---|
-| 通帳ヘッダー・行 | `PassbookDetailView`。行・通し番号・金額を occurrence 基準。行タップは同じ本の詳細へ。再読行には再読表示 |
+| 通帳ヘッダー・行 | `PassbookDetailView`。行・通し番号・金額を occurrence 基準。行タップは同じ本の詳細へ。再読行は「再読」の左にテーマ色の丸（16pt）＋`icn_repeat`。丸とアイコンの色は展開時＋ボタンと同じ（黒テーマ＋ダークは白丸に黒アイコン） |
 | カレンダー | `BookshelfCalendarView`。日別配置・`+N`・月ヘッダー |
 | 統計 | `StatisticsView` の年間・月別・口座サマリー。`availableYears` は全読書日から算出 |
 | 年別お気に入り・メモ数 | その年に1回以上読んだユニーク本数 |
