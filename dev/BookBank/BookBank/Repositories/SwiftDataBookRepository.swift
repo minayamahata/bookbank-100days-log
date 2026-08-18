@@ -59,6 +59,7 @@ final class SwiftDataBookRepository: BookRepository {
         model.registeredAt = book.registeredAt
         model.createdAt = book.createdAt
         model.updatedAt = book.updatedAt
+        model.rereads = book.rereads.isEmpty ? nil : book.rereads
         context.insert(model)
         try saveAndNotify()
         // 規約: LocalCoverDataCache は永続化成功後にのみ触る（レビュー S4-1 / S4-16）
@@ -137,7 +138,62 @@ final class SwiftDataBookRepository: BookRepository {
         applyCoverCache(bookId: bookId, data: data)
     }
 
+    func addReread(bookId: String, date: Date) async throws {
+        guard let model = try findBook(id: bookId) else {
+            logger.error("addReread: book not found id=\(bookId, privacy: .public)")
+            throw RepositoryError.bookNotFound(bookId)
+        }
+        try validateRereadDate(date, registeredAt: model.registeredAt, operation: "addReread")
+        var records = model.rereads ?? []
+        var record = RereadRecord(date: date)
+        while records.contains(where: { $0.id == record.id }) {
+            record.id = UUID().uuidString
+        }
+        records.append(record)
+        model.rereads = Array(records)
+        try saveAndNotify()
+    }
+
+    func updateReread(bookId: String, rereadId: String, date: Date) async throws {
+        guard let model = try findBook(id: bookId) else {
+            logger.error("updateReread: book not found id=\(bookId, privacy: .public)")
+            throw RepositoryError.bookNotFound(bookId)
+        }
+        guard var records = model.rereads, let index = records.firstIndex(where: { $0.id == rereadId }) else {
+            logger.error("updateReread: reread not found id=\(rereadId, privacy: .public)")
+            throw RepositoryError.rereadNotFound(rereadId)
+        }
+        try validateRereadDate(date, registeredAt: model.registeredAt, operation: "updateReread")
+        records[index].date = date
+        model.rereads = Array(records)
+        try saveAndNotify()
+    }
+
+    func deleteReread(bookId: String, rereadId: String) async throws {
+        guard let model = try findBook(id: bookId) else {
+            logger.error("deleteReread: book not found id=\(bookId, privacy: .public)")
+            throw RepositoryError.bookNotFound(bookId)
+        }
+        guard var records = model.rereads, records.contains(where: { $0.id == rereadId }) else {
+            logger.error("deleteReread: reread not found id=\(rereadId, privacy: .public)")
+            throw RepositoryError.rereadNotFound(rereadId)
+        }
+        // 同日の再読が複数あっても、一致する ID の先頭1件だけ消す
+        if let index = records.firstIndex(where: { $0.id == rereadId }) {
+            records.remove(at: index)
+        }
+        model.rereads = records.isEmpty ? nil : Array(records)
+        try saveAndNotify()
+    }
+
     // MARK: - Private
+
+    private func validateRereadDate(_ date: Date, registeredAt: Date, operation: String) throws {
+        guard RereadDatePolicy.isValid(date, registeredAt: registeredAt) else {
+            logger.error("\(operation, privacy: .public): invalid reread date")
+            throw RepositoryError.invalidRereadDate
+        }
+    }
 
     /// 表紙キャッシュの投入／破棄。**必ず `saveAndNotify()` の成功後に呼ぶこと**
     private func applyCoverCache(bookId: String, data: Data?) {

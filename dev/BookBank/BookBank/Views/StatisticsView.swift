@@ -83,31 +83,23 @@ struct StatisticsView: View {
         return allUserBooks
     }
     
-    /// 本が登録されている年のリスト
+    /// 本が読まれている年のリスト（初回・再読の全読書日）
     private var availableYears: [Int] {
-        let calendar = Calendar.current
-        var years = Set<Int>()
-        
-        for book in targetBooks {
-            let year = calendar.component(.year, from: book.registeredAt)
-            years.insert(year)
-        }
-        
-        // 現在の年も含める（データがなくても表示）
-        let currentYear = calendar.component(.year, from: Date())
-        years.insert(currentYear)
-        
-        return years.sorted()
+        ReadingTally.readingYears(from: targetBooks)
     }
 
-    /// 総冊数（口座全体）
+    /// 総冊数（口座全体・読書回数）
     private var totalBookCount: Int {
-        targetBooks.count
+        ReadingTally.occurrences(from: targetBooks).count
     }
 
-    /// 総合計金額（表示通貨）
+    /// 総合計金額（表示通貨・回数ベース）
     private var totalAmount: Int {
-        targetBooks.totalDisplayAmount(in: currencyManager.displayCurrency, exchangeRates: exchangeRates)
+        ReadingTally.totalDisplayAmount(
+            of: ReadingTally.occurrences(from: targetBooks),
+            in: currencyManager.displayCurrency,
+            exchangeRates: exchangeRates
+        )
     }
 
     /// メモの総文字数（口座全体）
@@ -140,11 +132,12 @@ struct StatisticsView: View {
                     VStack(spacing: 0) {
                         // 年表示（固定）
                         Text(String(selectedYear))
-                            .font(.app(.title))
+                            .font(.app(size: 34, weight: .bold))
                             .foregroundColor(isOverallAccount ? .primary : .white)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.horizontal)
                             .padding(.top, 8)
+                            .padding(.bottom, 16)
                         
                         // グラフ部分のTabView（年別統計含む）
                         TabView(selection: $selectedYear) {
@@ -164,7 +157,7 @@ struct StatisticsView: View {
                         }
                         .tabViewStyle(.page)
                         .indexViewStyle(.page(backgroundDisplayMode: .always))
-                        .frame(height: 610)
+                        .frame(height: 628)
 
                         // 口座サマリー
                         VStack(alignment: .leading, spacing: 12) {
@@ -288,32 +281,40 @@ struct YearlyChartContent: View {
 
     // MARK: - Year-specific Computed Properties
     
-    /// 指定年の書籍
-    private var booksInYear: [BookDTO] {
-        let calendar = Calendar.current
-        return targetBooks.filter { book in
-            calendar.component(.year, from: book.registeredAt) == year
-        }
+    /// 指定年の読書
+    private var occurrencesInYear: [BookReadingOccurrence] {
+        ReadingTally.occurrences(from: targetBooks, inYear: year)
+    }
+
+    /// 指定年に1回以上読んだユニーク本
+    private var uniqueBooksInYear: [BookDTO] {
+        ReadingTally.uniqueBooksRead(from: targetBooks, inYear: year)
     }
     
-    /// 指定年の合計金額（表示通貨）
+    /// 指定年の合計金額（表示通貨・回数ベース）
     private var yearlyAmount: Int {
-        booksInYear.totalDisplayAmount(in: displayCurrency, exchangeRates: exchangeRates)
+        ReadingTally.totalDisplayAmount(
+            of: occurrencesInYear,
+            in: displayCurrency,
+            exchangeRates: exchangeRates
+        )
     }
     
-    /// 指定年の冊数
+    /// 指定年の冊数（読書回数）
     private var yearlyBookCount: Int {
-        booksInYear.count
+        occurrencesInYear.count
     }
     
-    /// 指定年のお気に入り数
+    /// 指定年のお気に入り数（その年に1回以上読んだユニーク本）
     private var yearlyFavoriteCount: Int {
-        booksInYear.filter { $0.isFavorite }.count
+        uniqueBooksInYear.filter(\.isFavorite).count
     }
     
-    /// 指定年のメモ数
+    /// 指定年のメモ数（その年に1回以上読んだユニーク本）
     private var yearlyMemoCount: Int {
-        booksInYear.filter { $0.memo != nil && !($0.memo?.isEmpty ?? true) }.count
+        uniqueBooksInYear.filter { book in
+            book.memo != nil && !(book.memo?.isEmpty ?? true)
+        }.count
     }
     
     /// 金額の最小単位 → メジャー単位の倍率
@@ -394,14 +395,19 @@ struct YearlyChartContent: View {
                 return ChartDataPoint(month: month, label: label, amount: 0, count: 0)
             }
             
-            let booksInMonth = targetBooks.filter { book in
-                let bookYear = calendar.component(.year, from: book.registeredAt)
-                let bookMonth = calendar.component(.month, from: book.registeredAt)
-                return bookYear == year && bookMonth == month
-            }
+            let monthOccurrences = ReadingTally.occurrences(
+                from: targetBooks,
+                year: year,
+                month: month,
+                calendar: calendar
+            )
             
-            let amount = booksInMonth.totalDisplayAmount(in: displayCurrency, exchangeRates: exchangeRates)
-            let count = booksInMonth.count
+            let amount = ReadingTally.totalDisplayAmount(
+                of: monthOccurrences,
+                in: displayCurrency,
+                exchangeRates: exchangeRates
+            )
+            let count = monthOccurrences.count
             
             return ChartDataPoint(month: month, label: label, amount: amount, count: count)
         }
@@ -450,7 +456,7 @@ struct YearlyChartContent: View {
         }
         .padding(.horizontal)
         .padding(.top)
-        .padding(.bottom, 30)
+        .padding(.bottom, 48)
     }
     
     // MARK: - Subviews

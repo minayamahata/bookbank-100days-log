@@ -313,6 +313,7 @@ struct MonthlyLogShareActionsTests {
         let snapshot = MonthlyLogShareSnapshot(
             year: 2026,
             month: 8,
+            occurrences: [],
             books: [],
             bookCount: 0,
             totalDisplayAmount: 0,

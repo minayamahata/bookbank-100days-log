@@ -70,6 +70,9 @@ final class UserBook {
     /// 書籍登録日時（ユーザーが登録した日、編集可能）
     var registeredAt: Date
 
+    /// 再読履歴。nil = 履歴なし（旧ストアの軽量移行後も nil）。バックフィルしない。
+    var rereads: [RereadRecord]? = nil
+
     /// 作成日時
     var createdAt: Date
 
@@ -126,6 +129,21 @@ final class UserBook {
         self.createdAt = Date()
         self.updatedAt = Date()
         self.passbook = passbook
+    }
+}
+
+// MARK: - RereadRecord
+
+/// 再読1件。別 `@Model` にはせず、`UserBook.rereads` の Codable 配列要素として持つ。
+struct RereadRecord: Codable, Hashable, Sendable {
+    /// UUID文字列。occurrence の安定IDにも使う
+    var id: String
+    /// 再読日
+    var date: Date
+
+    init(id: String = UUID().uuidString, date: Date) {
+        self.id = id
+        self.date = date
     }
 }
 

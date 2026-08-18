@@ -92,6 +92,19 @@ struct EditBookView: View {
     @State private var showCameraDeniedAlert = false
     @State private var showDatePicker = false
     @State private var showMemoEditor = false
+    @State private var draftRereadRows: [DraftRereadRow] = []
+    @State private var deletedRereadIDs: [String] = []
+    @State private var expandedRereadID: String?
+    @State private var rereadPendingDelete: DraftRereadRow?
+
+    private var registeredAtUpperBound: Date {
+        RereadDatePolicy.registeredAtUpperBound(firstRereadDate: draftRereadRows.map(\.record.date).min())
+    }
+
+    private var rereadDateRange: ClosedRange<Date> {
+        let start = min(registeredAt, Date())
+        return start...Date()
+    }
     @State private var showDeleteAlert = false
     
     @FocusState private var focusedField: Field?
@@ -102,7 +115,7 @@ struct EditBookView: View {
     
     // MARK: - Validation
     
-    private var hasChanges: Bool {
+    private var bookFieldsChanged: Bool {
         let titleChanged = title.trimmingCharacters(in: .whitespaces) != (book.title)
         let authorChanged = author.trimmingCharacters(in: .whitespaces) != (book.author ?? "")
         let priceChanged = priceText != (book.price.map { book.storedCurrency.inputString(fromMinor: $0) } ?? "")
@@ -110,6 +123,18 @@ struct EditBookView: View {
         let passbookChanged = selectedPassbookID != book.passbookId
         let favoriteChanged = isFavorite != book.isFavorite
         return titleChanged || authorChanged || priceChanged || imageChanged || dateChanged || passbookChanged || favoriteChanged
+    }
+
+    private var rereadsChanged: Bool {
+        if !deletedRereadIDs.isEmpty { return true }
+        let original = book.rereads.sorted { $0.id < $1.id }
+        let draft = draftRereadRows.map(\.record).sorted { $0.id < $1.id }
+        guard original.map(\.id) == draft.map(\.id) else { return true }
+        return zip(original, draft).contains { !Calendar.current.isDate($0.date, inSameDayAs: $1.date) }
+    }
+
+    private var hasChanges: Bool {
+        bookFieldsChanged || rereadsChanged
     }
     
     private var canSave: Bool {
@@ -129,6 +154,21 @@ struct EditBookView: View {
 
         NavigationStack {
             Form {
+                // 登録口座
+                if selectedPassbookID != nil {
+                    Section {
+                        Picker("account.registered", selection: $selectedPassbookID) {
+                            ForEach(customPassbooks) { passbook in
+                                Text(passbook.name)
+                                    .tag(Optional(passbook.id))
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .tint(themeColor)
+                    }
+                    .listSectionSpacing(8)
+                }
+
                 // 表紙画像
                 coverImageSection
                 
@@ -154,7 +194,7 @@ struct EditBookView: View {
                         DatePicker(
                             "",
                             selection: $registeredAt,
-                            in: ...Date(),
+                            in: ...registeredAtUpperBound,
                             displayedComponents: .date
                         )
                         .datePickerStyle(.graphical)
@@ -163,18 +203,47 @@ struct EditBookView: View {
                     }
                 }
                 .listSectionSpacing(8)
-                
-                // 登録口座
-                if selectedPassbookID != nil {
+
+                if !draftRereadRows.isEmpty {
                     Section {
-                        Picker("account.registered", selection: $selectedPassbookID) {
-                            ForEach(customPassbooks) { passbook in
-                                Text(passbook.name)
-                                    .tag(Optional(passbook.id))
+                        ForEach(draftRereadRows) { row in
+                            Button {
+                                withAnimation {
+                                    expandedRereadID = expandedRereadID == row.id ? nil : row.id
+                                }
+                            } label: {
+                                HStack {
+                                    Text("book.reread.entry")
+                                        .foregroundColor(.primary)
+                                    Spacer()
+                                    Text(formatDate(row.record.date))
+                                        .foregroundColor(themeColor)
+                                }
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+
+                            if expandedRereadID == row.id {
+                                DatePicker(
+                                    "",
+                                    selection: rereadDateBinding(for: row.id),
+                                    in: rereadDateRange,
+                                    displayedComponents: .date
+                                )
+                                .datePickerStyle(.graphical)
+                                .tint(themeColor)
+                                .labelsHidden()
+
+                                Button(role: .destructive) {
+                                    rereadPendingDelete = row
+                                } label: {
+                                    Text("book.reread.delete.title")
+                                        .frame(maxWidth: .infinity)
+                                        .contentShape(Rectangle())
+                                }
+                                .buttonStyle(.plain)
                             }
                         }
-                        .pickerStyle(.menu)
-                        .tint(themeColor)
                     }
                     .listSectionSpacing(8)
                 }
@@ -352,6 +421,26 @@ struct EditBookView: View {
                 }
                 .ignoresSafeArea()
             }
+            .alert("book.reread.delete.title", isPresented: Binding(
+                get: { rereadPendingDelete != nil },
+                set: { if !$0 { rereadPendingDelete = nil } }
+            )) {
+                Button("common.cancel", role: .cancel) { rereadPendingDelete = nil }
+                Button("common.delete", role: .destructive) {
+                    if let row = rereadPendingDelete {
+                        deletedRereadIDs.append(row.record.id)
+                        if let index = draftRereadRows.firstIndex(where: { $0.id == row.id }) {
+                            draftRereadRows.remove(at: index)
+                        }
+                        if expandedRereadID == row.id {
+                            expandedRereadID = nil
+                        }
+                    }
+                    rereadPendingDelete = nil
+                }
+            } message: {
+                Text("book.reread.delete.message")
+            }
             .alert("book.delete.title", isPresented: $showDeleteAlert) {
                 Button("common.cancel", role: .cancel) { }
                 Button("common.delete", role: .destructive) {
@@ -387,6 +476,8 @@ struct EditBookView: View {
                 author = book.author ?? ""
                 priceText = book.price.map { book.storedCurrency.inputString(fromMinor: $0) } ?? ""
                 registeredAt = book.registeredAt
+                draftRereadRows = book.rereads.map { DraftRereadRow(record: $0) }
+                deletedRereadIDs = []
                 selectedPassbookID = book.passbookId
                 isFavorite = book.isFavorite
                 if selectedImage == nil, !imageChanged,
@@ -681,17 +772,24 @@ struct EditBookView: View {
         updated.isFavorite = isFavorite
 
         // 登録日は未来日を許可しない（DatePicker でも制限しているが、旧データ含め保存時にも保証する）
-        updated.registeredAt = min(registeredAt, Date())
+        updated.registeredAt = min(registeredAt, registeredAtUpperBound)
         if let id = selectedPassbookID {
             updated.passbookId = id
         }
         updated.updatedAt = Date()
 
         let toSave = updated
+        let shouldUpdateBook = bookFieldsChanged
+        let shouldUpdateRereads = rereadsChanged
         Task {
             do {
-                // 表紙と書誌を1トランザクションで書く（レビュー S4-12）
-                try await repos.books.updateBook(toSave, cover: cover)
+                if shouldUpdateBook {
+                    // 表紙と書誌を1トランザクションで書く（レビュー S4-12）
+                    try await repos.books.updateBook(toSave, cover: cover)
+                }
+                if shouldUpdateRereads {
+                    try await persistRereadEdits()
+                }
             } catch RepositoryError.bookNotFound {
                 // 編集中に本が消えている＝書き戻す先が無い。シートを閉じるのが現行と同じ見え
                 // （「閉じてよいか」のUX判断はリポジトリではなくここが持つ・設計メモ 4.5節）
@@ -703,6 +801,42 @@ struct EditBookView: View {
             }
             dismiss()
         }
+    }
+
+    private func rereadDateBinding(for rowID: String) -> Binding<Date> {
+        Binding(
+            get: { draftRereadRows.first(where: { $0.id == rowID })?.record.date ?? registeredAt },
+            set: { newDate in
+                guard let index = draftRereadRows.firstIndex(where: { $0.id == rowID }) else { return }
+                draftRereadRows[index].record.date = newDate
+            }
+        )
+    }
+
+    private func persistRereadEdits() async throws {
+        for rereadId in deletedRereadIDs {
+            do {
+                try await repos.books.deleteReread(bookId: book.id, rereadId: rereadId)
+            } catch RepositoryError.rereadNotFound {
+                continue
+            }
+        }
+        for row in draftRereadRows {
+            guard let original = book.rereads.first(where: { $0.id == row.record.id }) else { continue }
+            guard !Calendar.current.isDate(original.date, inSameDayAs: row.record.date) else { continue }
+            try await repos.books.updateReread(bookId: book.id, rereadId: row.record.id, date: row.record.date)
+        }
+    }
+}
+
+/// 編集中の再読1行。保存用の `record.id` とは別に、画面上の行だけを一意に識別する。
+private struct DraftRereadRow: Identifiable {
+    let id: String
+    var record: RereadRecord
+
+    init(record: RereadRecord, id: String = UUID().uuidString) {
+        self.id = id
+        self.record = record
     }
 }
 

@@ -26,6 +26,12 @@ enum RepositoryError: Error, Equatable {
     /// 更新対象の読了リストが見つからない（ステップ5・2026-08-05）。
     /// `bookNotFound` と同じ契約（更新系は throw・削除系の return は冪等削除の例外）。
     case readingListNotFound(String)
+
+    /// 再読日が初回登録日の日〜今日の日の範囲外（R4.7）。クランプせず throw する。
+    case invalidRereadDate
+
+    /// 更新・削除対象の再読履歴が見つからない（R4.7）。更新系と同じく throw する。
+    case rereadNotFound(String)
 }
 
 /// 書誌の更新時に表紙をどう扱うか（設計メモ 3.1節への追補・ステップ4レビュー S4-12）。
@@ -46,6 +52,9 @@ protocol BookRepository: AnyObject {
     func deleteBook(id: String) async throws
     func loadCoverImage(bookId: String) async -> Data?
     func updateCoverImage(bookId: String, data: Data?) async throws
+    func addReread(bookId: String, date: Date) async throws
+    func updateReread(bookId: String, rereadId: String, date: Date) async throws
+    func deleteReread(bookId: String, rereadId: String) async throws
 }
 
 extension BookRepository {

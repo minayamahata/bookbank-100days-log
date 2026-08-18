@@ -59,7 +59,7 @@ struct BookshelfCalendarView<Header: View>: View {
     private struct MonthGroup: Identifiable {
         let year: Int
         let month: Int
-        let books: [BookDTO]
+        let occurrences: [BookReadingOccurrence]
         var id: String { "\(year)-\(month)" }
     }
 
@@ -75,8 +75,8 @@ struct BookshelfCalendarView<Header: View>: View {
         let year: Int
         let month: Int
         let day: Int
-        /// その日の書籍（新しい順）
-        let books: [BookDTO]
+        /// その日の読書（表示順）
+        let occurrences: [BookReadingOccurrence]
         var id: String { "\(year)-\(month)-\(day)" }
     }
 
@@ -84,15 +84,15 @@ struct BookshelfCalendarView<Header: View>: View {
     /// 今年は今月まで、過去年は全12か月を表示（登録のない月も含む）
     /// 新しい年が先・各年内は新しい月が先
     private var booksByYear: [YearGroup] {
-        // "year-month" -> 書籍配列
-        var booksMap: [String: [BookDTO]] = [:]
+        // "year-month" -> その月の読書
+        var occurrenceMap: [String: [BookReadingOccurrence]] = [:]
         var earliest: (year: Int, month: Int)?
         var latest: (year: Int, month: Int)?
 
-        for book in books {
-            let components = calendar.dateComponents([.year, .month], from: book.registeredAt)
+        for occurrence in ReadingTally.occurrences(from: books) {
+            let components = calendar.dateComponents([.year, .month], from: occurrence.date)
             guard let year = components.year, let month = components.month else { continue }
-            booksMap["\(year)-\(month)", default: []].append(book)
+            occurrenceMap["\(year)-\(month)", default: []].append(occurrence)
 
             if earliest == nil || (year, month) < (earliest!.year, earliest!.month) {
                 earliest = (year, month)
@@ -121,7 +121,7 @@ struct BookshelfCalendarView<Header: View>: View {
             var months: [MonthGroup] = []
             var month = startMonth
             while month >= 1 {
-                months.append(MonthGroup(year: year, month: month, books: booksMap["\(year)-\(month)"] ?? []))
+                months.append(MonthGroup(year: year, month: month, occurrences: occurrenceMap["\(year)-\(month)"] ?? []))
                 month -= 1
             }
             result.append(YearGroup(year: year, months: months))
@@ -141,7 +141,7 @@ struct BookshelfCalendarView<Header: View>: View {
                 ForEach(booksByYear) { yearData in
                     Section {
                         ForEach(yearData.months) { monthData in
-                            monthSection(year: monthData.year, month: monthData.month, books: monthData.books)
+                            monthSection(year: monthData.year, month: monthData.month, occurrences: monthData.occurrences)
                                 .padding(.top, monthData.id == yearData.months.first?.id ? 12 : 32)
                         }
                         .padding(.bottom, 32)
@@ -182,7 +182,7 @@ struct BookshelfCalendarView<Header: View>: View {
 
     // MARK: - 月セクション
 
-    private func monthSection(year: Int, month: Int, books: [BookDTO]) -> some View {
+    private func monthSection(year: Int, month: Int, occurrences: [BookReadingOccurrence]) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             // 月ヘッダー
             HStack(spacing: 8) {
@@ -190,16 +190,20 @@ struct BookshelfCalendarView<Header: View>: View {
                     .font(.app(.title3, weight: .bold))
                     .foregroundColor(colorScheme == .dark ? .white : .black)
 
-                if !books.isEmpty {
+                if !occurrences.isEmpty {
                     HStack(spacing: 0) {
                         DisplayCurrencyPriceText(
-                            amount: books.totalDisplayAmount(in: currencyManager.displayCurrency, exchangeRates: exchangeRates),
+                            amount: ReadingTally.totalDisplayAmount(
+                                of: occurrences,
+                                in: currencyManager.displayCurrency,
+                                exchangeRates: exchangeRates
+                            ),
                             font: .app(size: 16)
                         )
 
                         Text(" （")
                             .font(.app(size: 16))
-                        BooksCountText(count: books.count, font: .app(size: 16), locale: languageManager.resolvedLocale)
+                        BooksCountText(count: occurrences.count, font: .app(size: 16), locale: languageManager.resolvedLocale)
                         Text(" ）")
                             .font(.app(size: 16))
                     }
@@ -249,7 +253,7 @@ struct BookshelfCalendarView<Header: View>: View {
 
             weekdayHeader
 
-            calendarGrid(year: year, month: month, books: books)
+            calendarGrid(year: year, month: month, occurrences: occurrences)
         }
         .padding(.horizontal, 16)
         .background {
@@ -292,8 +296,8 @@ struct BookshelfCalendarView<Header: View>: View {
 
     // MARK: - カレンダーグリッド
 
-    private func calendarGrid(year: Int, month: Int, books: [BookDTO]) -> some View {
-        let layout = MonthlyCalendarLayout.make(year: year, month: month, books: books, calendar: calendar)
+    private func calendarGrid(year: Int, month: Int, occurrences: [BookReadingOccurrence]) -> some View {
+        let layout = MonthlyCalendarLayout.make(year: year, month: month, occurrences: occurrences, calendar: calendar)
 
         return LazyVGrid(columns: weekColumns, spacing: 4) {
             // 月初の曜日に合わせた空白セル
@@ -306,20 +310,20 @@ struct BookshelfCalendarView<Header: View>: View {
 
             // 1〜月末の各日
             ForEach(layout.days) { day in
-                dayCell(year: year, month: month, day: day.day, books: day.books)
+                dayCell(year: year, month: month, day: day.day, occurrences: day.occurrences)
             }
         }
     }
 
     @ViewBuilder
-    private func dayCell(year: Int, month: Int, day: Int, books: [BookDTO]) -> some View {
-        if let latest = books.first {
-            if books.count > 1 {
-                // 複数冊：タップで一覧シートを提示し、各本の詳細へ遷移できるようにする
+    private func dayCell(year: Int, month: Int, day: Int, occurrences: [BookReadingOccurrence]) -> some View {
+        if let latest = occurrences.first?.book {
+            if occurrences.count > 1 {
+                // 複数回：タップで一覧シートを提示し、各本の詳細へ遷移できるようにする
                 Button {
-                    selectedDay = DaySelection(year: year, month: month, day: day, books: books)
+                    selectedDay = DaySelection(year: year, month: month, day: day, occurrences: occurrences)
                 } label: {
-                    filledDayCell(day: day, latest: latest, extraCount: books.count - 1)
+                    filledDayCell(day: day, latest: latest, extraCount: occurrences.count - 1)
                 }
                 .buttonStyle(.plain)
             } else {
@@ -340,14 +344,14 @@ struct BookshelfCalendarView<Header: View>: View {
     private func dayBooksSheet(_ selection: DaySelection) -> some View {
         NavigationStack {
             List {
-                ForEach(selection.books) { book in
+                ForEach(selection.occurrences) { occurrence in
                     // 詳細はこのシート内へpushしない。選択本を一時保持して先にシートを閉じ、
                     // dismiss完了後（`.sheet` の onDismiss）に親のNavigationStackで開く
                     Button {
-                        pendingDayBook = book
+                        pendingDayBook = occurrence.book
                         selectedDay = nil
                     } label: {
-                        dayBookRow(book)
+                        dayBookRow(occurrence.book)
                     }
                     .buttonStyle(.plain)
                     .listRowBackground(Color.appCardBackground)

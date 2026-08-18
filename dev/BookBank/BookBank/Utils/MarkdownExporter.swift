@@ -55,16 +55,21 @@ func generatePassbookMarkdown(
 ) -> String {
     var markdown = "\(String(localized: "export.passbook_header"))\n\n"
     
-    // 口座情報
-    let totalValue = books.totalDisplayAmount(in: formatting.displayCurrency, exchangeRates: formatting.exchangeRates)
+    // 口座情報（冊数・合計は読書回数ベース）
+    let occurrences = ReadingTally.occurrences(from: books)
+    let totalValue = ReadingTally.totalDisplayAmount(
+        of: occurrences,
+        in: formatting.displayCurrency,
+        exchangeRates: formatting.exchangeRates
+    )
     let totalText = MoneyDisplay.format(
         amount: totalValue,
         currency: formatting.displayCurrency,
         locale: formatting.locale
     )
-    markdown += L10n.format("export.section_header", passbook.name, Int64(books.count), totalText) + "\n\n"
+    markdown += L10n.format("export.section_header", passbook.name, Int64(occurrences.count), totalText) + "\n\n"
     
-    // 本のリスト
+    // 本のリスト（行はユニーク本。title-only は ×N、detailed は再読日を足す）
     for book in books {
         if exportType == .detailed {
             markdown += "### \(book.title)"
@@ -88,6 +93,9 @@ func generatePassbookMarkdown(
                 markdown += "- \(String(localized: "export.md.publisher"))\(publisher)\n"
             }
             markdown += "- \(String(localized: "export.md.registration_date"))\(formatDate(book.registeredAt))\n"
+            for reread in book.rereads.sorted(by: { $0.date < $1.date }) {
+                markdown += "- \(String(localized: "export.md.reread_date"))\(formatDate(reread.date))\n"
+            }
             if let isbn = book.isbn, !isbn.isEmpty {
                 markdown += "- \(String(localized: "export.md.isbn"))\(isbn)\n"
             }
@@ -104,12 +112,7 @@ func generatePassbookMarkdown(
             }
             markdown += "\n"
         } else {
-            // タイトルと著者名
-            if let author = book.author, !author.isEmpty {
-                markdown += "- \(book.title) / \(author)\n"
-            } else {
-                markdown += "- \(book.title)\n"
-            }
+            markdown += "- \(ReadingTally.titleOnlyLine(for: book))\n"
         }
     }
     

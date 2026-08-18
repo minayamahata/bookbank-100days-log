@@ -44,7 +44,7 @@ v1.3.0 リリース後の全コードレビューで見つかった不具合の�
 |---|--------|------|------|------|
 | C-1 | 中 | ✅ 修正済み (2026-07-06) | 口座削除後も `selectedPassbook` / `isOverallMode` が更新されず、削除済みモデルを参照し続ける（空表示・不正表示・クラッシュリスク）。→ 口座リストの変化を監視し、選択中の口座が消えたら総合口座モードへ戻すよう修正 | `Views/MainTabView.swift` `validateSelectedPassbook` |
 | C-2 | 中 | ✅ 修正済み (2026-07-06) | ツールバーの口座切替時に各タブの `NavigationPath` をクリアしないため、旧口座の画面（検索など）が残ったままになる。→ 切替時に通帳・本棚・集計タブのパスをルートへ戻すよう修正 | `Views/MainTabView.swift` `switchToPassbook` / `switchToOverall` |
-| C-3 | 中 | ✅ 修正済み (2026-07-06) | 二重タップで同一書籍を重複登録できる（`saveBook` が保存直前に登録済み再チェックをしない。DB ユニーク制約もなし）。→ 保存直前に `isBookRegistered` で再チェックするよう修正 | `Views/BookSearchView.swift` `saveBook` |
+| C-3 | 中 | ✅ 修正済み (2026-07-06) | 二重タップで同一書籍を重複登録できる（`saveBook` が保存直前に登録済み再チェックをしない。DB ユニーク制約もなし）。→ 保存直前に `isBookRegistered` で再チェックするよう修正。**R4.7追記**: 意図的な再読は許可する（登録済み行タップで再読確認→既存本へ履歴追加）。accidental duplicate は引き続き防止（新規保存の直前再チェックと検索結果ID単位の in-flight を維持。レースで登録済みになった新規保存は再読へ変換せず中止） | `Views/BookSearchView.swift` `saveBook` |
 | C-4 | 低 | ✅ 修正済み (2026-07-07) | 通帳の並びが `registeredAt` のみのソートで、同秒登録時に通帳番号が再描画で入れ替わる可能性。→ ソートに第2キー `createdAt`（降順）を追加し、`registeredAt` が同秒のときの並びを安定化（`UserBook.createdAt` を第2ソートキーに）（`a172473`） | `Views/PassbookDetailView.swift` `sortedBooks` ソート（`registeredAt` → `createdAt` の2段） |
 
 ## グループD: カレンダー・統計

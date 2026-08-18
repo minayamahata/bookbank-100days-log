@@ -112,7 +112,7 @@ struct MemoFormattedText: View {
                         }
                     }
                 case .quote(let content):
-                    // 引用の文字は本文より少し小さく・少し薄い黒、囲みの内側に余白18（編集画面と同じ）。
+                    // 引用の文字は本文より少し小さく・少し薄い黒、囲みの内側余白は編集画面と同じ。
                     // 太字も囲みの中の大きさに合わせる（編集画面はその行のフォントから拾っている）
                     inline(content, boldFont: .app(.subheadline, weight: .bold))
                         .font(.app(.subheadline))
@@ -122,8 +122,13 @@ struct MemoFormattedText: View {
                         // 省略される（2026-08-13 オーナー報告）
                         .fixedSize(horizontal: false, vertical: true)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(18)
+                        .padding(.horizontal, MemoQuoteBackgroundLayoutManager.padding)
+                        .padding(.top, MemoQuoteBackgroundLayoutManager.padding)
+                        .padding(.bottom, MemoQuoteBackgroundLayoutManager.paddingBottom)
                         .background(Color(.quaternarySystemFill))
+                        .overlay(alignment: .topLeading) {
+                            quoteLeadLine
+                        }
                         // 出典ページが続くなら詰めたまま（同じかたまりに見せる）。
                         // 続かないなら、囲みの下が引用のまとまりの下になる
                         .padding(.bottom, Self.gapBelow(index, in: blocks))
@@ -139,6 +144,26 @@ struct MemoFormattedText: View {
                 }
             }
         }
+    }
+
+    /// 確定メモだけの引用印。先頭行の高さに合わせ、枠の左へ少しはみ出す
+    /// （**2026-08-18 オーナー指示**。編集画面には出さない）
+    private static let quoteLeadLineWidth: CGFloat = 20
+    private static let quoteLeadLineThickness: CGFloat = 1
+    private static let quoteLeadLineOverflow: CGFloat = 8
+
+    private var quoteLeadLine: some View {
+        let lineHeight = AppTypography.uiFont(.subheadline).lineHeight
+        return Rectangle()
+            .fill(Color.primary)
+            .frame(width: Self.quoteLeadLineWidth, height: Self.quoteLeadLineThickness)
+            .offset(
+                x: -Self.quoteLeadLineOverflow,
+                y: MemoQuoteBackgroundLayoutManager.padding
+                    + lineHeight / 2
+                    - Self.quoteLeadLineThickness / 2
+            )
+            .allowsHitTesting(false)
     }
 
     /// 引用のまとまりの下だけ広く空ける（編集画面と同じ30。ブロック間の6ぶんを差し引く）。
@@ -163,6 +188,7 @@ struct MemoFormattedText: View {
         boldFont: Font = .app(.body, weight: .bold)
     ) -> some View {
         MemoLinkText.text(content, accentColor: accentColor, boldFont: boldFont)
+            .lineSpacing(MemoEditorTextView.bodyLineSpacing)
             .textRenderer(
                 MemoPageBadgeRenderer(
                     badgeColor: Color(MemoQuoteBackgroundLayoutManager.pageBadgeColorDefault)

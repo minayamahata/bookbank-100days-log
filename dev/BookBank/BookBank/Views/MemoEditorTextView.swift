@@ -17,8 +17,10 @@ import UIKit
 /// 書籍詳細側の囲み（内側の余白10）と見た目が揃わないため（2026-08-11 オーナー指示）。
 /// この描画のため `UITextView` は旧来のレイアウト機構（TextKit 1）で組む
 final class MemoQuoteBackgroundLayoutManager: NSLayoutManager {
-    /// 囲みの内側の余白。上下は段落スタイルの前後空き、左右は字下げで作る
+    /// 囲みの内側の余白。上と左右は段落スタイルの前後空き／字下げで作る
     static let padding: CGFloat = 18
+    /// 囲みの下辺だけ 2pt 狭くする（**2026-08-18 オーナー指示**）
+    static let paddingBottom: CGFloat = 16
     /// 囲みと隣の行のあいだ（書籍詳細のブロック間と同じ）
     static let gapToNeighbor: CGFloat = 6
     /// 引用の**まとまり**（囲み＋出典ページ）の下と、その次の行のあいだ。
@@ -70,7 +72,7 @@ final class MemoQuoteBackgroundLayoutManager: NSLayoutManager {
             guard !box.isNull else { return nil }
 
             let missingTop = range.location == 0 ? Self.padding : 0
-            let missingBottom = NSMaxRange(range) == storage.length ? Self.padding : 0
+            let missingBottom = NSMaxRange(range) == storage.length ? Self.paddingBottom : 0
             return CGRect(
                 x: 0,
                 y: box.minY - missingTop,
@@ -353,6 +355,10 @@ struct MemoEditorTextView: UIViewRepresentable {
     static var paragraphSpacing: CGFloat {
         AppTypography.uiFont(.body).lineHeight
     }
+
+    /// 折り返しの行間に足す空き。編集画面と確定メモ（`MemoFormattedText`）だけ使う。
+    /// 通常 UI の日本語 +1pt より広くする（**2026-08-18 オーナー指示**）
+    static let bodyLineSpacing: CGFloat = 6
 
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
@@ -818,6 +824,7 @@ struct MemoEditorTextView: UIViewRepresentable {
             )
             // Enterで分けた段落は折り返しの行より広く空ける（段落の行送りが2倍になる）
             let bodyStyle = NSMutableParagraphStyle()
+            bodyStyle.lineSpacing = MemoEditorTextView.bodyLineSpacing
             bodyStyle.paragraphSpacing = MemoEditorTextView.paragraphSpacing
             let baseAttributes: [NSAttributedString.Key: Any] = [
                 .font: bodyFont,
@@ -879,7 +886,8 @@ struct MemoEditorTextView: UIViewRepresentable {
                     + (quoteBlocks.first?.location == 0 ? padding : 0),
                 left: 0,
                 bottom: MemoEditorTextView.baseTextInset
-                    + (quoteBlocks.last.map { NSMaxRange($0) == nsText.length } == true ? padding : 0),
+                    + (quoteBlocks.last.map { NSMaxRange($0) == nsText.length } == true
+                        ? MemoQuoteBackgroundLayoutManager.paddingBottom : 0),
                 right: 0
             )
 
@@ -1175,6 +1183,7 @@ struct MemoEditorTextView: UIViewRepresentable {
         ) -> NSParagraphStyle {
             let padding = MemoQuoteBackgroundLayoutManager.padding
             let style = NSMutableParagraphStyle()
+            style.lineSpacing = MemoEditorTextView.bodyLineSpacing
             let indent = max(0, padding - lineFragmentPadding)
             style.firstLineHeadIndent = indent
             style.headIndent = indent
@@ -1183,7 +1192,7 @@ struct MemoEditorTextView: UIViewRepresentable {
                 style.paragraphSpacingBefore = padding
             }
             if lineRange.location + lineRange.length == block.location + block.length {
-                style.paragraphSpacing = padding
+                style.paragraphSpacing = MemoQuoteBackgroundLayoutManager.paddingBottom
             }
             return style
         }
@@ -1219,6 +1228,7 @@ struct MemoEditorTextView: UIViewRepresentable {
                 let isBlank = nsText.substring(with: gap.range)
                     .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                 let style = NSMutableParagraphStyle()
+                style.lineSpacing = MemoEditorTextView.bodyLineSpacing
                 // 囲みに面していない側は段落の空きのまま（本文どうしの行送りを変えない）
                 style.paragraphSpacing = MemoEditorTextView.paragraphSpacing
                 if !isBlank {

@@ -117,6 +117,7 @@ let themeColor = PassbookColor.color(for: passbook, in: customPassbooks)
 日本語は Google Fonts 公式の LINE Seed JP（コンパクトな縦メトリクス）を使う。
 通常の SwiftUI 画面だけ、日本語のとき行間を 1pt 足す（`lineSpacing(1)`。1行の高さは変わらない）。
 英語・韓国語・繁体字・簡体字は 0pt。マンスリーログ共有 PNG など固定画像は 0pt。
+メモ編集と確定メモ（書籍詳細）だけ、折り返しの行間をさらに +6（`MemoEditorTextView.bodyLineSpacing`）。
 `leading(.tight)` / `leading(.loose)`、負の `lineSpacing`、baselineOffset による調整はしない。
 英語・韓国語・繁体字は公式配布パッケージの OTF、簡体字は PingFang SC／システムフォント。
 
@@ -126,6 +127,7 @@ let themeColor = PassbookColor.color(for: passbook, in: customPassbooks)
 |------|---------|---|
 | 大きな金額表示 | `.app(size: 32)` | 総資産 |
 | 中程度の金額表示 | `.app(size: 22)` | カード内金額 |
+| 年見出し | `.app(size: 34, weight: .bold)` | マンスリーログ・集計の左上の年 |
 | タイトル（大） | `.app(.title2, weight: .bold)` | リスト詳細タイトル |
 | タイトル（中） | `.app(.title3)` | 本の詳細タイトル |
 | 見出し | `.app(.headline)` | カルーセルタイトル |

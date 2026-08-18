@@ -142,6 +142,33 @@ struct MonthlyLogShareSnapshotTests {
         #expect(snapshot.displayCurrency == .usd)
     }
 
+    @Test func rereadInTargetMonthIsIncludedEvenIfInitialIsOutside() {
+        var item = book(id: "july-book", year: 2026, month: 7, day: 20, price: 500)
+        item.rereads = [RereadRecord(id: "aug-reread", date: calendar().date(
+            from: DateComponents(year: 2026, month: 8, day: 8, hour: 12)
+        )!)]
+        let snapshot = makeSnapshot(books: [item])
+        #expect(snapshot.bookCount == 1)
+        #expect(snapshot.totalDisplayAmount == 500)
+        #expect(snapshot.books.map(\.id) == ["july-book"])
+        #expect(snapshot.occurrences.map(\.id) == ["aug-reread"])
+        #expect(snapshot.layout.days.first { $0.day == 8 }?.representative?.id == "july-book")
+    }
+
+    @Test func sameBookMultipleReadsInMonthCountEachTime() {
+        var item = book(id: "repeat", year: 2026, month: 8, day: 1, price: 400)
+        item.rereads = [
+            RereadRecord(id: "r2", date: calendar().date(from: DateComponents(year: 2026, month: 8, day: 16, hour: 10))!),
+            RereadRecord(id: "r3", date: calendar().date(from: DateComponents(year: 2026, month: 8, day: 16, hour: 18))!)
+        ]
+        let snapshot = makeSnapshot(books: [item])
+        #expect(snapshot.bookCount == 3)
+        #expect(snapshot.totalDisplayAmount == 1200)
+        #expect(snapshot.books.map(\.id) == ["repeat"])
+        #expect(snapshot.layout.days.first { $0.day == 16 }?.extraCount == 1)
+        #expect(snapshot.layout.days.first { $0.day == 16 }?.occurrences.map(\.id) == ["r2", "r3"])
+    }
+
     @Test func doesNotKeepMonthlyMemoText() {
         let snapshot = makeSnapshot(books: [book(id: "m", year: 2026, month: 8, day: 5, memo: "user memo")])
         let labels = Mirror(reflecting: snapshot).children.compactMap(\.label)

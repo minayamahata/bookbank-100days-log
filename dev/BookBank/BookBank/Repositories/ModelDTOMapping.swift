@@ -23,6 +23,7 @@ enum ModelDTOMapping {
             priceAtRegistration: model.priceAtRegistration,
             currencyCode: model.currencyCode,
             registeredAt: model.registeredAt,
+            rereads: model.rereads ?? [],
             createdAt: model.createdAt,
             updatedAt: model.updatedAt,
             passbookId: model.passbook?.uuid,
@@ -53,7 +54,8 @@ enum ModelDTOMapping {
         model.createdAt = dto.createdAt
         model.updatedAt = dto.updatedAt
         model.passbook = passbook
-        // coverImageData / uuid はここでは触らない（uuidは不変・画像は専用API）
+        // coverImageData / uuid / rereads はここでは触らない
+        // （uuidは不変・画像は専用API・再読は専用API。古いDTOの updateBook で履歴を消さない）
     }
 
     static func passbookDTO(from model: Passbook) -> PassbookDTO {

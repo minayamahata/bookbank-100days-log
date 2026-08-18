@@ -114,9 +114,18 @@ struct PassbookDetailView: View {
         return allUserBooks
     }
     
-    /// 合計金額（表示通貨）
+    /// 通帳行（回数ベース）。表示順は日付降順・同日は初回先。
+    private var readingOccurrences: [BookReadingOccurrence] {
+        ReadingTally.displayedOccurrences(from: userBooks)
+    }
+
+    /// 合計金額（表示通貨・回数ベース）
     private var totalValue: Int {
-        userBooks.totalDisplayAmount(in: currencyManager.displayCurrency, exchangeRates: exchangeRates)
+        ReadingTally.totalDisplayAmount(
+            of: readingOccurrences,
+            in: currencyManager.displayCurrency,
+            exchangeRates: exchangeRates
+        )
     }
     
     /// 今日の日付文字列
@@ -124,9 +133,9 @@ struct PassbookDetailView: View {
         AppDateFormat.display(Date())
     }
 
-    /// 登録書籍数
+    /// 登録書籍数（読書回数）
     private var bookCount: Int {
-        userBooks.count
+        readingOccurrences.count
     }
     
     /// カスタム口座のリスト
@@ -701,13 +710,14 @@ struct PassbookDetailView: View {
         .id(book.id)
     }
 
-    private func passbookDepositRow(for book: BookDTO, index: Int) -> some View {
-        HStack(alignment: .top, spacing: 12) {
+    private func passbookDepositRow(for occurrence: BookReadingOccurrence, index: Int) -> some View {
+        let book = occurrence.book
+        return HStack(alignment: .top, spacing: 12) {
             passbookBookCover(for: book)
 
             VStack(alignment: .leading, spacing: 6) {
                 HStack(alignment: .center, spacing: 6) {
-                    Text("\(userBooks.count - index)")
+                    Text("\(readingOccurrences.count - index)")
                         .font(.app(size: 11))
                         .foregroundColor(accentColor)
                         .padding(.horizontal, 5)
@@ -717,9 +727,15 @@ struct PassbookDetailView: View {
                                 .fill(depositEntryBadgeBackground)
                         )
 
-                    Text(formatDate(book.registeredAt))
+                    Text(formatDate(occurrence.date))
                         .font(.app(size: 11))
                         .foregroundColor(.secondary)
+
+                    if occurrence.isReread {
+                        Text("book.reread.entry")
+                            .font(.app(size: 11))
+                            .foregroundColor(.secondary)
+                    }
                 }
 
                 Text(book.title)
@@ -759,7 +775,7 @@ struct PassbookDetailView: View {
 
     private var listContent: some View {
         LazyVStack(spacing: 6) {
-            if userBooks.isEmpty {
+            if readingOccurrences.isEmpty {
                 if hasLoadedUserBooks {
                     Text("passbook.recent_books_prompt")
                         .font(.app(.body))
@@ -774,12 +790,12 @@ struct PassbookDetailView: View {
                         .padding()
                 }
             } else {
-                ForEach(Array(userBooks.enumerated()), id: \.element.id) { index, book in
+                ForEach(Array(readingOccurrences.enumerated()), id: \.element.id) { index, occurrence in
                     Button {
                         guard !locksRowNavigation else { return }
-                        selectedBook = book
+                        selectedBook = occurrence.book
                     } label: {
-                        passbookDepositRow(for: book, index: index)
+                        passbookDepositRow(for: occurrence, index: index)
                     }
                     .buttonStyle(.plain)
                     .padding(.horizontal, 16)

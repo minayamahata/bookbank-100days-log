@@ -272,6 +272,9 @@ isFavorite       boolean    ← UserBook.isFavorite
 priceAtRegistration number? ← UserBook.priceAtRegistration
 currencyCode     string?    ← UserBook.currencyCode
 registeredAt     timestamp  ← UserBook.registeredAt
+rereads          array<{id: string, date: timestamp}>?
+                              ← UserBook.rereads（R4.7。nil/欠落=履歴なし。
+                              再読1件は id=UUID文字列 と date のみ。口座IDは持たない）
 createdAt        timestamp  ← UserBook.createdAt
 updatedAt        timestamp  ← UserBook.updatedAt
 -- リレーション --

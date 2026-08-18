@@ -75,7 +75,7 @@ struct MemoQuoteGeometryTests {
             let (textView, layoutManager, _) = makeTextView(text: text)
             let style = NSMutableParagraphStyle()
             style.paragraphSpacingBefore = padding
-            style.paragraphSpacing = padding
+            style.paragraphSpacing = MemoQuoteBackgroundLayoutManager.paddingBottom
             textView.textStorage.addAttribute(.paragraphStyle, value: style, range: trimmed)
             layoutManager.quoteRanges = [trimmed]
             layoutManager.ensureLayout(for: textView.textContainer)
@@ -88,7 +88,10 @@ struct MemoQuoteGeometryTests {
             }
 
             #expect(textArea.minY - box.minY >= padding - 0.5, "上の余白が残る: \(text)")
-            #expect(box.maxY - textArea.maxY >= padding - 0.5, "下の余白が残る: \(text)")
+            #expect(
+                box.maxY - textArea.maxY >= MemoQuoteBackgroundLayoutManager.paddingBottom - 0.5,
+                "下の余白が残る: \(text)"
+            )
         }
     }
 

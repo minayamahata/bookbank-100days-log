@@ -1169,4 +1169,239 @@ final class RepositoryFoundationTests: XCTestCase {
         XCTAssertEqual(observed.map(\.id), ["new", "old"])
         XCTAssertEqual(repos.readingLists.latestSnapshot.map(\.id), observed.map(\.id))
     }
+
+    // MARK: - R4.7 再読履歴
+
+    func testAddBookPersistsRereadsFromDTO() async throws {
+        var book = sampleBookDTO(id: "with-history")
+        let rereadDate = Date(timeIntervalSince1970: 1_700_100_000)
+        book.rereads = [RereadRecord(id: "r1", date: rereadDate)]
+        try await repos.books.addBook(book, coverImageData: nil)
+
+        let observed = await firstValue(repos.books.observeBooks())
+        XCTAssertEqual(observed.first?.rereads.map(\.id), ["r1"])
+        XCTAssertEqual(observed.first?.readCount, 2)
+        XCTAssertEqual(observed.first?.latestReadDate, rereadDate)
+    }
+
+    func testAddUpdateDeleteRereadPersistsAndNotifies() async throws {
+        let book = sampleBookDTO(id: "reread-book")
+        try await repos.books.addBook(book, coverImageData: nil)
+
+        let stream = repos.books.observeBooks()
+        var iterator = stream.makeAsyncIterator()
+        _ = await iterator.next()
+
+        let rereadDate = Date()
+        try await repos.books.addReread(bookId: book.id, date: rereadDate)
+        let afterAddSnapshot = await iterator.next()
+        let afterAdd = try XCTUnwrap(afterAddSnapshot?.first)
+        XCTAssertEqual(afterAdd.rereads.count, 1)
+        XCTAssertEqual(afterAdd.updatedAt, book.updatedAt)
+        let rereadId = try XCTUnwrap(afterAdd.rereads.first?.id)
+
+        let moved = Calendar.current.date(byAdding: .day, value: -1, to: Date()) ?? Date()
+        try await repos.books.updateReread(bookId: book.id, rereadId: rereadId, date: moved)
+        let afterUpdateSnapshot = await iterator.next()
+        let afterUpdate = try XCTUnwrap(afterUpdateSnapshot?.first)
+        XCTAssertEqual(afterUpdate.rereads.first?.date, moved)
+        XCTAssertEqual(afterUpdate.updatedAt, book.updatedAt)
+
+        try await repos.books.deleteReread(bookId: book.id, rereadId: rereadId)
+        let afterDeleteSnapshot = await iterator.next()
+        let afterDelete = try XCTUnwrap(afterDeleteSnapshot?.first)
+        XCTAssertTrue(afterDelete.rereads.isEmpty)
+        XCTAssertEqual(afterDelete.updatedAt, book.updatedAt)
+    }
+
+    func testRereadNotFoundAndInvalidDateThrow() async throws {
+        let calendar = Calendar.current
+        let registered = calendar.date(from: DateComponents(year: 2026, month: 8, day: 10, hour: 12))!
+        let book = sampleBookDTO(id: "date-book", registeredAt: registered, createdAt: registered)
+        try await repos.books.addBook(book, coverImageData: nil)
+
+        let tooEarly = calendar.date(from: DateComponents(year: 2026, month: 8, day: 9, hour: 12))!
+        do {
+            try await repos.books.addReread(bookId: book.id, date: tooEarly)
+            XCTFail("expected invalidRereadDate")
+        } catch let error as RepositoryError {
+            XCTAssertEqual(error, .invalidRereadDate)
+        }
+
+        let tomorrow = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: Date()))!
+        do {
+            try await repos.books.addReread(bookId: book.id, date: tomorrow)
+            XCTFail("expected invalidRereadDate")
+        } catch let error as RepositoryError {
+            XCTAssertEqual(error, .invalidRereadDate)
+        }
+
+        do {
+            try await repos.books.addReread(bookId: "missing", date: Date())
+            XCTFail("expected bookNotFound")
+        } catch let error as RepositoryError {
+            XCTAssertEqual(error, .bookNotFound("missing"))
+        }
+        do {
+            try await repos.books.updateReread(bookId: book.id, rereadId: "nope", date: Date())
+            XCTFail("expected rereadNotFound")
+        } catch let error as RepositoryError {
+            XCTAssertEqual(error, .rereadNotFound("nope"))
+        }
+        do {
+            try await repos.books.deleteReread(bookId: book.id, rereadId: "nope")
+            XCTFail("expected rereadNotFound")
+        } catch let error as RepositoryError {
+            XCTAssertEqual(error, .rereadNotFound("nope"))
+        }
+    }
+
+    func testSameDayAndInitialDayRereadsAreAllowed() async throws {
+        let calendar = Calendar.current
+        let registered = calendar.date(from: DateComponents(year: 2026, month: 8, day: 10, hour: 18))!
+        let book = sampleBookDTO(id: "same-day", registeredAt: registered, createdAt: registered)
+        try await repos.books.addBook(book, coverImageData: nil)
+
+        let morning = calendar.date(from: DateComponents(year: 2026, month: 8, day: 10, hour: 8))!
+        try await repos.books.addReread(bookId: book.id, date: morning)
+        try await repos.books.addReread(bookId: book.id, date: morning)
+
+        let sameDayObserved = await firstValue(repos.books.observeBooks())
+        let observed = try XCTUnwrap(sameDayObserved.first)
+        XCTAssertEqual(observed.rereads.count, 2)
+    }
+
+    func testDeletingOneOfThreeSameDayRereadsLeavesTheOthers() async throws {
+        let calendar = Calendar.current
+        let registered = calendar.date(from: DateComponents(year: 2026, month: 8, day: 10, hour: 12))!
+        let book = sampleBookDTO(id: "three-same-day", registeredAt: registered, createdAt: registered)
+        try await repos.books.addBook(book, coverImageData: nil)
+
+        let day = calendar.date(from: DateComponents(year: 2026, month: 8, day: 18, hour: 10))!
+        try await repos.books.addReread(bookId: book.id, date: day)
+        try await repos.books.addReread(bookId: book.id, date: day)
+        try await repos.books.addReread(bookId: book.id, date: day)
+
+        let afterAddSnapshot = await firstValue(repos.books.observeBooks())
+        let afterAdd = try XCTUnwrap(afterAddSnapshot.first)
+        XCTAssertEqual(afterAdd.rereads.count, 3)
+        let ids = afterAdd.rereads.map(\.id)
+        XCTAssertEqual(Set(ids).count, 3)
+
+        let latestId = try XCTUnwrap(afterAdd.rereads.last?.id)
+        try await repos.books.deleteReread(bookId: book.id, rereadId: latestId)
+
+        let afterDeleteSnapshot = await firstValue(repos.books.observeBooks())
+        let afterDelete = try XCTUnwrap(afterDeleteSnapshot.first)
+        XCTAssertEqual(afterDelete.rereads.count, 2)
+        XCTAssertFalse(afterDelete.rereads.contains { $0.id == latestId })
+        XCTAssertEqual(Set(afterDelete.rereads.map(\.id)).count, 2)
+    }
+
+    func testDeleteRereadWithDuplicateIDsRemovesOnlyOne() async throws {
+        let calendar = Calendar.current
+        let registered = calendar.date(from: DateComponents(year: 2026, month: 8, day: 10, hour: 12))!
+        var book = sampleBookDTO(id: "dup-reread-id", registeredAt: registered, createdAt: registered)
+        let day = calendar.date(from: DateComponents(year: 2026, month: 8, day: 18, hour: 10))!
+        book.rereads = [
+            RereadRecord(id: "dup", date: day),
+            RereadRecord(id: "dup", date: day),
+            RereadRecord(id: "other", date: day)
+        ]
+        try await repos.books.addBook(book, coverImageData: nil)
+
+        try await repos.books.deleteReread(bookId: book.id, rereadId: "dup")
+
+        let observedSnapshot = await firstValue(repos.books.observeBooks())
+        let observed = try XCTUnwrap(observedSnapshot.first)
+        XCTAssertEqual(observed.rereads.count, 2)
+        XCTAssertEqual(observed.rereads.filter { $0.id == "dup" }.count, 1)
+        XCTAssertTrue(observed.rereads.contains { $0.id == "other" })
+    }
+
+    func testUpdateBookWithStaleDTODoesNotEraseRereads() async throws {
+        var book = sampleBookDTO(id: "stale-dto")
+        try await repos.books.addBook(book, coverImageData: nil)
+        try await repos.books.addReread(bookId: book.id, date: Date())
+
+        book.title = "古いスナップショット"
+        book.rereads = []
+        try await repos.books.updateBook(book)
+
+        let staleObserved = await firstValue(repos.books.observeBooks())
+        let observed = try XCTUnwrap(staleObserved.first)
+        XCTAssertEqual(observed.title, "古いスナップショット")
+        XCTAssertEqual(observed.rereads.count, 1)
+    }
+
+    func testRereadPersistsAcrossContainerReload() async throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let storeURL = dir.appendingPathComponent("reread-reload.store")
+        let schema = Schema([
+            Passbook.self, UserBook.self, Subscription.self, ReadingList.self, MonthlyMemo.self
+        ])
+
+        do {
+            let config = ModelConfiguration(schema: schema, url: storeURL)
+            let first = try ModelContainer(for: schema, configurations: [config])
+            let pulse = RepositoryChangePulse()
+            let repo = SwiftDataBookRepository(context: first.mainContext, pulse: pulse)
+            let book = sampleBookDTO(id: "reload-book")
+            try await repo.addBook(book, coverImageData: nil)
+            try await repo.addReread(bookId: book.id, date: Date())
+        }
+
+        let config = ModelConfiguration(schema: schema, url: storeURL)
+        let second = try ModelContainer(for: schema, configurations: [config])
+        let repo = SwiftDataBookRepository(context: second.mainContext, pulse: RepositoryChangePulse())
+        let observed = await firstValue(repo.observeBooks())
+        XCTAssertEqual(observed.first?.rereads.count, 1)
+    }
+
+    func testDeletingOneSameDayRereadSurvivesContainerReload() async throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let storeURL = dir.appendingPathComponent("reread-same-day-delete.store")
+        let schema = Schema([
+            Passbook.self, UserBook.self, Subscription.self, ReadingList.self, MonthlyMemo.self
+        ])
+        let calendar = Calendar.current
+        let registered = calendar.date(from: DateComponents(year: 2026, month: 8, day: 10, hour: 12))!
+        let day = calendar.date(from: DateComponents(year: 2026, month: 8, day: 18, hour: 10))!
+        var remainingIDs: [String] = []
+
+        do {
+            let config = ModelConfiguration(schema: schema, url: storeURL)
+            let first = try ModelContainer(for: schema, configurations: [config])
+            let repo = SwiftDataBookRepository(context: first.mainContext, pulse: RepositoryChangePulse())
+            let book = sampleBookDTO(
+                id: "reload-same-day",
+                registeredAt: registered,
+                createdAt: registered
+            )
+            try await repo.addBook(book, coverImageData: nil)
+            try await repo.addReread(bookId: book.id, date: day)
+            try await repo.addReread(bookId: book.id, date: day)
+            try await repo.addReread(bookId: book.id, date: day)
+            let afterAddSnapshot = await firstValue(repo.observeBooks())
+            let afterAdd = try XCTUnwrap(afterAddSnapshot.first)
+            XCTAssertEqual(afterAdd.rereads.count, 3)
+            let latestId = try XCTUnwrap(afterAdd.rereads.last?.id)
+            try await repo.deleteReread(bookId: book.id, rereadId: latestId)
+            remainingIDs = afterAdd.rereads.map(\.id).filter { $0 != latestId }
+        }
+
+        let config = ModelConfiguration(schema: schema, url: storeURL)
+        let second = try ModelContainer(for: schema, configurations: [config])
+        let repo = SwiftDataBookRepository(context: second.mainContext, pulse: RepositoryChangePulse())
+        let observedSnapshot = await firstValue(repo.observeBooks())
+        let observed = try XCTUnwrap(observedSnapshot.first)
+        XCTAssertEqual(observed.rereads.count, 2)
+        XCTAssertEqual(Set(observed.rereads.map(\.id)), Set(remainingIDs))
+    }
 }

@@ -317,17 +317,14 @@ struct EditPassbookView: View {
             .sheet(isPresented: $showExportSheet) {
                 ExportSheetView(
                     title: passbook.name,
-                    bookCount: passbookBooks.count,
-                    totalValue: passbookBooks.totalDisplayAmount(
+                    bookCount: ReadingTally.occurrences(from: passbookBooks).count,
+                    totalValue: ReadingTally.totalDisplayAmount(
+                        of: ReadingTally.occurrences(from: passbookBooks),
                         in: currencyManager.displayCurrency,
                         exchangeRates: exchangeRates
                     ),
                     sampleBooks: passbookBooks.prefix(4).map { book in
-                        if let author = book.author, !author.isEmpty {
-                            return "\(book.title) / \(author)"
-                        } else {
-                            return book.title
-                        }
+                        ReadingTally.titleOnlyLine(for: book)
                     },
                     sampleDetailedBook: passbookBooks.first.map { book in
                         (

@@ -19,6 +19,7 @@ struct BookDTO: Identifiable, Equatable, Hashable, Sendable {
     var priceAtRegistration: Int?
     var currencyCode: String?
     var registeredAt: Date
+    var rereads: [RereadRecord] = []
     var createdAt: Date
     var updatedAt: Date
     /// 所属口座の uuid（リレーションの片方向参照）
@@ -44,6 +45,21 @@ extension BookDTO {
     func displayAmount(in target: AppCurrency, exchangeRates: ExchangeRateService) -> Int? {
         guard let amount = priceAtRegistration else { return nil }
         return exchangeRates.convert(amount, from: storedCurrency, to: target)
+    }
+
+    /// 初回登録日＋各再読日
+    var allReadingDates: [Date] {
+        [registeredAt] + rereads.map(\.date)
+    }
+
+    /// 総読書回数（初回1 + 再読件数）
+    var readCount: Int {
+        1 + rereads.count
+    }
+
+    /// 最も新しい読書日
+    var latestReadDate: Date {
+        rereads.map(\.date).max().map { max($0, registeredAt) } ?? registeredAt
     }
 }
 

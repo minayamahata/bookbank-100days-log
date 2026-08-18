@@ -261,7 +261,6 @@ struct UserBookDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(isChromeExpanded)
         .toolbarBackground(.hidden, for: .navigationBar)
-        .toolbarBackground(.hidden, for: .tabBar)
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
                 if isChromeExpanded {
@@ -665,6 +664,11 @@ struct UserBookDetailView: View {
             Divider()
                 .padding(.bottom, 24)
 
+            readingHistorySection
+
+            Divider()
+                .padding(.bottom, 24)
+
             Text("book.details.section")
                 .font(.app(.headline))
                 .padding(.bottom, 8)
@@ -673,8 +677,6 @@ struct UserBookDetailView: View {
                 if let passbookName = bookPassbookDTO?.name {
                     DetailInfoRow(label: "account.registered", value: passbookName)
                 }
-
-                DetailInfoRow(label: "book.registration_date", value: formatDate(book.registeredAt))
 
                 if let publisher = book.publisher {
                     DetailInfoRow(label: "book.publisher", value: publisher)
@@ -861,6 +863,56 @@ struct UserBookDetailView: View {
     /// 日付を言語に応じた表記でフォーマット
     private func formatDate(_ date: Date) -> String {
         AppDateFormat.display(date)
+    }
+
+    private var readingHistory: [BookReadingOccurrence] {
+        ReadingTally.displayedOccurrences(from: [book])
+    }
+
+    @ViewBuilder
+    private var readingHistorySection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("book.reread.history")
+                .font(.app(.headline))
+                .padding(.bottom, 8)
+
+            VStack(alignment: .leading, spacing: 8) {
+                ForEach(readingHistory) { occurrence in
+                    HStack(alignment: .center, spacing: 8) {
+                        Text(occurrence.isReread ? "book.reread.entry" : "book.registration_date")
+                            .foregroundColor(.secondary)
+                            .frame(width: 80, alignment: .leading)
+                        Circle()
+                            .fill(readingHistoryTimelineColor)
+                            .frame(width: 6, height: 6)
+                        Text(formatDate(occurrence.date))
+                        Spacer()
+                    }
+                }
+            }
+            .font(.app(.subheadline))
+            .overlay(alignment: .topLeading) {
+                if readingHistory.count > 1 {
+                    GeometryReader { geo in
+                        let count = CGFloat(readingHistory.count)
+                        let spacing: CGFloat = 8
+                        let rowHeight = (geo.size.height - spacing * (count - 1)) / count
+                        let x: CGFloat = 80 + 8 + 3
+                        Path { path in
+                            path.move(to: CGPoint(x: x, y: rowHeight / 2))
+                            path.addLine(to: CGPoint(x: x, y: geo.size.height - rowHeight / 2))
+                        }
+                        .stroke(readingHistoryTimelineColor, lineWidth: 1)
+                    }
+                }
+            }
+            .padding(.bottom, 24)
+        }
+    }
+
+    /// 円と縦線で同じ色を使う。透過はかけない
+    private var readingHistoryTimelineColor: Color {
+        Color.primary
     }
 }
 

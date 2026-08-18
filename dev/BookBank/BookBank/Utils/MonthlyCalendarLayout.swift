@@ -5,14 +5,15 @@ import Foundation
 /// 週の始まりは渡された `Calendar.firstWeekday` に従う（日曜始まり・月曜始まりの両方）。
 /// 共有画像用に別の暦計算を持たない。
 struct MonthlyCalendarLayout: Equatable, Sendable {
-    /// 1日分。`books` は新しい登録が先。
+    /// 1日分。`occurrences` は表示順（日付降順・同日は初回先）。
     struct Day: Equatable, Identifiable, Sendable {
         let day: Int
-        let books: [BookDTO]
+        let occurrences: [BookReadingOccurrence]
 
         var id: Int { day }
-        var representative: BookDTO? { books.first }
-        var extraCount: Int { max(0, books.count - 1) }
+        var representative: BookDTO? { occurrences.first?.book }
+        var extraCount: Int { max(0, occurrences.count - 1) }
+        var books: [BookDTO] { occurrences.map(\.book) }
     }
 
     let year: Int
@@ -35,11 +36,25 @@ struct MonthlyCalendarLayout: Equatable, Sendable {
         books: [BookDTO],
         calendar: Calendar
     ) -> MonthlyCalendarLayout {
+        make(
+            year: year,
+            month: month,
+            occurrences: ReadingTally.displayedOccurrences(from: books, calendar: calendar),
+            calendar: calendar
+        )
+    }
+
+    static func make(
+        year: Int,
+        month: Int,
+        occurrences: [BookReadingOccurrence],
+        calendar: Calendar
+    ) -> MonthlyCalendarLayout {
         let dayCount = daysInMonth(year: year, month: month, calendar: calendar)
         let leading = leadingBlankCount(year: year, month: month, calendar: calendar)
-        let grouped = groupByDay(books, calendar: calendar)
+        let grouped = groupByDay(occurrences, calendar: calendar)
         let days = (1...max(dayCount, 1)).map { day in
-            Day(day: day, books: grouped[day] ?? [])
+            Day(day: day, occurrences: grouped[day] ?? [])
         }
         return MonthlyCalendarLayout(
             year: year,
@@ -51,15 +66,18 @@ struct MonthlyCalendarLayout: Equatable, Sendable {
         )
     }
 
-    /// その月の本を「日 -> 書籍配列（新しい順）」にまとめる
-    static func groupByDay(_ books: [BookDTO], calendar: Calendar) -> [Int: [BookDTO]] {
-        var result: [Int: [BookDTO]] = [:]
-        for book in books {
-            let day = calendar.component(.day, from: book.registeredAt)
-            result[day, default: []].append(book)
+    /// その月の読書を「日 -> occurrence 配列（表示順）」にまとめる
+    static func groupByDay(
+        _ occurrences: [BookReadingOccurrence],
+        calendar: Calendar
+    ) -> [Int: [BookReadingOccurrence]] {
+        var result: [Int: [BookReadingOccurrence]] = [:]
+        for occurrence in occurrences {
+            let day = calendar.component(.day, from: occurrence.date)
+            result[day, default: []].append(occurrence)
         }
         for key in result.keys {
-            result[key]?.sort { $0.registeredAt > $1.registeredAt }
+            result[key] = ReadingTally.sortedForDisplay(result[key] ?? [], calendar: calendar)
         }
         return result
     }

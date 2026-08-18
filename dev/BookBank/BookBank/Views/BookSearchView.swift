@@ -137,6 +137,12 @@ struct BookSearchView: View {
 
     /// 金額手入力欄の入力値（表示通貨のメジャー単位）
     @State private var priceInputText: String = ""
+
+    /// 検索結果ID単位の操作中。新規登録・再読追加の二重タップを防ぐ
+    @State private var inFlightSearchResultIDs: Set<String> = []
+
+    /// 再読確認の対象
+    @State private var pendingReread: PendingRereadConfirmation?
     
     /// 未登録のみ表示フラグ
     @State private var showUnregisteredOnly: Bool = false
@@ -661,15 +667,18 @@ struct BookSearchView: View {
 
                     ForEach(filteredResults) { result in
                         let isAlreadyRegistered = isBookRegistered(result)
+                        let isInFlight = inFlightSearchResultIDs.contains(result.id)
                         
                         Button(action: {
-                            if !isAlreadyRegistered {
+                            if isAlreadyRegistered {
+                                requestReread(for: result)
+                            } else {
                                 registerBook(from: result)
                             }
                         }) {
                             BookSearchResultRow(result: result, isRegistered: isAlreadyRegistered, themeColor: themeColor)
                         }
-                        .disabled(isAlreadyRegistered)
+                        .disabled(isInFlight)
                         .listRowSeparator(.hidden)
                         .listRowInsets(EdgeInsets(top: 8, leading: 24, bottom: 8, trailing: 24))
                     }
@@ -746,6 +755,27 @@ struct BookSearchView: View {
             BarcodeScannerView { isbn in
                 // バーコードからISBNを取得したらAPIで検索
                 searchByISBN(isbn)
+            }
+        }
+        .alert(
+            "book.reread.confirm.title",
+            isPresented: Binding(
+                get: { pendingReread != nil },
+                set: { if !$0 { pendingReread = nil } }
+            )
+        ) {
+            Button("common.cancel", role: .cancel) { pendingReread = nil }
+            Button("book.reread.record") {
+                confirmPendingReread()
+            }
+        } message: {
+            if let pending = pendingReread {
+                Text(L10n.format(
+                    "book.reread.confirm.message",
+                    locale: languageManager.resolvedLocale,
+                    pending.book.title,
+                    pending.accountName
+                ))
             }
         }
         .alert("book.search.not_found.alert_title", isPresented: $showISBNNotFoundAlert) {
@@ -1016,6 +1046,8 @@ struct BookSearchView: View {
         guard let targetDTO = selectedPassbook else { return }
         // 二重タップ等での同一書籍の重複登録を防ぐ（ボタンの disabled だけに頼らず保存直前に再チェック）
         guard !isBookRegistered(result) else { return }
+        guard !inFlightSearchResultIDs.contains(result.id) else { return }
+        inFlightSearchResultIDs.insert(result.id)
         var newBook = result.toBookDTO(passbookId: targetDTO.id)
 
         // 手入力パス（通貨指定あり）では金額・通貨を上書きする。
@@ -1029,7 +1061,11 @@ struct BookSearchView: View {
         // 保存成功時のみキャッシュ更新・トーストを行う（現行の do/catch と同じ意味論）。
         // 失敗は現行同様に静かに飲む（リポジトリ内でOSLog記録・rollback済み。設計メモ 4.5節）
         let bookToSave = newBook
+        let resultID = result.id
         Task {
+            defer { inFlightSearchResultIDs.remove(resultID) }
+            // 待機中に別処理で登録済みになった場合は中止する。再読へ変換しない
+            guard !isBookRegistered(result) else { return }
             do {
                 try await repos.books.addBook(bookToSave, coverImageData: nil)
             } catch {
@@ -1046,21 +1082,65 @@ struct BookSearchView: View {
                 filteredResults.removeAll { isBookRegistered($0) }
             }
 
-            // トースト通知を表示（画面は閉じない）
-            toastAmount = overridePrice ?? result.itemPrice ?? 0
-            toastCurrency = overrideCurrency ?? (AppCurrency(code: result.sourceCurrencyCode) ?? .jpy)
-            withAnimation {
-                showToast = true
-            }
-
-            // 2秒後にトーストを非表示
-            try? await Task.sleep(for: .seconds(2))
-            withAnimation {
-                showToast = false
-            }
+            await showDepositToast(
+                amount: overridePrice ?? result.itemPrice ?? 0,
+                currency: overrideCurrency ?? (AppCurrency(code: result.sourceCurrencyCode) ?? .jpy)
+            )
         }
     }
     
+    private func requestReread(for result: RakutenBook) {
+        guard let target = RereadTargetResolver.resolveTarget(
+            among: allUserBooks,
+            isbn: result.isbn.isEmpty ? nil : result.isbn,
+            title: result.title,
+            author: result.author
+        ) else { return }
+        let accountName: String
+        if let passbookId = target.passbookId,
+           let passbook = allPassbooks.first(where: { $0.id == passbookId }) {
+            accountName = passbook.name
+        } else {
+            accountName = L10n.string("account.overall", locale: languageManager.resolvedLocale)
+        }
+        pendingReread = PendingRereadConfirmation(
+            resultID: result.id,
+            book: target,
+            accountName: accountName
+        )
+    }
+
+    private func confirmPendingReread() {
+        guard let pending = pendingReread else { return }
+        pendingReread = nil
+        guard !inFlightSearchResultIDs.contains(pending.resultID) else { return }
+        inFlightSearchResultIDs.insert(pending.resultID)
+        let amount = pending.book.priceAtRegistration ?? 0
+        let currency = pending.book.storedCurrency
+        Task {
+            defer { inFlightSearchResultIDs.remove(pending.resultID) }
+            do {
+                try await repos.books.addReread(bookId: pending.book.id, date: Date())
+            } catch {
+                return
+            }
+            await showDepositToast(amount: amount, currency: currency)
+        }
+    }
+
+    /// 初回登録・再読共通の入金トースト（画面は閉じない）
+    private func showDepositToast(amount: Int, currency: AppCurrency) async {
+        toastAmount = amount
+        toastCurrency = currency
+        withAnimation {
+            showToast = true
+        }
+        try? await Task.sleep(for: .seconds(2))
+        withAnimation {
+            showToast = false
+        }
+    }
+
     /// 本が既に登録済みかチェック（全口座を対象）
     private func isBookRegistered(_ book: RakutenBook) -> Bool {
         // ISBNで判定（キャッシュを使用して高速化）
@@ -1102,7 +1182,9 @@ struct BookSearchView: View {
                     
                     // 1件だけの場合は自動的に詳細を表示（登録済みでない場合のみ）
                     if results.count == 1, let book = results.first {
-                        if !isBookRegistered(book) {
+                        if isBookRegistered(book) {
+                            requestReread(for: book)
+                        } else {
                             registerBook(from: book)
                         }
                     }
@@ -1123,6 +1205,12 @@ struct BookSearchView: View {
             }
         }
     }
+}
+
+private struct PendingRereadConfirmation {
+    let resultID: String
+    let book: BookDTO
+    let accountName: String
 }
 
 // MARK: - ToastView
@@ -1192,19 +1280,18 @@ struct BookSearchResultRow: View {
                         .font(.app(size: 9))
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 3)
-                        .background(Color.black)
+                        .padding(.vertical, 6)
+                        .background(Color.black.opacity(0.7))
                 }
             }
             .frame(width: 50, height: 75)
             .clipShape(RoundedRectangle(cornerRadius: 2))
-            .opacity(isRegistered ? 0.6 : 1.0)
             
             VStack(alignment: .leading, spacing: 2) {
                 // タイトル
                 Text(result.title)
                     .font(.app(.subheadline))
-                    .foregroundColor(isRegistered ? .secondary : .primary)
+                    .foregroundColor(.primary)
                     .lineLimit(2)
                 
                 // 著者名
@@ -1234,14 +1321,13 @@ struct BookSearchResultRow: View {
                     sourceCurrency: AppCurrency(code: result.sourceCurrencyCode) ?? .jpy,
                     font: .app(.subheadline)
                 )
-                    .foregroundColor(isRegistered ? .secondary : themeColor)
+                    .foregroundColor(themeColor)
             } else {
                 Text(verbatim: "-")
                     .font(.app(.subheadline))
-                    .foregroundColor(isRegistered ? .secondary : themeColor)
+                    .foregroundColor(themeColor)
             }
         }
-        .opacity(isRegistered ? 0.6 : 1.0)
     }
 }
 

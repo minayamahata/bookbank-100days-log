@@ -132,7 +132,7 @@ struct BookshelfView: View {
         // 本棚内検索のクエリ絞り込みは `ShelfSearchView` の内部で行う。
         // ここまでのフィルタ適用後を検索対象として渡すことで、従来どおりのAND合成になる
 
-        return books
+        return ReadingTally.sortedByLatestReadDate(books)
     }
 
     /// つながりでの絞り込み（本棚タブ全体で共有・口座切替をまたいで維持）

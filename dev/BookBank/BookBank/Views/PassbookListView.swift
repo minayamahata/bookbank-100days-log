@@ -31,11 +31,13 @@ struct PassbookListView: View {
                 Section {
                     ForEach(customPassbooks) { passbook in
                         let books = books(for: passbook)
+                        let occurrences = ReadingTally.occurrences(from: books)
                         NavigationLink(destination: PassbookDetailView(passbook: passbook)) {
                             PassbookRow(
                                 name: passbook.name,
-                                bookCount: books.count,
-                                totalValue: books.totalDisplayAmount(
+                                bookCount: occurrences.count,
+                                totalValue: ReadingTally.totalDisplayAmount(
+                                    of: occurrences,
                                     in: currencyManager.displayCurrency,
                                     exchangeRates: exchangeRates
                                 )

@@ -106,16 +106,16 @@ struct MemoEditorView: View {
     
     // MARK: - ツールバー（設計メモ 4.5節）
 
-    /// 左から つなぐ｜太字・引用・ページ番号。書式はMarkdown記法を本文に埋め込む方式で、
-    /// ボタンは記号を挿入するだけ（独自のリッチテキスト形式を持たない）。
-    /// **アイコン＋ラベル**で出し、役割ごとに区切り線で分ける（2026-08-11 オーナー指示）——
+    /// 左から つなぐ・ページ番号・引用・太字・書式クリア・ひとつ戻す。
+    /// 書式はMarkdown記法を本文に埋め込む方式で、ボタンは記号を挿入するだけ。
+    /// **アイコン＋ラベル**で出す（2026-08-11 オーナー指示）——
     /// 図像だけでは操作の意味が伝わらないため、ラベルは残す。
     /// 「つなぐ」は書籍メモのみ——月メモはT1のスコープ外（`allowsLinks == false`・4.3節）。
     /// キャレットが入っている装飾のボタンは色を変えて光らせる（2026-08-12 オーナー指示・
     /// 記号を隠したぶん、いまどの装飾の中にいるかを画面から読み取れないため）
     private var editorToolbar: some View {
-        // 横スクロールはしない。ボタンはラベルの幅に合わせ、余りを均等な間隔に配る——
-        // 幅を等分すると、ラベルが短いボタン（太字・引用）の周りだけ隙間が広く見える
+        // 横スクロールはしない。区切り線は出さず、ボタン幅を等分してアイコン間隔を揃える
+        // （2026-08-18 オーナー指示）
         let active = activeFormats
         return HStack(spacing: 0) {
             if allowsLinks {
@@ -123,30 +123,21 @@ struct MemoEditorView: View {
                     "memo.toolbar.link", icon: "icn_node",
                     isActive: active.link, action: insertLinkBrackets
                 )
-                toolbarGap
-                toolbarDivider
-                toolbarGap
             }
-            toolbarButton(
-                "memo.toolbar.bold", icon: "icon_bold",
-                isActive: active.bold, action: wrapSelectionInBold
-            )
-            toolbarGap
-            toolbarButton(
-                "memo.toolbar.quote", icon: "icon_quote",
-                isActive: active.quote, action: insertQuote
-            )
-            toolbarGap
             toolbarButton(
                 "memo.toolbar.page", icon: "icn_pagenum",
                 enabled: canTogglePageMarker,
                 isActive: active.page, action: togglePageMarker
             )
-            toolbarGap
-            toolbarDivider
-            toolbarGap
+            toolbarButton(
+                "memo.toolbar.quote", icon: "icon_quote",
+                isActive: active.quote, action: insertQuote
+            )
+            toolbarButton(
+                "memo.toolbar.bold", icon: "icon_bold",
+                isActive: active.bold, action: wrapSelectionInBold
+            )
             toolbarButton("memo.toolbar.clear", icon: "icn_clear", action: clearFormatting)
-            toolbarGap
             toolbarButton(
                 "memo.toolbar.undo",
                 icon: "icn_back",
@@ -186,7 +177,7 @@ struct MemoEditorView: View {
                     .scaledToFit()
                     .frame(width: Self.toolbarIconSize, height: Self.toolbarIconSize)
                 Text(label)
-                    .font(.app(size: 10))
+                    .font(.app(size: 8))
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
             }
@@ -199,18 +190,7 @@ struct MemoEditorView: View {
         }
         .buttonStyle(.plain)
         .disabled(!enabled)
-    }
-
-    /// ボタンのあいだの間隔。余りを均等に配るので、どの隙間も同じ幅になる
-    private var toolbarGap: some View {
-        Spacer(minLength: 6)
-    }
-
-    /// 役割の区切り。カプセルの内側に収まる高さにする（縁に触ると囲みが割れて見える）
-    private var toolbarDivider: some View {
-        Rectangle()
-            .fill(Color(.separator))
-            .frame(width: 1, height: 32)
+        .frame(maxWidth: .infinity)
     }
 
     /// いま選択している範囲。無選択（キャレットのみ）は空範囲、変換できなければ末尾扱い

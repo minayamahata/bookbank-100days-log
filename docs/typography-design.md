@@ -132,7 +132,7 @@ SwiftUI は `environment(\.locale)` の再描画時に共通 API を再評価す
 - 英語・韓国語・繁体字・簡体字は 0pt
 - 「システム設定に従う」は `AppLanguage.inferred()` へ解決してから判定する。アプリ内の言語変更は再起動なしで追従する
 - マンスリーログ共有キャンバスは `lineSpacing(0)` で固定し、通常 UI の値を継承しない
-- UIKit（`MemoEditorTextView` / `uiFont` / ナビバー / `NSParagraphStyle`）は今回変更しない
+- UIKit（`MemoEditorTextView` / `uiFont` / ナビバー / `NSParagraphStyle`）の行間は、通常 UI の +1pt を継承しない。メモ編集と確定メモ（`MemoFormattedText`）だけ `bodyLineSpacing`（+6）を足す（2026-08-18）
 - Dynamic Type の倍率を行間へ重ねない。行間は 1pt 固定
 
 英語・韓国語は公式配布パッケージのまま（行ボックスは JP App 用 OTF ほど極端ではない）。繁体字は現在の公式 TW フォントを維持し、行高の実機確認は人間タスクとして残す。簡体字は PingFang SC のまま。
@@ -155,7 +155,8 @@ View はフォント名を直接書かない。メモ編集と共有画像の計
 
 表示用フォントだけを共通定義へ置き換える。パーサとメモ本文の保存形式は変更しない。
 
-維持するもの: 本文 Regular、太字 Bold、引用、リンク装飾、ページ番号、隠し記号、キャレット、行間、保存→再編集、Dynamic Type、既存テスト。
+維持するもの: 本文 Regular、太字 Bold、引用、リンク装飾、ページ番号、隠し記号、キャレット、保存→再編集、Dynamic Type、既存テスト。
+折り返しの行間は編集画面と確定メモだけ +6（`bodyLineSpacing`。2026-08-18）。Enter の段落空きは従来どおり本文行高ぶん。
 
 変更する判断:
 

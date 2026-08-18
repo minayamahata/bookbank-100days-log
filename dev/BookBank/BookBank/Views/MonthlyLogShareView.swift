@@ -71,10 +71,8 @@ struct MonthlyLogShareView: View {
                 .animation(.easeOut(duration: 0.15), value: actionFeedback)
             pageDots
                 .padding(.top, 8)
-            recommendedRow
-                .padding(.top, 20)
+                .padding(.bottom, 32)
             actionRow
-                .padding(.top, 16)
                 .padding(.bottom, 16)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -254,17 +252,6 @@ struct MonthlyLogShareView: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text("monthly_log_share.title"))
         .accessibilityValue(Text("\(page + 1) / \(templates.count)"))
-    }
-
-    private var recommendedRow: some View {
-        VStack(spacing: 4) {
-            Text("monthly_log_share.recommended")
-                .font(.app(.caption))
-                .foregroundStyle(.white.opacity(0.55))
-            Text("monthly_log_share.recommended_destination")
-                .font(.app(.subheadline, weight: .bold))
-                .foregroundStyle(.white)
-        }
     }
 
     private var actionRow: some View {

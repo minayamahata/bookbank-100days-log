@@ -45,7 +45,9 @@ enum MonthlyLogShareCanvasFormat: Equatable, Sendable {
 struct MonthlyLogShareSnapshot: Equatable, Sendable {
     let year: Int
     let month: Int
-    /// 対象月の書籍（渡された口座スコープ済み配列を月で絞ったもの）
+    /// 対象月の読書（初回が月外でも、再読が月内なら含む）
+    let occurrences: [BookReadingOccurrence]
+    /// 表紙読み込み用のユニーク本（出現順）
     let books: [BookDTO]
     let bookCount: Int
     /// `Collection.totalDisplayAmount(in:exchangeRates:)` の結果
@@ -70,22 +72,32 @@ struct MonthlyLogShareSnapshot: Equatable, Sendable {
         calendar: Calendar,
         locale: Locale
     ) -> MonthlyLogShareSnapshot {
-        let books = passbookBooks.filter { book in
-            let components = calendar.dateComponents([.year, .month], from: book.registeredAt)
+        let occurrences = ReadingTally.displayedOccurrences(
+            from: passbookBooks,
+            calendar: calendar
+        ).filter { occurrence in
+            let components = calendar.dateComponents([.year, .month], from: occurrence.date)
             return components.year == year && components.month == month
         }
+        let monthBookIDs = Set(occurrences.map(\.book.id))
+        let books = passbookBooks.filter { monthBookIDs.contains($0.id) }
         let layout = MonthlyCalendarLayout.make(
             year: year,
             month: month,
-            books: books,
+            occurrences: occurrences,
             calendar: calendar
         )
         return MonthlyLogShareSnapshot(
             year: year,
             month: month,
+            occurrences: occurrences,
             books: books,
-            bookCount: books.count,
-            totalDisplayAmount: books.totalDisplayAmount(in: displayCurrency, exchangeRates: exchangeRates),
+            bookCount: occurrences.count,
+            totalDisplayAmount: ReadingTally.totalDisplayAmount(
+                of: occurrences,
+                in: displayCurrency,
+                exchangeRates: exchangeRates
+            ),
             displayCurrency: displayCurrency,
             localeIdentifier: locale.identifier,
             firstWeekday: calendar.firstWeekday,

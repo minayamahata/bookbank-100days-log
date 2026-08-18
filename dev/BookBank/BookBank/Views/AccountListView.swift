@@ -41,26 +41,33 @@ struct AccountListView: View {
         passbooks.filter { $0.type == .custom && $0.isActive }
     }
     
-    // 全口座の合計金額（表示通貨）
+    // 全口座の合計金額（表示通貨・回数ベース）
     private var totalAmount: Int {
-        allBooks.totalDisplayAmount(in: currencyManager.displayCurrency, exchangeRates: exchangeRates)
+        ReadingTally.totalDisplayAmount(
+            of: ReadingTally.occurrences(from: allBooks),
+            in: currencyManager.displayCurrency,
+            exchangeRates: exchangeRates
+        )
     }
     
-    // 全口座の合計冊数
+    // 全口座の合計冊数（読書回数）
     private var totalBookCount: Int {
-        allBooks.count
+        ReadingTally.occurrences(from: allBooks).count
     }
     
-    // 特定の口座の合計金額（表示通貨）
+    // 特定の口座の合計金額（表示通貨・回数ベース）
     private func amountForPassbook(_ passbook: PassbookDTO) -> Int {
-        allBooks
-            .filter { $0.passbookId == passbook.id }
-            .totalDisplayAmount(in: currencyManager.displayCurrency, exchangeRates: exchangeRates)
+        let books = allBooks.filter { $0.passbookId == passbook.id }
+        return ReadingTally.totalDisplayAmount(
+            of: ReadingTally.occurrences(from: books),
+            in: currencyManager.displayCurrency,
+            exchangeRates: exchangeRates
+        )
     }
 
-    // 特定の口座の冊数
+    // 特定の口座の冊数（読書回数）
     private func bookCountForPassbook(_ passbook: PassbookDTO) -> Int {
-        allBooks.filter { $0.passbookId == passbook.id }.count
+        ReadingTally.occurrences(from: allBooks.filter { $0.passbookId == passbook.id }).count
     }
     
     // 円グラフ用のデータ
