@@ -114,6 +114,14 @@ struct AppMenuView: View {
                             menuLinkRow(titleKey: "service.about") {
                                 openInSafari("https://ayame-inc.jp/products/bookbank")
                             }
+                            Divider().padding(.leading, 20)
+
+                            NavigationLink {
+                                FontLicenseView()
+                            } label: {
+                                settingsNavigationRow(title: "service.font_license")
+                            }
+                            .buttonStyle(.plain)
                         }
                         .background(
                             RoundedRectangle(cornerRadius: 12)

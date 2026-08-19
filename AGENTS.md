@@ -54,7 +54,7 @@ Web側（共有API・書籍検索プロキシ・規約ページ）は別リポ�
 ## 技術スタック
 
 Swift 5.0（MainActor デフォルト分離・Approachable Concurrency 有効）/ SwiftUI /
-SwiftData / iOS 17.0以降 / Bundle ID `ayame-inc.BookBank` /
+SwiftData / iOS 26.0以降 / Bundle ID `ayame-inc.BookBank` /
 テストは Swift Testing（Unit）と XCTest（UI）/ 外部依存なし
 
 ## ビルドとテスト
