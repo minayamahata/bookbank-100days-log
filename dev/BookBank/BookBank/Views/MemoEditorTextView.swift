@@ -802,7 +802,15 @@ struct MemoEditorTextView: UIViewRepresentable {
         func applyStyling(to textView: UITextView, accent: UIColor) {
             let hasMarkedText = textView.markedTextRange != nil
             guard MemoIMELinkStyling.shouldRefreshFullDecoration(hasMarkedText: hasMarkedText) else {
+                // 変換中は案内を描かない（2026-08-20 オーナー報告）——案内の位置は最後の
+                // 全体装飾時の文字範囲のままなので、変換で本文が伸びると引用の囲みや
+                // 変換中の文字に重なる。確定後の全体当て直しで正しい位置へ戻る
+                quoteLayoutManager?.pageHintRanges = []
+                quoteLayoutManager?.linkHintRange = nil
+                // 囲みの範囲は本文の解析だけで求まるので、変換中も現在の本文へ追従させる
+                quoteLayoutManager?.quoteRanges = MemoTextBlocks.quoteBlockRanges(in: textView.text ?? "")
                 colorMarkedTextInsideLink(in: textView, accent: accent)
+                textView.setNeedsDisplay()
                 return
             }
             let text = textView.text ?? ""
@@ -1038,7 +1046,9 @@ struct MemoEditorTextView: UIViewRepresentable {
         /// これから打つ文字に当てる属性。**つながりの括弧の中では色を先に決めておく**
         /// （**2026-08-12 オーナー指示**——1打目から色を出す。入力後に当て直す形だと、
         /// 日本語では変換を確定するまで色が変わらず、確定後も一拍遅れて見えた）。
-        /// IMEの変換中の文字もこの属性で入るので、打ち始めた瞬間から色と背景が付く
+        /// IMEの変換中の文字もこの属性で入るので、打ち始めた瞬間から色と背景が付く。
+        /// **引用の中も同じ理由でサイズを先に決める**（**2026-08-20 オーナー報告**——
+        /// 入力中は本文サイズで出て、変換を確定した瞬間に縮んで見えた）
         private func typingAttributes(
             base: [NSAttributedString.Key: Any],
             writingLink: NSRange?,
@@ -1047,8 +1057,6 @@ struct MemoEditorTextView: UIViewRepresentable {
             storage: NSTextStorage,
             accent: UIColor
         ) -> [NSAttributedString.Key: Any] {
-            guard MemoIMELinkStyling.prefersLinkTypingAttributes(isInsideLink: writingLink != nil)
-            else { return base }
             var attributes = base
 
             // 行の見た目（引用なら小さめの文字・字下げ）は保つ
@@ -1060,6 +1068,13 @@ struct MemoEditorTextView: UIViewRepresentable {
             }
             let isQuoteLine = line.length >= 2
                 && nsText.substring(with: NSRange(location: line.location, length: 2)) == "> "
+            if isQuoteLine {
+                attributes[.font] = AppTypography.uiFont(.subheadline)
+                attributes[.foregroundColor] = MemoEditorTextView.quoteTextColor
+            }
+
+            guard MemoIMELinkStyling.prefersLinkTypingAttributes(isInsideLink: writingLink != nil)
+            else { return attributes }
             attributes[.font] = AppTypography.uiFont(
                 isQuoteLine ? .subheadline : .body, weight: .regular
             )

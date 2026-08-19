@@ -23,6 +23,7 @@ struct AppMenuView: View {
     
     @State private var showUnlimitedPaywall = false
     @State private var safariLink: SafariLink?
+    @State private var showWhatsNew = false
 
     #if DEBUG
     @Environment(\.modelContext) private var modelContext
@@ -116,6 +117,11 @@ struct AppMenuView: View {
                             }
                             Divider().padding(.leading, 20)
 
+                            menuLinkRow(titleKey: "service.whats_new") {
+                                setWhatsNewPresented(true)
+                            }
+                            Divider().padding(.leading, 20)
+
                             NavigationLink {
                                 FontLicenseView()
                             } label: {
@@ -170,6 +176,23 @@ struct AppMenuView: View {
         .sheet(item: $safariLink) { link in
             SafariView(url: link.url)
                 .ignoresSafeArea()
+        }
+        .fullScreenCover(isPresented: $showWhatsNew) {
+            // 手動表示: 自動表示回数へは加算しない。「×」は状態を変えず、
+            // 「はじめる」は未確認なら確認済みにする（回数には影響しない）
+            WhatsNewView(
+                onClose: {
+                    setWhatsNewPresented(false)
+                },
+                onConfirm: {
+                    WhatsNewStore().markConfirmed()
+                    setWhatsNewPresented(false)
+                }
+            )
+            .presentationBackground(.clear)
+            .environment(themeManager)
+            .environment(languageManager)
+            .environment(\.locale, languageManager.resolvedLocale)
         }
         #if DEBUG
         .fileExporter(
@@ -293,6 +316,15 @@ struct AppMenuView: View {
         .buttonStyle(.plain)
     }
     
+    /// お知らせの手動表示はスライドせず、`WhatsNewView` 内部のフェードだけで出し入れする
+    private func setWhatsNewPresented(_ value: Bool) {
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            showWhatsNew = value
+        }
+    }
+
     private func openInSafari(_ urlString: String) {
         guard let url = URL(string: urlString) else { return }
         safariLink = SafariLink(url: url)

@@ -83,23 +83,28 @@ struct MemoEditorView: View {
                             dismiss()
                         }
                     }
+                    .foregroundColor(.primary)
                 }
-                
+
                 // 右：保存ボタン
                 ToolbarItem(placement: .confirmationAction) {
                     Button("common.save") {
                         saveAndDismiss()
                     }
+                    .foregroundColor(accentColor)
                 }
             }
             .alert("memo.discard.title", isPresented: $showCancelAlert) {
                 Button("common.discard", role: .destructive) {
                     dismiss()
                 }
-                Button("common.cancel", role: .cancel) { }
+                Button("memo.discard.continue_editing", role: .cancel) { }
             } message: {
                 Text("memo.discard.message")
             }
+            // タブのテーマ色がアラートの「編集を続ける」に乗らないようにする
+            // （口座編集・書籍編集と同じ。DESIGN_SYSTEM 10章）
+            .tint(.primary)
             .interactiveDismissDisabled(hasChanges)
         }
     }

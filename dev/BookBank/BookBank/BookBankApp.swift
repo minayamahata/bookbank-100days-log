@@ -144,6 +144,7 @@ struct RootView: View {
     @Environment(\.modelContext) private var modelContext
     @State private var showSplash = true
     @State private var showOnboarding = false
+    @State private var showWhatsNew = false
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
 
     var body: some View {
@@ -155,11 +156,29 @@ struct RootView: View {
                     .transition(.opacity)
                     .zIndex(1)
             }
+
+            if showWhatsNew {
+                WhatsNewView(
+                    onClose: {
+                        // 「×」= 一時的に閉じる。確認済みにはしない
+                        showWhatsNew = false
+                    },
+                    onConfirm: {
+                        WhatsNewStore().markConfirmed()
+                        showWhatsNew = false
+                    }
+                )
+                .zIndex(2)
+            }
         }
         .fullScreenCover(isPresented: $showOnboarding) {
             OnboardingView {
                 hasCompletedOnboarding = true
                 showOnboarding = false
+                // 新規ユーザー: オンボーディングの閉じアニメーション後に自動表示を判定
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                    attemptAutoShowWhatsNew()
+                }
             }
             .environment(themeManager)
             .environment(languageManager)
@@ -213,8 +232,33 @@ struct RootView: View {
                 }
                 if !hasCompletedOnboarding {
                     showOnboarding = true
+                } else {
+                    // 既存ユーザー: スプラッシュのフェード完了後に自動表示を判定
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                        attemptAutoShowWhatsNew()
+                    }
                 }
             }
         }
+    }
+
+    /// 新機能のお知らせの自動表示（docs/whats-new-message-design.md 5章）。
+    /// 表示が実際に始まる時点で回数を+1し、同一起動内の再実行は起動内状態で防ぐ。
+    private func attemptAutoShowWhatsNew() {
+        guard !PreviewRuntime.isActive else { return }
+        let store = WhatsNewStore()
+        guard WhatsNewAutoShowPolicy.shouldAutoShow(
+            hasCompletedOnboarding: hasCompletedOnboarding,
+            isConfirmed: store.isConfirmed,
+            autoShowCount: store.autoShowCount,
+            hasAutoShownThisLaunch: WhatsNewSessionState.launchSession.hasAutoShown
+        ) else { return }
+
+        WhatsNewSessionState.launchSession.markAutoShown()
+        // 一時スイッチ中は保存状態を汚さない（回数を加算しない）
+        if !WhatsNewAutoShowPolicy.temporarilyAlwaysAutoShow {
+            store.recordAutoShowStarted()
+        }
+        showWhatsNew = true
     }
 }
