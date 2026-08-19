@@ -75,6 +75,11 @@ final class SwiftDataBookRepository: BookRepository {
         }
         // 更新でも、指定された口座が引けないなら「意図しない nil 化（総合口座送り）」を許さない
         let passbook = try requirePassbook(id: book.passbookId, operation: "updateBook")
+        try validateReadingDates(
+            registeredAt: book.registeredAt,
+            rereadDates: (model.rereads ?? []).map(\.date),
+            operation: "updateBook"
+        )
         ModelDTOMapping.apply(book, to: model, passbook: passbook)
         if case .replace(let data) = cover {
             model.coverImageData = data
@@ -186,12 +191,77 @@ final class SwiftDataBookRepository: BookRepository {
         try saveAndNotify()
     }
 
+    func saveBookEdits(
+        _ book: BookDTO,
+        cover: CoverImageUpdate,
+        deletedRereadIDs: [String],
+        rereadDateUpdates: [String: Date],
+        updatesBookFields: Bool
+    ) async throws {
+        guard let model = try findBook(id: book.id) else {
+            logger.error("saveBookEdits: book not found id=\(book.id, privacy: .public)")
+            throw RepositoryError.bookNotFound(book.id)
+        }
+        let passbook = try requirePassbook(id: book.passbookId, operation: "saveBookEdits")
+
+        var records = model.rereads ?? []
+        for rereadId in deletedRereadIDs {
+            if let index = records.firstIndex(where: { $0.id == rereadId }) {
+                records.remove(at: index)
+            }
+        }
+        for (rereadId, date) in rereadDateUpdates {
+            guard let index = records.firstIndex(where: { $0.id == rereadId }) else {
+                logger.error("saveBookEdits: reread not found id=\(rereadId, privacy: .public)")
+                throw RepositoryError.rereadNotFound(rereadId)
+            }
+            records[index].date = date
+        }
+
+        try validateReadingDates(
+            registeredAt: book.registeredAt,
+            rereadDates: records.map(\.date),
+            operation: "saveBookEdits"
+        )
+
+        let previousUpdatedAt = model.updatedAt
+        if updatesBookFields {
+            ModelDTOMapping.apply(book, to: model, passbook: passbook)
+            if case .replace(let data) = cover {
+                model.coverImageData = data
+            }
+        }
+        model.rereads = records.isEmpty ? nil : Array(records)
+        if !updatesBookFields {
+            model.updatedAt = previousUpdatedAt
+        }
+
+        try saveAndNotify()
+        if updatesBookFields, case .replace(let data) = cover {
+            applyCoverCache(bookId: book.id, data: data)
+        }
+    }
+
     // MARK: - Private
 
     private func validateRereadDate(_ date: Date, registeredAt: Date, operation: String) throws {
         guard RereadDatePolicy.isValid(date, registeredAt: registeredAt) else {
             logger.error("\(operation, privacy: .public): invalid reread date")
             throw RepositoryError.invalidRereadDate
+        }
+    }
+
+    private func validateReadingDates(
+        registeredAt: Date,
+        rereadDates: [Date],
+        operation: String
+    ) throws {
+        guard RereadDatePolicy.areReadingDatesConsistent(
+            registeredAt: registeredAt,
+            rereadDates: rereadDates
+        ) else {
+            logger.error("\(operation, privacy: .public): invalid reading dates")
+            throw RepositoryError.invalidReadingDates
         }
     }
 

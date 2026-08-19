@@ -1,8 +1,8 @@
 # BookBank 再読履歴 仕様書
 
 作成日: 2026-08-17
-更新日: 2026-08-18（通帳の再読行は「再読」の左にテーマ色の丸＋`icn_repeat`。読書履歴の●と縦棒は透過なしの `Color.primary`。同日の再読は1件ずつ消す。詳細の「再読を記録」を削除。追加は検索、日付変更・削除は編集画面。読書履歴は詳細情報の上の別枠、初回表記は登録日）／2026-08-17（R4.7 / v1.7.0 初版）
-ステータス: 実装完了（R4.7 / v1.7.0。残るのは人間タスク）
+更新日: 2026-08-19（R4.7専用の移行前バックアップ・日付整合・編集の一括保存を追加。実機での旧スキーマ→新スキーマ移行確認はオーナーがOKのまま）／2026-08-18（通帳の再読行は「再読」の左にテーマ色の丸＋`icn_repeat`。読書履歴の●と縦棒は透過なしの `Color.primary`。同日の再読は1件ずつ消す。詳細の「再読を記録」を削除。追加は検索、日付変更・削除は編集画面。読書履歴は詳細情報の上の別枠、初回表記は登録日）／2026-08-17（R4.7 / v1.7.0 初版）
+ステータス: 実装完了（R4.7 / v1.7.0。残る人間タスクは5言語訳レビューと受け入れ）
 関連文書: `docs/implementation-roadmap.md` / `docs/cloud-migration-architecture.md` 3章 / `docs/r4-repository-abstraction-notes.md` / `docs/monthly-log-share-design.md` / `docs/agent-implementation-guide.md`
 
 > **AI実装エージェントへ**: `docs/agent-implementation-guide.md` を先に読むこと。
@@ -83,19 +83,23 @@ var rereads: [RereadRecord] = []
 | `addReread(bookId:date:)` | 本なし → `bookNotFound`。日付範囲外 → `invalidRereadDate` |
 | `updateReread(bookId:rereadId:date:)` | 本なし → `bookNotFound`。履歴なし → `rereadNotFound`。日付範囲外 → `invalidRereadDate` |
 | `deleteReread(bookId:rereadId:)` | 本なし → `bookNotFound`。履歴なし → `rereadNotFound`。一致する ID の先頭1件だけ消す（同日の他の再読は残す） |
+| `saveBookEdits(book:cover:deletedRereadIDs:rereadDateUpdates:updatesBookFields:)` | 本なし → `bookNotFound`。口座なし → `passbookNotFound`。更新対象の再読なし → `rereadNotFound`。日付不正 → `invalidReadingDates`。1回の `save()` で確定し、失敗時は rollback |
 
-削除系の本 not-found は既存どおり冪等（`deleteBook` は return）。再読削除の履歴 not-found は更新系に合わせ throw する。`addReread` は既存 ID と衝突したら採番し直す。
+削除系の本 not-found は既存どおり冪等（`deleteBook` は return）。再読削除の履歴 not-found は更新系に合わせ throw する。`addReread` は既存 ID と衝突したら採番し直す。検索画面の `addReread` など既存の個別APIは維持する。
+
+`saveBookEdits` は編集画面の本情報・表紙・口座・再読削除・再読日変更をまとめる。削除IDが無い／見つからないのは冪等。更新IDが見つからないときは throw し、保存データを変えない。再読だけの変更では `updatedAt` を動かさない。空の再読配列は `nil` へ正規化する。表紙キャッシュと購読通知は保存成功後のみ。
 
 ---
 
 ## 4. 日付
 
-`Calendar.current` の日単位で検証する。クランプしない。
+`Calendar.current` の日単位で検証する。クランプしない。判定は `RereadDatePolicy` の純粋関数に置く。`updateBook` と `saveBookEdits` が同じ関数を使う。不正なら専用の `RepositoryError.invalidReadingDates` を throw し、保存データは変えない。
 
-- 許可範囲: 初回登録日の日 〜 今日の日
-- 範囲外は `invalidRereadDate` を throw
+- 登録日は今日以前
+- 全再読日は登録日以降
 - 初回と同日の再読を許可する
 - 同日複数回の再読を許可する
+- 個別の `addReread` / `updateReread` の範囲外は従来どおり `invalidRereadDate`
 - 初回登録日の編集上限: `min(最初の再読日, 今日)`
 
 ---
@@ -170,7 +174,7 @@ var rereads: [RereadRecord] = []
 ## 8. 画面
 
 - `UserBookDetailView`: 読書履歴を詳細情報の上の別枠にする。見出しは「読書履歴」。行は表示のみ（登録日＋各再読日）。初回行のラベルは「登録日」（詳細情報側の登録日行は出さない）。日付の左に6ptの塗り円と縦線の時系列マーカーを置く（円と線は同じ `Color.primary`。透過なし。アイコン・横罫線はなし）。「再読を記録」は置かない。追加は検索の再読確認、日付変更・削除は編集画面
-- `EditBookView`: 「登録口座」はフォーム最上部。登録日の上限を `min(最初の再読日, 今日)`。再読の日付変更と確認付き削除はここでのみ行う。「読書履歴」見出しは出さない。削除は画面上の1行だけを外し、保存時はその行の ID だけを `deleteReread` する（日付一致や配列差分では消さない）。再読だけの保存では `updateBook` せず、専用APIだけを呼ぶ（`updatedAt` を動かさない）
+- `EditBookView`: 「登録口座」はフォーム最上部。登録日の上限を `min(最初の再読日, 今日)`。再読の日付変更と確認付き削除はここでのみ行う。「読書履歴」見出しは出さない。削除は画面上の1行だけを外し、保存時はその行の ID だけを `saveBookEdits` に渡す（日付一致や配列差分では消さない）。本情報・表紙・口座・再読削除・再読日変更は1回のリポジトリ一括保存で確定する。再読だけの保存では `updatedAt` を動かさない
 - `BookCoverView`: 再読マークは出さない。右下のメモ・お気に入り HStack は変更しない
 
 ---
@@ -204,5 +208,27 @@ var rereads: [RereadRecord] = []
 ## 11. 人間タスク
 
 - 新規文字列5言語の訳レビュー
-- TestFlight / 実機での旧スキーマ → 新スキーマ移行確認
+- TestFlight / 実機での旧スキーマ → 新スキーマ移行確認 ✅ 完了（2026-08-19 オーナー確認。実機で既存データを残したまま新版を上書き起動して問題なし）
 - 受け入れ: 2回目の登録後も本棚の書影は1つ（再読マークなし）、通帳2行、カレンダー／マンスリーログ共有／月別統計は2回分、金額は2回分。再読日の変更で対象月と本棚順が移動。削除で1回分だけ戻る
+
+---
+
+## 12. データ安全性（2026-08-19）
+
+### 12.1 R4.7専用の移行前バックアップ
+
+R3の `didBackfillUUIDsV1` / `PreMigrationBackup` とは分離する。R3の既存動作は変えない。
+
+| 項目 | 値 |
+|---|---|
+| 完了キー | `didValidateRereadSchemaV1` |
+| バックアップ先 | ストアと同じディレクトリの `PreRereadSchemaMigrationBackupV1` |
+
+- `ModelContainer` 生成前に `store` / `-shm` / `-wal` を保存する
+- 生成失敗時は R4.7 バックアップを優先して復元する。存在しない／復元できない場合は R3 バックアップ（`PreMigrationBackup`）を使う。`ModelContainer` の再試行は1回だけ
+- R3（UUIDバックフィル）と読了リスト並び順の移行が完了したあと、全 `UserBook` と `rereads` を正常に読めた場合だけ完了キーを立ててバックアップを削除する
+- 検証失敗時は完了キーを立てず、バックアップも残す
+
+### 12.2 日付と一括保存
+
+登録日と再読日の整合はリポジトリが保証する（4章）。編集画面の途中失敗で本だけ・再読だけが残ることは許さない（3章の `saveBookEdits`）。

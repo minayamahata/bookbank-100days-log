@@ -15,6 +15,28 @@ import SwiftData
 /// 書影（`.externalStorage` の外部blob）は移行中に不変であり保護不要なため対象外とする。
 /// これにより必要容量が数MB規模に収まり、容量不足によるスキップが事実上発生しなくなる。
 /// externalStorage をコピー対象にも復元削除対象にも含めないことで、復元時に画像を削除する事故が構造的に起きない。
+/// 移行前バックアップの種類。R3とR4.7は完了キーも保存先も分ける。
+enum StoreBackupKind: Equatable, Sendable {
+    /// R3 UUIDバックフィル（`didBackfillUUIDsV1` / `PreMigrationBackup`）
+    case uuidBackfill
+    /// R4.7 再読スキーマ（`didValidateRereadSchemaV1` / `PreRereadSchemaMigrationBackupV1`）
+    case rereadSchemaV1
+
+    var completionKey: String {
+        switch self {
+        case .uuidBackfill: StoreBackupManager.didBackfillUUIDsKey
+        case .rereadSchemaV1: StoreBackupManager.didValidateRereadSchemaV1Key
+        }
+    }
+
+    var directoryName: String {
+        switch self {
+        case .uuidBackfill: StoreBackupManager.backupDirectoryName
+        case .rereadSchemaV1: StoreBackupManager.rereadSchemaBackupDirectoryName
+        }
+    }
+}
+
 enum StoreBackupManager {
 
     // MARK: - Constants
@@ -23,8 +45,14 @@ enum StoreBackupManager {
     /// フラグを立てる処理はR3ステップ2（バックフィル＋整合性検証）で実装される。ここでは参照のみ。
     nonisolated static let didBackfillUUIDsKey = "didBackfillUUIDsV1"
 
+    /// R4.7 再読スキーマ検証の完了フラグ。R3のキーとは分離する。
+    nonisolated static let didValidateRereadSchemaV1Key = "didValidateRereadSchemaV1"
+
     /// バックアップフォルダ名（ストアと同じディレクトリ内に作成）
     nonisolated static let backupDirectoryName = "PreMigrationBackup"
+
+    /// R4.7専用のバックアップフォルダ名
+    nonisolated static let rereadSchemaBackupDirectoryName = "PreRereadSchemaMigrationBackupV1"
 
     /// 空き容量の安全マージン（必要サイズ×1.2を要求）
     nonisolated static let freeSpaceMargin: Double = 1.2
@@ -62,14 +90,19 @@ enum StoreBackupManager {
 
     // MARK: - Public API
 
-    /// R3移行前バックアップ（必要な場合のみ）。ModelContainer 生成前に呼ぶこと。
-    nonisolated static func backupIfNeeded(storeURL: URL, defaults: UserDefaults = .standard) {
+    /// 移行前バックアップ（必要な場合のみ）。ModelContainer 生成前に呼ぶこと。
+    /// `kind` の既定は R3。R4.7 は `.rereadSchemaV1` を渡す。
+    nonisolated static func backupIfNeeded(
+        storeURL: URL,
+        defaults: UserDefaults = .standard,
+        kind: StoreBackupKind = .uuidBackfill
+    ) {
         // 新規ユーザー（ストア未作成）はバックアップ対象なし
         guard FileManager.default.fileExists(atPath: storeURL.path) else { return }
 
         let decision = backupDecision(
-            migrationCompleted: defaults.bool(forKey: didBackfillUUIDsKey),
-            backupExists: backupExists(storeURL: storeURL),
+            migrationCompleted: defaults.bool(forKey: kind.completionKey),
+            backupExists: backupExists(storeURL: storeURL, kind: kind),
             freeSpace: availableCapacity(at: storeURL),
             requiredSpace: requiredSpaceForBackup(storeURL: storeURL)
         )
@@ -77,8 +110,8 @@ enum StoreBackupManager {
         switch decision {
         case .backup:
             do {
-                try performBackup(storeURL: storeURL)
-                logger.notice("移行前バックアップを作成しました")
+                try performBackup(storeURL: storeURL, kind: kind)
+                logger.notice("移行前バックアップを作成しました (\(kind.directoryName, privacy: .public))")
             } catch {
                 // バックアップ失敗は起動を妨げない（追加の防御層のため）
                 logger.error("移行前バックアップの作成に失敗: \(error.localizedDescription)")
@@ -93,16 +126,22 @@ enum StoreBackupManager {
     }
 
     /// バックアップが存在するか
-    nonisolated static func backupExists(storeURL: URL) -> Bool {
-        FileManager.default.fileExists(atPath: backupDirectoryURL(for: storeURL).path)
+    nonisolated static func backupExists(
+        storeURL: URL,
+        kind: StoreBackupKind = .uuidBackfill
+    ) -> Bool {
+        FileManager.default.fileExists(atPath: backupDirectoryURL(for: storeURL, kind: kind).path)
     }
 
     /// ストアファイル一式をバックアップフォルダへコピーする。
     /// 途中失敗が「完全なバックアップ」と誤認されないよう、一時フォルダへコピー後にリネームで確定する。
     /// 既存バックアップがある場合は何もしない（上書きしない）。
-    nonisolated static func performBackup(storeURL: URL) throws {
+    nonisolated static func performBackup(
+        storeURL: URL,
+        kind: StoreBackupKind = .uuidBackfill
+    ) throws {
         let fm = FileManager.default
-        let backupDir = backupDirectoryURL(for: storeURL)
+        let backupDir = backupDirectoryURL(for: storeURL, kind: kind)
         guard !fm.fileExists(atPath: backupDir.path) else { return }
 
         let tempDir = backupDir.appendingPathExtension("tmp")
@@ -123,9 +162,12 @@ enum StoreBackupManager {
     /// 現行のストアファイル（壊れている前提）は除去してから書き戻す。
     /// - Returns: 復元を実施したら true（バックアップが存在しなければ false）
     @discardableResult
-    nonisolated static func restoreBackup(storeURL: URL) throws -> Bool {
+    nonisolated static func restoreBackup(
+        storeURL: URL,
+        kind: StoreBackupKind = .uuidBackfill
+    ) throws -> Bool {
         let fm = FileManager.default
-        let backupDir = backupDirectoryURL(for: storeURL)
+        let backupDir = backupDirectoryURL(for: storeURL, kind: kind)
         guard fm.fileExists(atPath: backupDir.path) else { return false }
 
         // 壊れた現行DBファイルのみを除去（バックアップに無い古いWAL等が復元後のストアと混ざらないように）。
@@ -142,9 +184,12 @@ enum StoreBackupManager {
     }
 
     /// バックアップを削除する（整合性検証の通過後に呼ぶ。呼び出しはR3ステップ2で実装）
-    nonisolated static func deleteBackup(storeURL: URL) {
+    nonisolated static func deleteBackup(
+        storeURL: URL,
+        kind: StoreBackupKind = .uuidBackfill
+    ) {
         let fm = FileManager.default
-        let backupDir = backupDirectoryURL(for: storeURL)
+        let backupDir = backupDirectoryURL(for: storeURL, kind: kind)
         guard fm.fileExists(atPath: backupDir.path) else { return }
         do {
             try fm.removeItem(at: backupDir)
@@ -156,21 +201,26 @@ enum StoreBackupManager {
 
     // MARK: - Container Recovery
 
+    /// 生成失敗時の復元順。R4.7を優先し、無い／失敗したら R3 へ戻す。
+    nonisolated static let containerRecoveryKinds: [StoreBackupKind] = [.rereadSchemaV1, .uuidBackfill]
+
     /// ModelContainer を生成する。失敗時はバックアップから復元して**1回だけ**再試行する（設計メモ4.5節①）。
     ///
+    /// 既定では R4.7 バックアップを優先し、存在しない／復元できない場合は R3 バックアップを使う。
     /// 復元は決定的なマイグレーションバグ自体を直せない（同じコードで開けば同じ失敗をする）。
     /// 復元の価値は「修正版が出るまでデータを無傷で保全すること」にあり、
     /// リトライは一時的要因（I/Oエラー等）の救済。2度目の失敗はそのまま throw する。
     nonisolated static func makeContainerWithRecovery(
         schema: Schema,
         configuration: ModelConfiguration,
-        storeURL: URL
+        storeURL: URL,
+        kinds: [StoreBackupKind] = containerRecoveryKinds
     ) throws -> ModelContainer {
         do {
             return try ModelContainer(for: schema, configurations: [configuration])
         } catch {
             logger.error("ModelContainer の生成に失敗: \(error.localizedDescription)")
-            guard (try? restoreBackup(storeURL: storeURL)) == true else {
+            guard restoreFirstAvailable(storeURL: storeURL, kinds: kinds) else {
                 // バックアップなし・復元自体の失敗は元のエラーで失敗させる
                 throw error
             }
@@ -178,12 +228,47 @@ enum StoreBackupManager {
         }
     }
 
+    /// 単一 kind だけを試す（既存の R3 / R4.7 復元テスト用）。
+    nonisolated static func makeContainerWithRecovery(
+        schema: Schema,
+        configuration: ModelConfiguration,
+        storeURL: URL,
+        kind: StoreBackupKind
+    ) throws -> ModelContainer {
+        try makeContainerWithRecovery(
+            schema: schema,
+            configuration: configuration,
+            storeURL: storeURL,
+            kinds: [kind]
+        )
+    }
+
+    /// 先頭から順に復元を試し、最初に成功した kind で止める。
+    nonisolated private static func restoreFirstAvailable(
+        storeURL: URL,
+        kinds: [StoreBackupKind]
+    ) -> Bool {
+        for kind in kinds {
+            do {
+                if try restoreBackup(storeURL: storeURL, kind: kind) {
+                    return true
+                }
+            } catch {
+                logger.error("\(kind.directoryName) からの復元に失敗: \(error.localizedDescription)")
+            }
+        }
+        return false
+    }
+
     // MARK: - Paths
 
     /// バックアップフォルダ（ストアと同じディレクトリ内）
-    nonisolated static func backupDirectoryURL(for storeURL: URL) -> URL {
+    nonisolated static func backupDirectoryURL(
+        for storeURL: URL,
+        kind: StoreBackupKind = .uuidBackfill
+    ) -> URL {
         storeURL.deletingLastPathComponent()
-            .appendingPathComponent(backupDirectoryName, isDirectory: true)
+            .appendingPathComponent(kind.directoryName, isDirectory: true)
     }
 
     /// バックアップ・復元の対象（DBファイルのみ・存在するもののみ扱う）:

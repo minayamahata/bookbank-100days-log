@@ -53,4 +53,58 @@ struct RereadSchemaMigrationTests {
         #expect(dto.readCount == 1)
         #expect(dto.passbookId == "legacy-passbook-uuid")
     }
+
+    @Test func legacyStoreKeepsExistingDataAfterAddingRereadAndReopening() async throws {
+        let fixtureDir = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .appendingPathComponent("Fixtures/RereadSchemaLegacy", isDirectory: true)
+        let sourceStore = fixtureDir.appendingPathComponent("legacy.store")
+        #expect(FileManager.default.fileExists(atPath: sourceStore.path))
+
+        let workDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("RereadSchemaMigrationAdd-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: workDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: workDir) }
+
+        let destStore = workDir.appendingPathComponent("legacy.store")
+        for item in StoreBackupManager.storeFileItems(for: sourceStore) {
+            let dest = workDir.appendingPathComponent(item.lastPathComponent)
+            if FileManager.default.fileExists(atPath: item.path) {
+                try FileManager.default.copyItem(at: item, to: dest)
+            }
+        }
+
+        let schema = Schema([
+            Passbook.self,
+            UserBook.self,
+            Subscription.self,
+            ReadingList.self,
+            MonthlyMemo.self
+        ])
+
+        do {
+            let configuration = ModelConfiguration(schema: schema, url: destStore)
+            let container = try ModelContainer(for: schema, configurations: [configuration])
+            let repo = SwiftDataBookRepository(
+                context: container.mainContext,
+                pulse: RepositoryChangePulse()
+            )
+            try await repo.addReread(bookId: "legacy-book-uuid", date: Date())
+        }
+
+        let configuration = ModelConfiguration(schema: schema, url: destStore)
+        let reopened = try ModelContainer(for: schema, configurations: [configuration])
+        let books = try reopened.mainContext.fetch(FetchDescriptor<UserBook>())
+        #expect(books.count == 1)
+        let book = try #require(books.first)
+        #expect(book.uuid == "legacy-book-uuid")
+        #expect(book.title == "レガシー本")
+        #expect(book.author == "旧著者")
+        #expect(book.isbn == "9784123456789")
+        #expect(book.memo == "移行前メモ")
+        #expect(book.isFavorite)
+        #expect(book.priceAtRegistration == 1800)
+        #expect(book.rereads?.count == 1)
+        #expect(book.rereads?.first?.id.isEmpty == false)
+    }
 }

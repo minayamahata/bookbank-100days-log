@@ -1404,4 +1404,143 @@ final class RepositoryFoundationTests: XCTestCase {
         XCTAssertEqual(observed.rereads.count, 2)
         XCTAssertEqual(Set(observed.rereads.map(\.id)), Set(remainingIDs))
     }
+
+    func testUpdateBookRejectsFutureRegisteredAtAndKeepsExistingData() async throws {
+        let calendar = Calendar.current
+        let registered = calendar.date(from: DateComponents(year: 2026, month: 8, day: 10, hour: 12))!
+        var book = sampleBookDTO(id: "future-reg", registeredAt: registered, createdAt: registered)
+        try await repos.books.addBook(book, coverImageData: nil)
+
+        let future = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: Date()))!
+        book.registeredAt = future
+        book.title = "未来日は保存されない"
+        do {
+            try await repos.books.updateBook(book)
+            XCTFail("expected invalidReadingDates")
+        } catch let error as RepositoryError {
+            XCTAssertEqual(error, .invalidReadingDates)
+        }
+
+        let observedSnapshot = await firstValue(repos.books.observeBooks())
+        let observed = try XCTUnwrap(observedSnapshot.first)
+        XCTAssertEqual(observed.title, "テスト本")
+        XCTAssertEqual(calendar.startOfDay(for: observed.registeredAt), calendar.startOfDay(for: registered))
+    }
+
+    func testSaveBookEditsSucceedsAtomically() async throws {
+        let calendar = Calendar.current
+        let registered = calendar.date(from: DateComponents(year: 2026, month: 8, day: 10, hour: 12))!
+        var book = sampleBookDTO(id: "atomic-ok", registeredAt: registered, createdAt: registered)
+        try await repos.books.addBook(book, coverImageData: nil)
+        try await repos.books.addReread(bookId: book.id, date: calendar.date(from: DateComponents(year: 2026, month: 8, day: 12))!)
+        try await repos.books.addReread(bookId: book.id, date: calendar.date(from: DateComponents(year: 2026, month: 8, day: 14))!)
+        let afterAddSnapshot = await firstValue(repos.books.observeBooks())
+        let afterAdd = try XCTUnwrap(afterAddSnapshot.first)
+        let keepID = try XCTUnwrap(afterAdd.rereads.first?.id)
+        let deleteID = try XCTUnwrap(afterAdd.rereads.last?.id)
+        let moved = calendar.date(from: DateComponents(year: 2026, month: 8, day: 13))!
+
+        book.title = "一括保存後"
+        book.updatedAt = Date()
+        try await repos.books.saveBookEdits(
+            book,
+            cover: .unchanged,
+            deletedRereadIDs: [deleteID],
+            rereadDateUpdates: [keepID: moved],
+            updatesBookFields: true
+        )
+
+        let observedSnapshot = await firstValue(repos.books.observeBooks())
+        let observed = try XCTUnwrap(observedSnapshot.first)
+        XCTAssertEqual(observed.title, "一括保存後")
+        XCTAssertEqual(observed.rereads.count, 1)
+        XCTAssertEqual(observed.rereads.first?.id, keepID)
+        XCTAssertEqual(calendar.startOfDay(for: observed.rereads.first?.date ?? .distantPast), calendar.startOfDay(for: moved))
+    }
+
+    func testSaveBookEditsRollsBackWhenUpdateTargetIsMissing() async throws {
+        var book = sampleBookDTO(id: "atomic-rollback")
+        try await repos.books.addBook(book, coverImageData: nil)
+        book.title = "部分適用されてはいけない"
+        book.updatedAt = Date()
+        do {
+            try await repos.books.saveBookEdits(
+                book,
+                cover: .unchanged,
+                deletedRereadIDs: [],
+                rereadDateUpdates: ["missing": Date()],
+                updatesBookFields: true
+            )
+            XCTFail("expected rereadNotFound")
+        } catch let error as RepositoryError {
+            XCTAssertEqual(error, .rereadNotFound("missing"))
+        }
+
+        let observedSnapshot = await firstValue(repos.books.observeBooks())
+        let observed = try XCTUnwrap(observedSnapshot.first)
+        XCTAssertEqual(observed.title, "テスト本")
+        XCTAssertEqual(observed.updatedAt, book.createdAt)
+    }
+
+    func testSaveBookEditsPreservesUpdatedAtForRereadOnlyChanges() async throws {
+        let book = sampleBookDTO(id: "atomic-updated-at")
+        try await repos.books.addBook(book, coverImageData: nil)
+        try await repos.books.addReread(bookId: book.id, date: Date())
+        let afterAddSnapshot = await firstValue(repos.books.observeBooks())
+        let afterAdd = try XCTUnwrap(afterAddSnapshot.first)
+        let rereadId = try XCTUnwrap(afterAdd.rereads.first?.id)
+        let moved = Calendar.current.date(byAdding: .day, value: -1, to: Date()) ?? Date()
+
+        try await repos.books.saveBookEdits(
+            afterAdd,
+            cover: .unchanged,
+            deletedRereadIDs: [],
+            rereadDateUpdates: [rereadId: moved],
+            updatesBookFields: false
+        )
+
+        let observedSnapshot = await firstValue(repos.books.observeBooks())
+        let observed = try XCTUnwrap(observedSnapshot.first)
+        XCTAssertEqual(observed.updatedAt, book.updatedAt)
+        XCTAssertEqual(observed.rereads.first?.date, moved)
+    }
+
+    func testSaveBookEditsNormalizesEmptyRereadsToNilAndReloads() async throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let storeURL = dir.appendingPathComponent("atomic-nil.store")
+        let schema = Schema([
+            Passbook.self, UserBook.self, Subscription.self, ReadingList.self, MonthlyMemo.self
+        ])
+        var deletedID = ""
+
+        do {
+            let config = ModelConfiguration(schema: schema, url: storeURL)
+            let first = try ModelContainer(for: schema, configurations: [config])
+            let repo = SwiftDataBookRepository(context: first.mainContext, pulse: RepositoryChangePulse())
+            let book = sampleBookDTO(id: "atomic-nil")
+            try await repo.addBook(book, coverImageData: nil)
+            try await repo.addReread(bookId: book.id, date: Date())
+            let afterAddSnapshot = await firstValue(repo.observeBooks())
+            let afterAdd = try XCTUnwrap(afterAddSnapshot.first)
+            deletedID = try XCTUnwrap(afterAdd.rereads.first?.id)
+            try await repo.saveBookEdits(
+                afterAdd,
+                cover: .unchanged,
+                deletedRereadIDs: [deletedID],
+                rereadDateUpdates: [:],
+                updatesBookFields: false
+            )
+            let models = try first.mainContext.fetch(FetchDescriptor<UserBook>())
+            XCTAssertEqual(models.first?.rereads, nil)
+        }
+
+        let config = ModelConfiguration(schema: schema, url: storeURL)
+        let second = try ModelContainer(for: schema, configurations: [config])
+        let books = try second.mainContext.fetch(FetchDescriptor<UserBook>())
+        XCTAssertEqual(books.first?.rereads, nil)
+        XCTAssertEqual(books.first?.title, "テスト本")
+    }
 }

@@ -778,20 +778,27 @@ struct EditBookView: View {
         if let id = selectedPassbookID {
             updated.passbookId = id
         }
-        updated.updatedAt = Date()
+        if bookFieldsChanged {
+            updated.updatedAt = Date()
+        }
+
+        var rereadDateUpdates: [String: Date] = [:]
+        for row in draftRereadRows {
+            guard let original = book.rereads.first(where: { $0.id == row.record.id }) else { continue }
+            guard !Calendar.current.isDate(original.date, inSameDayAs: row.record.date) else { continue }
+            rereadDateUpdates[row.record.id] = row.record.date
+        }
 
         let toSave = updated
-        let shouldUpdateBook = bookFieldsChanged
-        let shouldUpdateRereads = rereadsChanged
         Task {
             do {
-                if shouldUpdateBook {
-                    // 表紙と書誌を1トランザクションで書く（レビュー S4-12）
-                    try await repos.books.updateBook(toSave, cover: cover)
-                }
-                if shouldUpdateRereads {
-                    try await persistRereadEdits()
-                }
+                try await repos.books.saveBookEdits(
+                    toSave,
+                    cover: cover,
+                    deletedRereadIDs: deletedRereadIDs,
+                    rereadDateUpdates: rereadDateUpdates,
+                    updatesBookFields: bookFieldsChanged
+                )
             } catch RepositoryError.bookNotFound {
                 // 編集中に本が消えている＝書き戻す先が無い。シートを閉じるのが現行と同じ見え
                 // （「閉じてよいか」のUX判断はリポジトリではなくここが持つ・設計メモ 4.5節）
@@ -815,20 +822,6 @@ struct EditBookView: View {
         )
     }
 
-    private func persistRereadEdits() async throws {
-        for rereadId in deletedRereadIDs {
-            do {
-                try await repos.books.deleteReread(bookId: book.id, rereadId: rereadId)
-            } catch RepositoryError.rereadNotFound {
-                continue
-            }
-        }
-        for row in draftRereadRows {
-            guard let original = book.rereads.first(where: { $0.id == row.record.id }) else { continue }
-            guard !Calendar.current.isDate(original.date, inSameDayAs: row.record.date) else { continue }
-            try await repos.books.updateReread(bookId: book.id, rereadId: row.record.id, date: row.record.date)
-        }
-    }
 }
 
 /// 編集中の再読1行。保存用の `record.id` とは別に、画面上の行だけを一意に識別する。

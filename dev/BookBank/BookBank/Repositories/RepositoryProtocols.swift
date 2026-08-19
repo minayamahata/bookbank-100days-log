@@ -30,6 +30,9 @@ enum RepositoryError: Error, Equatable {
     /// 再読日が初回登録日の日〜今日の日の範囲外（R4.7）。クランプせず throw する。
     case invalidRereadDate
 
+    /// 登録日が未来、または再読日が登録日より前（R4.7 データ安全性）。保存データは変えない。
+    case invalidReadingDates
+
     /// 更新・削除対象の再読履歴が見つからない（R4.7）。更新系と同じく throw する。
     case rereadNotFound(String)
 }
@@ -55,6 +58,14 @@ protocol BookRepository: AnyObject {
     func addReread(bookId: String, date: Date) async throws
     func updateReread(bookId: String, rereadId: String, date: Date) async throws
     func deleteReread(bookId: String, rereadId: String) async throws
+    /// 編集画面の本情報・表紙・再読削除・再読日変更を1回の save で確定する。
+    func saveBookEdits(
+        _ book: BookDTO,
+        cover: CoverImageUpdate,
+        deletedRereadIDs: [String],
+        rereadDateUpdates: [String: Date],
+        updatesBookFields: Bool
+    ) async throws
 }
 
 extension BookRepository {

@@ -53,12 +53,13 @@ struct BookBankApp: App {
             isStoredInMemoryOnly: isPreview
         )
         
-        // R3移行前バックアップ（設計メモ r3-uuid-migration-notes.md 4.5節①）:
+        // 移行前バックアップ（R3: r3-uuid-migration-notes.md 4.5節① / R4.7: reread-history-spec.md 12.1）:
         // 最も危険なのは直後の ModelContainer 生成時に走る軽量スキーママイグレーション。
-        // ストアが開かれる前にファイル一式をコピーし、生成失敗時はバックアップから復元して1回だけ再試行する。
+        // ストアが開かれる前にファイル一式をコピーし、生成失敗時は R4.7 を優先、なければ R3 から復元して1回だけ再試行する。
         let storeURL = modelConfiguration.url
         if !isPreview {
             StoreBackupManager.backupIfNeeded(storeURL: storeURL)
+            StoreBackupManager.backupIfNeeded(storeURL: storeURL, kind: .rereadSchemaV1)
         }
 
         do {
@@ -189,6 +190,7 @@ struct RootView: View {
                ReadingListOrderMigration.hasCompleted,
                let storeURL = modelContext.container.configurations.first?.url {
                 StoreBackupManager.deleteBackup(storeURL: storeURL)
+                RereadSchemaValidation.finalizeIfValid(context: modelContext, storeURL: storeURL)
             }
 
             // マイグレーションはリポジトリ外書き込みのためパルスに乗らない（設計メモ 4.3節）。
