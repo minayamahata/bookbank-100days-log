@@ -154,7 +154,10 @@ struct EditBookView: View {
 
         NavigationStack {
             Form {
-                // 登録口座
+                // 表紙画像
+                coverImageSection
+
+                // 登録口座（書影の下）
                 if selectedPassbookID != nil {
                     Section {
                         Picker("account.registered", selection: $selectedPassbookID) {
@@ -168,9 +171,6 @@ struct EditBookView: View {
                     }
                     .listSectionSpacing(8)
                 }
-
-                // 表紙画像
-                coverImageSection
                 
                 // 登録日
                 Section {

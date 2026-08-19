@@ -27,6 +27,7 @@ struct StatisticsView: View {
     @Environment(LanguageManager.self) private var languageManager
     @Environment(CurrencyManager.self) private var currencyManager
     @Environment(ExchangeRateService.self) private var exchangeRates
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     
     // MARK: - Properties
     
@@ -43,6 +44,8 @@ struct StatisticsView: View {
     
     /// 選択中の年
     @State private var selectedYear: Int = Calendar.current.component(.year, from: Date())
+    /// 年別ページの高さ。初期値は従来の固定値。中身の実測で追従する。
+    @State private var yearlyPageHeight: CGFloat = 628
     
     // MARK: - Computed Properties
     
@@ -122,6 +125,7 @@ struct StatisticsView: View {
     var body: some View {
         let _ = currencyManager.displayCurrency
         let _ = languageManager.currentLanguage
+        let _ = dynamicTypeSize
         let locale = languageManager.resolvedLocale
 
         VStack(spacing: 0) {
@@ -140,6 +144,8 @@ struct StatisticsView: View {
                             .padding(.bottom, 16)
                         
                         // グラフ部分のTabView（年別統計含む）
+                        // 固定628ptだと行高の広い言語で中身が中央クリップされるので、
+                        // 自然高を測って上揃えし、高さだけ追従する。
                         TabView(selection: $selectedYear) {
                             ForEach(availableYears, id: \.self) { year in
                                 YearlyChartContent(
@@ -151,13 +157,24 @@ struct StatisticsView: View {
                                     exchangeRates: exchangeRates,
                                     locale: locale
                                 )
+                                    .fixedSize(horizontal: false, vertical: true)
+                                    .background {
+                                        GeometryReader { proxy in
+                                            Color.clear.preference(
+                                                key: YearlyPageHeightKey.self,
+                                                value: year == selectedYear ? proxy.size.height : 0
+                                            )
+                                        }
+                                    }
+                                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                                     .tag(year)
-                                    .id("\(year)-\(locale.identifier)")
+                                    .id(yearlyPageIdentity(year: year, locale: locale))
                             }
                         }
                         .tabViewStyle(.page)
                         .indexViewStyle(.page(backgroundDisplayMode: .always))
-                        .frame(height: 628)
+                        .frame(height: yearlyPageHeight)
+                        .onPreferenceChange(YearlyPageHeightKey.self, perform: applyYearlyPageHeight)
 
                         // 口座サマリー
                         VStack(alignment: .leading, spacing: 12) {
@@ -244,6 +261,17 @@ struct StatisticsView: View {
         if !availableYears.contains(selectedYear) {
             selectedYear = availableYears.last ?? Calendar.current.component(.year, from: Date())
         }
+    }
+
+    /// 年・実効言語・Dynamic Type が変わったらページを作り直して再計測する。
+    private func yearlyPageIdentity(year: Int, locale: Locale) -> String {
+        let language = AppTypography.resolvedLanguage(languageManager.currentLanguage)
+        return "\(year)-\(locale.identifier)-\(language)-\(dynamicTypeSize)"
+    }
+
+    private func applyYearlyPageHeight(_ height: CGFloat) {
+        guard height > 0, abs(height - yearlyPageHeight) > 0.5 else { return }
+        yearlyPageHeight = height
     }
     
     // MARK: - Subviews
@@ -698,6 +726,19 @@ struct YearlyChartContent: View {
         }
         .padding()
         .glassSectionCard(cornerRadius: 12)
+    }
+}
+
+// MARK: - Yearly page height
+
+private struct YearlyPageHeightKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        let next = nextValue()
+        if next > 0 {
+            value = next
+        }
     }
 }
 
