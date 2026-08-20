@@ -546,6 +546,150 @@ struct MemoQuoteGeometryTests {
         )
     }
 
+    /// 下からのデリート長押しは出典ページ行を飛び越える（設計メモ 4.6節・2026-08-20 オーナー報告）。
+    /// テンキーへ切り替わらず、キーリピートごとに削除が前進し、全文を消し切れることを固定する
+    @Test func deletingFromBelowSkipsThePageLineAndKeepsTheDefaultKeyboard() throws {
+        // 数字未入力の p.
+        let empty = makeDeletionEditor(memo: "> 引用\np.\n", caret: 8)
+        #expect(pressBackspace(empty.textView, coordinator: empty.coordinator))
+        #expect(empty.textView.text == "> 引\np.\n", "ページ行を飛ばして引用側の削除が1段階進む")
+        #expect(empty.textView.selectedRange == NSRange(location: 3, length: 0))
+        #expect(empty.numeric.value == false, "テンキーへ切り替わらない（「3」に変わらない）")
+
+        // 長押し相当: 途中で止まらず全文を消し切り、ページ番号が残らない
+        for _ in 0..<20 where !empty.textView.text.isEmpty {
+            let before = (empty.textView.text ?? "", empty.textView.selectedRange)
+            #expect(pressBackspace(empty.textView, coordinator: empty.coordinator),
+                    "キャレットの前に消すものがある限り前進する")
+            #expect(empty.numeric.value == false, "全区間でテンキーへ切り替わらない")
+            let after = (empty.textView.text ?? "", empty.textView.selectedRange)
+            try #require(before != after, "削除が空振りしない（長押しがページ番号で停止しない）")
+        }
+        #expect(empty.textView.text == "", "全文削除でページ番号だけが残らない")
+
+        // 数字入りの p.42 でも同じ（複数行の引用＋連続する引用）
+        let filled = makeDeletionEditor(memo: "> 一\n> 二\np.12\n> 三\np.34\n", caret: nil)
+        for _ in 0..<40 where !filled.textView.text.isEmpty {
+            let before = (filled.textView.text ?? "", filled.textView.selectedRange)
+            _ = pressBackspace(filled.textView, coordinator: filled.coordinator)
+            #expect(filled.numeric.value == false)
+            let after = (filled.textView.text ?? "", filled.textView.selectedRange)
+            try #require(before != after, "p.42 形式でも停止しない")
+        }
+        #expect(filled.textView.text == "", "連続する引用でも各ページ行ごと消し切れる")
+    }
+
+    /// 削除を途中でやめれば引用とページ番号は保持され、「ひとつ戻す」で復元できる。
+    /// 絵文字は途中で壊さない
+    @Test func stoppingMidwayKeepsThePageLineAndUndoRestoresTheDeletion() throws {
+        let editor = makeDeletionEditor(memo: "> 引用\np.42\nあと", caret: 12)
+        // 「あと」→ページ行の改行（振り替え）まで3回消して止める
+        for _ in 0..<3 {
+            #expect(pressBackspace(editor.textView, coordinator: editor.coordinator))
+        }
+        #expect(editor.textView.text == "> 引\np.42\n", "通過中のページ番号は引用に付いたまま残る")
+        #expect(editor.numeric.value == false)
+
+        // 「ひとつ戻す」で直前の削除（振り替えで消えた引用側の1文字）が戻る
+        editor.bridge.undo()
+        #expect(editor.textView.text == "> 引用\np.42\n", "振り替えた削除も取り消しの履歴に載る")
+
+        // 絵文字を含む引用: 家族の絵文字は1回の削除で丸ごと消える
+        let family = makeDeletionEditor(memo: "> 👨‍👩‍👧‍👦\np.\n", caret: nil)
+        #expect(pressBackspace(family.textView, coordinator: family.coordinator))
+        #expect(family.textView.text == "> \np.\n", "サロゲートペアを途中で壊さない")
+    }
+
+    /// 従来動作の維持: ページ番号を自分でタップすればテンキー、引用内のEnterでページ番号へ移動、
+    /// ページ番号の直接編集中は数字を1文字ずつ消せる
+    @Test func tappingAndReturnStillReachThePageNumberAsBefore() throws {
+        let editor = makeDeletionEditor(memo: "> 引用\np.42\n", caret: 4)
+
+        // 引用の中でEnter → その引用のページ番号の行末へ移動し、テンキーになる
+        let returnAllowed = editor.coordinator.textView(
+            editor.textView,
+            shouldChangeTextIn: NSRange(location: 4, length: 0),
+            replacementText: "\n"
+        )
+        #expect(returnAllowed == false)
+        #expect(editor.textView.selectedRange == NSRange(location: 9, length: 0),
+                "引用内のEnterは従来どおりページ番号へ移動する")
+        #expect(editor.numeric.value, "移動先ではテンキーになる")
+
+        // ページ番号の直接編集中: 数字は従来どおり1文字ずつ消せる（振り替えない）
+        let digitAllowed = editor.coordinator.textView(
+            editor.textView,
+            shouldChangeTextIn: NSRange(location: 8, length: 1),
+            replacementText: ""
+        )
+        #expect(digitAllowed, "数字の削除はそのまま通す")
+
+        // ページ番号を自分でタップした場合もテンキー（下からの削除で到達した場合と区別する）
+        let tapped = makeDeletionEditor(memo: "> 引用\np.42\n", caret: 4)
+        tapped.textView.selectedRange = NSRange(location: 9, length: 0)
+        #expect(tapped.numeric.value, "タップでページ番号に入ればテンキー")
+
+        // 引用と無関係な単独の p.42 は飛ばさない（ふつうに改行の削除が通る）
+        let standalone = makeDeletionEditor(memo: "本文\np.42\nあ", caret: 8)
+        let plainAllowed = standalone.coordinator.textView(
+            standalone.textView,
+            shouldChangeTextIn: NSRange(location: 7, length: 1),
+            replacementText: ""
+        )
+        #expect(plainAllowed, "単独のページ番号行は特別扱いしない")
+    }
+
+    /// 削除の飛び越えテスト用のエディタ一式。`caret: nil` は本文末尾
+    private func makeDeletionEditor(
+        memo: String, caret: Int?
+    ) -> (
+        textView: UITextView,
+        coordinator: MemoEditorTextView.Coordinator,
+        numeric: Flag,
+        bridge: MemoEditorBridge
+    ) {
+        let numeric = Flag(false)
+        let bridge = MemoEditorBridge()
+        let location = caret ?? (memo as NSString).length
+        let editor = MemoEditorTextView(
+            text: .constant(memo),
+            selectedRange: .constant(NSRange(location: location, length: 0)),
+            prefersNumericKeyboard: Binding(
+                get: { numeric.value }, set: { numeric.value = $0 }
+            ),
+            accentColor: .blue,
+            bridge: bridge
+        )
+        let coordinator = editor.makeCoordinator()
+        let (textView, manager, storage) = makeTextView(text: memo)
+        coordinator.quoteLayoutManager = manager
+        coordinator.textStorage = storage
+        textView.delegate = coordinator
+        bridge.textView = textView
+        textView.selectedRange = NSRange(location: location, length: 0)
+        coordinator.applyStyling(to: textView, accent: .blue)
+        return (textView, coordinator, numeric, bridge)
+    }
+
+    /// デリートキー1回ぶんの後退削除（キーリピートの1周期に相当）。
+    /// 消すものが無ければ false。許可された削除はシステムと同じ順で反映する
+    @discardableResult
+    private func pressBackspace(
+        _ textView: UITextView, coordinator: MemoEditorTextView.Coordinator
+    ) -> Bool {
+        let caret = textView.selectedRange
+        guard caret.length == 0, caret.location > 0 else { return false }
+        let nsText = textView.text as NSString
+        let target = nsText.rangeOfComposedCharacterSequence(at: caret.location - 1)
+        let allowed = coordinator.textView(textView, shouldChangeTextIn: target, replacementText: "")
+        if allowed {
+            textView.textStorage.replaceCharacters(in: target, with: "")
+            textView.selectedRange = NSRange(location: target.location, length: 0)
+            coordinator.textViewDidChange(textView)
+        }
+        return true
+    }
+
     private static func makeEditor(
         memo: String
     ) throws -> (UITextView, MemoQuoteBackgroundLayoutManager) {

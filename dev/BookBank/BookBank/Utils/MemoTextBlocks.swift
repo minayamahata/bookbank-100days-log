@@ -256,6 +256,78 @@ enum MemoQuotePage {
         return false
     }
 
+    // MARK: - 下からの連続削除（出典ページ行の飛び越え・設計メモ 4.6節 2026-08-20）
+
+    /// 下からの連続削除の1段階。`targets` を後ろから順に消す（テキストビュー経由で取り消し可能）
+    struct SkipDeletion: Equatable {
+        let targets: [NSRange]
+        /// この削除で引用が消える（付随する出典ページ行も一緒に消している）か
+        let removesQuote: Bool
+    }
+
+    /// 後退1文字削除が「出典ページ行の直後の改行」を消そうとしたとき、ページ行を
+    /// 飛び越えて代わりに消す引用本文側の1文字（合成文字は丸ごと）。対象外なら nil。
+    /// `p.` も数字入りの `p.42` も飛ばす。引用に付随しない単独の `p.42` 行は
+    /// `quotePageLineRanges` に含まれないので対象にならない
+    static func backwardDeletionRedirect(for range: NSRange, in text: String) -> NSRange? {
+        let nsText = text as NSString
+        guard range.length == 1,
+              NSMaxRange(range) <= nsText.length,
+              nsText.substring(with: range) == "\n",
+              let page = MemoTextBlocks.quotePageLineRanges(in: text)
+                  .first(where: { NSMaxRange($0) == range.location })
+        else { return nil }
+
+        // ページ行の直前は引用ブロック末尾の改行。そのさらに前の1文字が削除の振替先
+        let separator = page.location - 1
+        guard separator >= 1,
+              nsText.substring(with: NSRange(location: separator, length: 1)) == "\n"
+        else { return nil }
+        return nsText.rangeOfComposedCharacterSequence(at: separator - 1)
+    }
+
+    /// 飛び越えの継続中に、引用行頭の `> ` へ達した後退削除のまとまり。
+    /// 本文を消し切った行（`> ` だけ）が対象で、それ以外は nil（既存のまとまり削除へ）。
+    /// - 直前の行も引用なら、空になった行ごと上へ詰める（囲みとページ行の隣接を保つ）
+    /// - まとまり最後の1行なら、`> ` と付随する出典ページ行（数字入りも・改行ごと）を一緒に消す
+    static func skipDeletion(covering range: NSRange, in text: String) -> SkipDeletion? {
+        let nsText = text as NSString
+        guard range.length >= 1, range.location >= 0, range.location < nsText.length
+        else { return nil }
+        let line = nsText.lineRange(for: NSRange(location: range.location, length: 0))
+        let prefix = NSRange(location: line.location, length: 2)
+        guard line.length >= 2,
+              nsText.substring(with: prefix) == "> ",
+              NSIntersectionRange(range, prefix) == range,
+              nsText.substring(with: line).trimmingCharacters(in: .newlines) == "> "
+        else { return nil }
+
+        if line.location >= 1 {
+            let previous = nsText.lineRange(for: NSRange(location: line.location - 1, length: 0))
+            if nsText.substring(with: previous).hasPrefix("> ") {
+                return SkipDeletion(
+                    targets: [NSRange(location: line.location - 1, length: 3)],  // "\n> "
+                    removesQuote: false
+                )
+            }
+        }
+
+        guard let page = MemoTextBlocks.quotePageLineRanges(in: text)
+            .first(where: { $0.location == NSMaxRange(line) })
+        else { return nil }
+        // 手前の改行〜ページ行の改行まで（末尾に改行が無ければ行末まで）
+        let pageEnd = NSMaxRange(page)
+        let trailing = pageEnd < nsText.length
+            && nsText.substring(with: NSRange(location: pageEnd, length: 1)) == "\n" ? 1 : 0
+        return SkipDeletion(
+            targets: MemoHiddenMarkers.mergedRanges([
+                prefix,
+                NSRange(location: page.location - 1, length: 1 + page.length + trailing)
+            ]),
+            removesQuote: true
+        )
+    }
+
     /// 出典ページの行を足すか。既にページ行がある／続きが引用行のときは足さない
     static func lineToAppend(in text: String, after index: String.Index) -> String {
         let following = followingLine(in: text, after: index)

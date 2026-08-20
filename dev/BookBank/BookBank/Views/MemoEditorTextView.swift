@@ -470,6 +470,10 @@ struct MemoEditorTextView: UIViewRepresentable {
         private var lengthAtLastSelectionChange = -1
         /// 引用の上に空行を足している最中。入れた改行が同じ規則に再入するのを防ぐ
         private var isOpeningLineAboveQuote = false
+        /// 下からの連続削除で出典ページ行を飛び越えている最中の、次の削除で期待する
+        /// キャレット位置（設計メモ 4.6節・2026-08-20）。nil ならセッション外。
+        /// 入力・タップ・範囲選択・変換などの削除以外の操作、対象引用の削除完了で解除する
+        private var pageLineSkipExpectedCaret: Int?
 
         init(_ parent: MemoEditorTextView) {
             self.parent = parent
@@ -530,6 +534,12 @@ struct MemoEditorTextView: UIViewRepresentable {
             let length = (textView.text as NSString).length
             let followsEdit = length != lengthAtLastSelectionChange
             lengthAtLastSelectionChange = length
+
+            // 下からの削除セッション: 期待位置以外へ動いたら解除（タップ・手動の選択操作）
+            if let expected = pageLineSkipExpectedCaret,
+               textView.selectedRange != NSRange(location: expected, length: 0) {
+                pageLineSkipExpectedCaret = nil
+            }
 
             guard !releaseNumericKeyboardKeepingCaret(textView, followsEdit: followsEdit) else {
                 return
@@ -725,6 +735,39 @@ struct MemoEditorTextView: UIViewRepresentable {
             shouldChangeTextIn range: NSRange,
             replacementText replacement: String
         ) -> Bool {
+            // --- 下からの連続削除は出典ページ行を飛び越える（設計メモ 4.6節・2026-08-20） ---
+            // 削除でページ行へ到達してからテンキーを戻すのではなく、削除要求の時点で
+            // 削除先を引用本文側へ振り替える（テンキーは一瞬も出ない）
+            let isBackwardCaretDeletion = replacement.isEmpty
+                && textView.markedTextRange == nil
+                && textView.selectedRange.length == 0
+                && range.length >= 1
+                && NSMaxRange(range) == textView.selectedRange.location
+            if let expected = pageLineSkipExpectedCaret {
+                if isBackwardCaretDeletion, textView.selectedRange.location == expected {
+                    // 続きの後退削除。既定の経路が消したあとのキャレット位置を先に控える
+                    pageLineSkipExpectedCaret = range.location
+                } else {
+                    // 入力・範囲選択・変換など、削除以外の操作でセッションを解除する
+                    pageLineSkipExpectedCaret = nil
+                }
+            }
+            if isBackwardCaretDeletion {
+                let text = textView.text ?? ""
+                // ページ行の直後の改行を消す要求は、引用本文側の削除へ振り替える
+                if let redirect = MemoQuotePage.backwardDeletionRedirect(for: range, in: text) {
+                    performPageLineSkipDeletion(of: redirect, in: textView, text: text)
+                    return false
+                }
+                // 飛び越えの継続中に引用行頭へ達したら、行を上へ詰める／
+                // まとまり最後の行ならページ行（数字入りも）ごと消す
+                if pageLineSkipExpectedCaret != nil,
+                   let skip = MemoQuotePage.skipDeletion(covering: range, in: text) {
+                    applyPageLineSkip(skip, to: textView)
+                    return false
+                }
+            }
+
             // つながりの中の改行は、括弧の外へ出る操作として扱う（2026-08-12 オーナー指示で
             // 記号を隠したため、`]]` の先へキャレットを送る手がかりが画面に無い）。
             // 改行をそのまま入れると括弧が行をまたいでつながりが壊れるので、通す意味もない
@@ -792,7 +835,54 @@ struct MemoEditorTextView: UIViewRepresentable {
             }
             undo?.endUndoGrouping()
             parent.bridge.refresh()
+            // 飛び越えの継続中なら、まとまり削除後の位置を次の期待位置にする
+            if pageLineSkipExpectedCaret != nil {
+                pageLineSkipExpectedCaret = targets.map(\.location).min()
+            }
             return false
+        }
+
+        /// ページ行を飛び越える削除の実行。振替先が引用行頭や他の隠れた記号に触れる場合も、
+        /// 既存のまとまり削除の規則で**1段階だけ**前進させる（キーリピートを止めない）
+        private func performPageLineSkipDeletion(
+            of range: NSRange, in textView: UITextView, text: String
+        ) {
+            if let skip = MemoQuotePage.skipDeletion(covering: range, in: text) {
+                applyPageLineSkip(skip, to: textView)
+            } else if let targets = MemoHiddenMarkers.bulkDeletionTargets(
+                covering: range, in: text
+            ) {
+                applyPageLineSkip(
+                    MemoQuotePage.SkipDeletion(targets: targets, removesQuote: false),
+                    to: textView
+                )
+            } else {
+                applyPageLineSkip(
+                    MemoQuotePage.SkipDeletion(targets: [range], removesQuote: false),
+                    to: textView
+                )
+            }
+        }
+
+        /// まとまりを後ろから消し、キャレットを先頭位置へ置く。書き換えは既存のまとまり削除と
+        /// 同じくテキストビュー経由（`MemoEditorBridge`）——「ひとつ戻す」と入力機構への通知を
+        /// 壊さない。引用ごとページ行を消したらセッション終了、それ以外は次の期待位置を控える
+        private func applyPageLineSkip(
+            _ skip: MemoQuotePage.SkipDeletion, to textView: UITextView
+        ) {
+            isApplyingRequestedState = true
+            let undo = textView.undoManager
+            undo?.beginUndoGrouping()
+            for target in skip.targets.sorted(by: { $0.location > $1.location }) {
+                _ = parent.bridge.replace(target, with: "", caretLocation: target.location)
+            }
+            undo?.endUndoGrouping()
+            parent.bridge.refresh()
+            isApplyingRequestedState = false
+            lengthAtLastSelectionChange = (textView.text as NSString).length
+            pageLineSkipExpectedCaret = skip.removesQuote
+                ? nil
+                : skip.targets.map(\.location).min()
         }
 
         // MARK: - 装飾

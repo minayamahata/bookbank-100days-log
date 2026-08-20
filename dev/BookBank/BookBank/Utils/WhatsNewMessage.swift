@@ -53,6 +53,12 @@ enum WhatsNewMessage {
             titleKey: "whats_new.title.04",
             descriptionKey: "whats_new.description.04",
             imageName: "img_news-04"
+        ),
+        WhatsNewPage(
+            id: "05",
+            titleKey: "whats_new.title.05",
+            descriptionKey: "whats_new.description.05",
+            imageName: "img_news-05"
         )
     ]
 }

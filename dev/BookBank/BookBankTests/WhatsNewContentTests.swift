@@ -6,10 +6,10 @@ import UIKit
 /// 新機能のお知らせ コンテンツと画像のテスト（docs/whats-new-message-design.md 9章）
 @MainActor
 struct WhatsNewContentTests {
-    @Test func hasExactlyFourPagesInFixedOrder() {
+    @Test func hasExactlyFivePagesInFixedOrder() {
         let pages = WhatsNewMessage.pages
-        #expect(pages.count == 4)
-        #expect(pages.map(\.id) == ["01", "02", "03", "04"], "順番は01〜04で固定")
+        #expect(pages.count == 5)
+        #expect(pages.map(\.id) == ["01", "02", "03", "04", "05"], "順番は01〜05で固定")
     }
 
     @Test func pageKeysAndImageNamesMatchTheirNumbers() {

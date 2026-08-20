@@ -13,10 +13,10 @@ enum WhatsNewAutoShowPolicy {
     /// 自動表示の上限回数
     static let maxAutoShowCount = 3
 
-    /// ⚠️ 実機チェック用の一時スイッチ（2026-08-20 オーナー指示）。
+    /// 実機チェック用の一時スイッチ（2026-08-20 オーナー指示）。
     /// true の間は確認済み・回数上限を無視して毎起動表示する（1起動1回は維持・回数は加算しない）。
-    /// **リリース前に必ず false へ戻すこと**（docs/whats-new-message-design.md 10章の人間タスク）。
-    static let temporarilyAlwaysAutoShow = true
+    /// 実機チェック完了により false へ復帰済み（2026-08-20。リリース版は必ず false のまま）
+    static let temporarilyAlwaysAutoShow = false
 
     /// - Parameters:
     ///   - hasCompletedOnboarding: オンボーディング完了済みか（未完了中は表示しない）

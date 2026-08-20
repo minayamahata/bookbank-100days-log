@@ -1175,6 +1175,88 @@ struct BookBankTests {
                 "入力済みの数字はふつうに消せる（消し切れば案内に戻る）")
     }
 
+    /// 下からの後退削除は出典ページ行を飛び越え、引用本文側の削除へ振り替える
+    /// （設計メモ 4.6節・2026-08-20 オーナー報告——デリート長押しがページ行でテンキーに変わり、
+    /// キーの位置に来た「3」を意図せず入力していた）
+    @Test func memoQuotePageBackwardDeletionSkipsThePageLineFromBelow() {
+        let empty = "> 引用\np.\nあと"  // 改行=4 / p.=5〜6 / 改行=7
+        #expect(
+            MemoQuotePage.backwardDeletionRedirect(for: NSRange(location: 7, length: 1), in: empty)
+                == NSRange(location: 3, length: 1),
+            "ページ行の直後の改行を消す要求は、引用本文の末尾1文字へ振り替える"
+        )
+
+        let filled = "> 引用\np.42\nあと"  // p.42=5〜8 / 改行=9
+        #expect(
+            MemoQuotePage.backwardDeletionRedirect(for: NSRange(location: 9, length: 1), in: filled)
+                == NSRange(location: 3, length: 1),
+            "数字が入力済みの p.42 でも飛ばす"
+        )
+        #expect(
+            MemoQuotePage.backwardDeletionRedirect(for: NSRange(location: 8, length: 1), in: filled)
+                == nil,
+            "ページ行の中の数字の削除は振り替えない（直接編集は従来どおり）"
+        )
+
+        let standalone = "本文\np.42\nあと"
+        #expect(
+            MemoQuotePage.backwardDeletionRedirect(
+                for: NSRange(location: 7, length: 1), in: standalone
+            ) == nil,
+            "引用と無関係な単独の p.42 行は飛ばさない"
+        )
+
+        // 絵文字（サロゲートペア・ZWJ結合）は途中で壊さず、丸ごと1回で消す
+        let cluster = ("👨‍👩‍👧‍👦" as NSString).length
+        let family = "> 👨‍👩‍👧‍👦\np.\nあと"
+        #expect(
+            MemoQuotePage.backwardDeletionRedirect(
+                for: NSRange(location: cluster + 5, length: 1), in: family
+            ) == NSRange(location: 2, length: cluster)
+        )
+    }
+
+    /// 飛び越えの継続中に引用行頭へ達した削除のまとまり。
+    /// 複数行は行ごと上へ詰め、最後の1行はページ行（数字入りも）ごと消す
+    @Test func memoQuotePageSkipDeletionMergesLinesAndRemovesThePage() {
+        // まとまりの途中: 空になった行ごと上へ詰める（囲みとページ行の隣接を保つ）
+        let multi = "> 一\n> \np.\n"
+        #expect(
+            MemoQuotePage.skipDeletion(covering: NSRange(location: 5, length: 1), in: multi)
+                == MemoQuotePage.SkipDeletion(
+                    targets: [NSRange(location: 3, length: 3)], removesQuote: false
+                )
+        )
+
+        // 最後の1行: `> ` とページ行（改行ごと）を一緒に消す
+        let last = "> \np.\nあと"
+        #expect(
+            MemoQuotePage.skipDeletion(covering: NSRange(location: 1, length: 1), in: last)
+                == MemoQuotePage.SkipDeletion(
+                    targets: [NSRange(location: 0, length: 6)], removesQuote: true
+                ),
+            "ページ番号だけが本文として取り残されない"
+        )
+        let filledLast = "> \np.42\n"
+        #expect(
+            MemoQuotePage.skipDeletion(covering: NSRange(location: 1, length: 1), in: filledLast)
+                == MemoQuotePage.SkipDeletion(
+                    targets: [NSRange(location: 0, length: 8)], removesQuote: true
+                ),
+            "数字入りのページ行も引用と一緒に消える"
+        )
+
+        // 本文が残る行・引用でない行は対象外（既存のまとまり削除の規則へ）
+        #expect(
+            MemoQuotePage.skipDeletion(covering: NSRange(location: 1, length: 1), in: "> あ\np.\n")
+                == nil
+        )
+        #expect(
+            MemoQuotePage.skipDeletion(covering: NSRange(location: 1, length: 1), in: "ふつうの本文")
+                == nil
+        )
+    }
+
     @Test func memoLinkTextDoesNotInterpretOtherMarkdown() {
         // 「ボタンで入れたものだけが装飾になる」（設計メモ 0.4節）。
         // 見出し・箇条書き・斜体・リンクは素通し

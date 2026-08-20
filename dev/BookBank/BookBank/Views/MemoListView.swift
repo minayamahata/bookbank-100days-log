@@ -34,9 +34,11 @@ struct MemoListView: View {
         var id: String { book.id }
     }
 
-    /// リポジトリの正準順を維持したまま、本文のあるメモだけを残す
+    /// 最新の読書日（初回登録日と再読日の最大）降順に並べてから、本文のあるメモだけを残す
+    /// （設計メモ「並び順」2026-08-20——最近再読した本のメモを上部へ。同値は正準順を維持）。
+    /// 並び替えは本棚と同じ `ReadingTally.sortedByLatestReadDate` を再利用する
     private var memoItems: [MemoListItem] {
-        allBooks.compactMap { book in
+        ReadingTally.sortedByLatestReadDate(allBooks).compactMap { book in
             guard let memo = book.memo, !memo.isEmpty else {
                 return nil
             }

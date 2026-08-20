@@ -91,7 +91,7 @@ struct WhatsNewView: View {
                     .padding(.top, 12)
 
                 actionButton
-                    .padding(.top, 20)
+                    .padding(.top, 32)
                     .padding(.bottom, 24)
             }
 
@@ -146,7 +146,7 @@ struct WhatsNewView: View {
     private func pageContent(_ page: WhatsNewPage) -> some View {
         VStack(spacing: 0) {
             Text(verbatim: L10n.format(WhatsNewMessage.headerKey, page.id))
-                .font(.app(.footnote, weight: .bold))
+                .font(.app(.subheadline, weight: .bold))
                 .foregroundColor(goldColor)
                 .padding(.top, 32)
                 .padding(.horizontal, 24)

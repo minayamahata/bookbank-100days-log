@@ -12137,31 +12137,31 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Use quotes, bold, and page numbers to make your notes easier to read."
+            "value" : "Use page numbers, quotes, and bold to make your notes easier to read."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "引用・太字・ページ番号を使って\nメモを読みやすく整えられます。"
+            "value" : "ページ番号・引用・太字を使って\nメモを読みやすく整えられます。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "인용, 굵게, 페이지 번호로 메모를 읽기 쉽게 정리할 수 있습니다."
+            "value" : "페이지 번호, 인용, 굵게로 메모를 읽기 쉽게 정리할 수 있습니다."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "使用引用、粗体和页码，让备注更易于阅读。"
+            "value" : "使用页码、引用和粗体，让备注更易于阅读。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "使用引用、粗體和頁碼，讓備註更易於閱讀。"
+            "value" : "使用頁碼、引用和粗體，讓備註更易於閱讀。"
           }
         }
       }
@@ -12172,36 +12172,71 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Connect the same words in your notes, and relationships grow between books."
+            "value" : "Connect the same words in your notes, and your books begin to connect."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "メモで同じ言葉を「つなぐ」と\n本と本のあいだに関係が生まれます。"
+            "value" : "メモで同じ言葉を「つなぐ」と\n本と本がつながりはじめます。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "메모에서 같은 말을 “연결”하면 책과 책 사이에 관계가 생깁니다."
+            "value" : "메모에서 같은 말을 “연결”하면 책과 책이 이어지기 시작합니다."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "在备注中“连接”相同的词语，书与书之间就会产生联系。"
+            "value" : "在备注中“连接”相同的词语，书与书就开始连接起来。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "在備註中「連結」相同的詞語，書與書之間就會產生關聯。"
+            "value" : "在備註中「連結」相同的詞語，書與書就開始連結起來。"
           }
         }
       }
     },
     "whats_new.description.04" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gather the notes you've left in books and search through them."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本に残したメモだけを集めて\n検索できるようになりました。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "책에 남긴 메모만 모아서 검색할 수 있게 되었습니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "将留在书中的备注汇集起来，还能进行搜索。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "將留在書中的備註彙集起來，還能進行搜尋。"
+          }
+        }
+      }
+    },
+    "whats_new.description.05" : {
       "extractionState" : "stale",
       "localizations" : {
         "en" : {
@@ -12447,6 +12482,41 @@
       }
     },
     "whats_new.title.04" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notes List"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "メモ一覧ページ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "메모 목록"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "备注列表"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "備註列表"
+          }
+        }
+      }
+    },
+    "whats_new.title.05" : {
       "extractionState" : "stale",
       "localizations" : {
         "en" : {

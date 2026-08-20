@@ -87,6 +87,43 @@ struct ReadingTallyTests {
         #expect(ReadingTally.sortedByLatestReadDate([first, second, third]).map(\.id) == ["a", "b", "c"])
     }
 
+    /// メモ一覧の並び（`docs/memo-list-design.md`「並び順」2026-08-20）——
+    /// 一覧は本棚と同じ `sortedByLatestReadDate` を、メモの絞り込みの**前に**全体へ当てる
+    @Test func latestReadDateSortServesTheMemoList() {
+        // 初回登録日が古くても、最新の再読日が最も新しい本が先頭。
+        // 複数の再読日があるときは最も新しい再読日を使う
+        let old = book(id: "old", registeredAt: date(2026, 1, 1), rereads: [
+            RereadRecord(id: "r1", date: date(2026, 3, 1)),
+            RereadRecord(id: "r2", date: date(2026, 8, 19))
+        ])
+        let recent = book(id: "recent", registeredAt: date(2026, 8, 1))
+        let middle = book(id: "middle", registeredAt: date(2026, 5, 1))
+        #expect(old.latestReadDate == date(2026, 8, 19), "複数の再読日は最新を使う")
+        #expect(recent.latestReadDate == recent.registeredAt, "再読が無ければ初回登録日が基準")
+        #expect(
+            ReadingTally.sortedByLatestReadDate([recent, middle, old]).map(\.id)
+                == ["old", "recent", "middle"],
+            "最近再読した本が先頭へ来る"
+        )
+
+        // 再読していない本だけなら、従来の初回登録日順（リポジトリの正準順）と一致する
+        let canonical = [
+            recent, middle, book(id: "oldest", registeredAt: date(2026, 1, 2))
+        ]
+        #expect(
+            ReadingTally.sortedByLatestReadDate(canonical).map(\.id) == canonical.map(\.id),
+            "再読が無ければ従来の並びのまま"
+        )
+
+        // メモ一覧の流れ: 並び替え→メモのある本だけ残す→検索は filter するだけ。
+        // filter は順番を保つので、検索後も latestReadDate 順のまま
+        let sorted = ReadingTally.sortedByLatestReadDate([recent, middle, old])
+        let memoBooks = sorted.filter { $0.id != "middle" }
+        #expect(memoBooks.map(\.id) == ["old", "recent"], "絞り込んでも順番は変わらない")
+        let searched = memoBooks.filter { $0.id.contains("c") }
+        #expect(searched.map(\.id) == ["recent"], "検索の filter も順番を保つ（再ソートしない）")
+    }
+
     @Test func yearMonthGroupingAndMissingPrice() {
         let item = book(
             id: "m",
