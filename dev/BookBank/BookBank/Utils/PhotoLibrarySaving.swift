@@ -22,7 +22,8 @@ enum PhotoLibrarySaveOutcome: Equatable {
 protocol PhotoLibrarySaving {
     func authorizationStatus() -> PHAuthorizationStatus
     func requestAuthorization() async -> PHAuthorizationStatus
-    func savePNG(_ data: Data) async throws
+    /// PNG / JPEG 共通。`PHAssetCreationRequest` は Data の形式を自動判別する。
+    func saveImageData(_ data: Data) async throws
 }
 
 @MainActor
@@ -35,7 +36,7 @@ final class SystemPhotoLibrarySaver: PhotoLibrarySaving {
         await PHPhotoLibrary.requestAuthorization(for: .addOnly)
     }
 
-    func savePNG(_ data: Data) async throws {
+    func saveImageData(_ data: Data) async throws {
         do {
             try await PHPhotoLibrary.shared().performChanges {
                 let request = PHAssetCreationRequest.forAsset()
@@ -56,7 +57,7 @@ final class MonthlyLogShareSaveController {
         self.saver = saver
     }
 
-    func save(png data: Data) async -> PhotoLibrarySaveOutcome {
+    func save(data: Data) async -> PhotoLibrarySaveOutcome {
         guard !isSaving else { return .ignoredBecauseBusy }
         isSaving = true
         defer { isSaving = false }
@@ -69,7 +70,7 @@ final class MonthlyLogShareSaveController {
         switch status {
         case .authorized, .limited:
             do {
-                try await saver.savePNG(data)
+                try await saver.saveImageData(data)
                 return .saved
             } catch {
                 return .failed
@@ -85,15 +86,21 @@ final class MonthlyLogShareSaveController {
 }
 
 enum MonthlyLogShareExport {
-    /// アルファを保つため `UIImage` ではなく PNG Data を格納する。
-    static func copyPNGToPasteboard(_ data: Data, pasteboard: UIPasteboard = .general) {
-        pasteboard.setData(data, forPasteboardType: UTType.png.identifier)
+    /// PNG はアルファを保つため `UIImage` ではなく Data を、種別に合う UTType で格納する。
+    static func copyToPasteboard(
+        _ asset: MonthlyLogShareExportAsset,
+        pasteboard: UIPasteboard = .general
+    ) {
+        pasteboard.setData(asset.data, forPasteboardType: asset.utType.identifier)
     }
 
-    static func writeTemporaryPNG(_ data: Data) throws -> URL {
+    /// 共有シート用の一時ファイル。拡張子は PNG / JPEG に合わせる。
+    static func writeTemporaryFile(_ asset: MonthlyLogShareExportAsset) throws -> URL {
         let url = FileManager.default.temporaryDirectory
-            .appendingPathComponent("BookBank-monthly-log-\(UUID().uuidString).png")
-        try data.write(to: url, options: .atomic)
+            .appendingPathComponent(
+                "BookBank-monthly-log-\(UUID().uuidString).\(asset.fileExtension)"
+            )
+        try asset.data.write(to: url, options: .atomic)
         return url
     }
 

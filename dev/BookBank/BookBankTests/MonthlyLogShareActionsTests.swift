@@ -31,7 +31,7 @@ final class MockPhotoLibrarySaver: PhotoLibrarySaving {
         return requestResult
     }
 
-    func savePNG(_ data: Data) async throws {
+    func saveImageData(_ data: Data) async throws {
         saveCallCount += 1
         if holdSave {
             try await withCheckedThrowingContinuation { continuation in
@@ -60,10 +60,19 @@ struct MonthlyLogShareActionsTests {
         return image.pngData() ?? Data()
     }
 
+    private var sampleJPEG: Data {
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: 4, height: 4))
+        let image = renderer.image { context in
+            UIColor.red.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 4, height: 4))
+        }
+        return image.jpegData(compressionQuality: 0.95) ?? Data()
+    }
+
     @Test func saveSucceedsWhenAuthorized() async {
         let saver = MockPhotoLibrarySaver(status: .authorized)
         let controller = MonthlyLogShareSaveController(saver: saver)
-        let outcome = await controller.save(png: samplePNG)
+        let outcome = await controller.save(data: samplePNG)
         #expect(outcome == .saved)
         #expect(saver.saveCallCount == 1)
         #expect(saver.requestCallCount == 0)
@@ -72,7 +81,7 @@ struct MonthlyLogShareActionsTests {
     @Test func saveRequestsAccessWhenUndeterminedThenSaves() async {
         let saver = MockPhotoLibrarySaver(status: .notDetermined, requestResult: .authorized)
         let controller = MonthlyLogShareSaveController(saver: saver)
-        let outcome = await controller.save(png: samplePNG)
+        let outcome = await controller.save(data: samplePNG)
         #expect(outcome == .saved)
         #expect(saver.requestCallCount == 1)
     }
@@ -80,7 +89,7 @@ struct MonthlyLogShareActionsTests {
     @Test func saveDeniedDoesNotWrite() async {
         let saver = MockPhotoLibrarySaver(status: .denied)
         let controller = MonthlyLogShareSaveController(saver: saver)
-        let outcome = await controller.save(png: samplePNG)
+        let outcome = await controller.save(data: samplePNG)
         #expect(outcome == .denied)
         #expect(saver.saveCallCount == 0)
     }
@@ -88,7 +97,7 @@ struct MonthlyLogShareActionsTests {
     @Test func saveRestrictedDoesNotWrite() async {
         let saver = MockPhotoLibrarySaver(status: .restricted)
         let controller = MonthlyLogShareSaveController(saver: saver)
-        let outcome = await controller.save(png: samplePNG)
+        let outcome = await controller.save(data: samplePNG)
         #expect(outcome == .restricted)
         #expect(saver.saveCallCount == 0)
     }
@@ -97,7 +106,7 @@ struct MonthlyLogShareActionsTests {
         let saver = MockPhotoLibrarySaver(status: .authorized)
         saver.saveError = PhotoLibrarySaveError.failed
         let controller = MonthlyLogShareSaveController(saver: saver)
-        let outcome = await controller.save(png: samplePNG)
+        let outcome = await controller.save(data: samplePNG)
         #expect(outcome == .failed)
     }
 
@@ -106,9 +115,9 @@ struct MonthlyLogShareActionsTests {
         saver.holdSave = true
         let controller = MonthlyLogShareSaveController(saver: saver)
 
-        async let first = controller.save(png: samplePNG)
+        async let first = controller.save(data: samplePNG)
         try? await Task.sleep(for: .milliseconds(30))
-        let second = await controller.save(png: samplePNG)
+        let second = await controller.save(data: samplePNG)
         saver.finishHeldSave()
         let firstOutcome = await first
 
@@ -120,16 +129,40 @@ struct MonthlyLogShareActionsTests {
     @Test func copyStoresPNGDataNotUIImage() {
         let board = UIPasteboard.withUniqueName()
         let data = samplePNG
-        MonthlyLogShareExport.copyPNGToPasteboard(data, pasteboard: board)
+        let asset = MonthlyLogShareExportAsset(data: data, format: .png)
+        MonthlyLogShareExport.copyToPasteboard(asset, pasteboard: board)
         #expect(board.data(forPasteboardType: UTType.png.identifier) == data)
+        #expect(board.data(forPasteboardType: UTType.jpeg.identifier) == nil)
         #expect(UIImage(data: data) != nil)
     }
 
+    @Test func copyStoresJPEGDataWithJPEGType() {
+        let board = UIPasteboard.withUniqueName()
+        let data = sampleJPEG
+        let asset = MonthlyLogShareExportAsset(data: data, format: .jpeg)
+        MonthlyLogShareExport.copyToPasteboard(asset, pasteboard: board)
+        #expect(board.data(forPasteboardType: UTType.jpeg.identifier) == data)
+        #expect(board.data(forPasteboardType: UTType.png.identifier) == nil)
+    }
+
     @Test func writesShareableTemporaryPNG() throws {
-        let url = try MonthlyLogShareExport.writeTemporaryPNG(samplePNG)
+        let url = try MonthlyLogShareExport.writeTemporaryFile(
+            MonthlyLogShareExportAsset(data: samplePNG, format: .png)
+        )
         defer { MonthlyLogShareExport.removeTemporaryFile(url) }
         #expect(FileManager.default.fileExists(atPath: url.path))
         #expect(url.pathExtension == "png")
+        let loaded = try Data(contentsOf: url)
+        #expect(UIImage(data: loaded) != nil)
+    }
+
+    @Test func writesShareableTemporaryJPEG() throws {
+        let url = try MonthlyLogShareExport.writeTemporaryFile(
+            MonthlyLogShareExportAsset(data: sampleJPEG, format: .jpeg)
+        )
+        defer { MonthlyLogShareExport.removeTemporaryFile(url) }
+        #expect(FileManager.default.fileExists(atPath: url.path))
+        #expect(url.pathExtension == "jpg")
         let loaded = try Data(contentsOf: url)
         #expect(UIImage(data: loaded) != nil)
     }

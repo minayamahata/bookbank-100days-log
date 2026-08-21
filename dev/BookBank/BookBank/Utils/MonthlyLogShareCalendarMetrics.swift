@@ -63,7 +63,7 @@ struct MonthlyLogShareTemplateLayout: Equatable, Sendable {
                 gridSpacing: compact ? 2 : 3,
                 horizontalPadding: compact ? 18 : 24,
                 topPadding: compact ? 14 : 28,
-                wordmarkSize: compact ? 16 : 18,
+                wordmarkSize: 12,
                 cellScale: 0.86
             )
         case .verticalMonth:
@@ -77,12 +77,12 @@ struct MonthlyLogShareTemplateLayout: Equatable, Sendable {
                 gridSpacing: compact ? 2 : 3,
                 horizontalPadding: compact ? 12 : 16,
                 topPadding: compact ? 18 : 22,
-                wordmarkSize: compact ? 14 : 16,
+                wordmarkSize: 12,
                 cellScale: compact ? 0.88 : 0.90
             )
         case .largeMonth:
             return MonthlyLogShareTemplateLayout(
-                monthFont: 60,
+                monthFont: 52,
                 yearFont: compact ? 15 : 19,
                 amountFont: 28,
                 weekdayFont: compact ? 10 : 11,
@@ -91,12 +91,40 @@ struct MonthlyLogShareTemplateLayout: Equatable, Sendable {
                 gridSpacing: compact ? 2 : 3,
                 horizontalPadding: compact ? 18 : 24,
                 topPadding: compact ? 16 : 36,
-                wordmarkSize: compact ? 16 : 18,
+                wordmarkSize: 12,
+                cellScale: 0.86
+            )
+        case .circledCalendar:
+            return MonthlyLogShareTemplateLayout(
+                monthFont: 28,
+                yearFont: 12,
+                amountFont: 24,
+                weekdayFont: 11,
+                dateFont: 14,
+                badgeFont: 7,
+                gridSpacing: 0,
+                horizontalPadding: 28,
+                topPadding: 0,
+                wordmarkSize: 12,
+                cellScale: 1
+            )
+        case .monthInBooks:
+            return MonthlyLogShareTemplateLayout(
+                monthFont: 32,
+                yearFont: 12,
+                amountFont: 24,
+                weekdayFont: 11,
+                dateFont: 11,
+                badgeFont: 7,
+                gridSpacing: 3,
+                horizontalPadding: 36,
+                topPadding: 0,
+                wordmarkSize: 12,
                 cellScale: 0.86
             )
         case .minimalSummary:
             return MonthlyLogShareTemplateLayout(
-                monthFont: 60,
+                monthFont: 36,
                 yearFont: compact ? 15 : 19,
                 amountFont: 32,
                 weekdayFont: 11,
@@ -105,7 +133,7 @@ struct MonthlyLogShareTemplateLayout: Equatable, Sendable {
                 gridSpacing: 3,
                 horizontalPadding: 24,
                 topPadding: 28,
-                wordmarkSize: compact ? 16 : 18,
+                wordmarkSize: 12,
                 cellScale: 0.86
             )
         }

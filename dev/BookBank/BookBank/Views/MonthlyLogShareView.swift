@@ -37,13 +37,20 @@ private enum ActionFeedback: Equatable {
 }
 
 struct MonthlyLogShareView: View {
+    /// 出力キャッシュのキー。ページと背景モードで決まる。
+    private struct ExportKey: Hashable {
+        let page: Int
+        let mode: MonthlyLogShareBackgroundMode
+    }
+
     let session: MonthlyLogShareSession
     var saver: PhotoLibrarySaving = SystemPhotoLibrarySaver()
     let onClose: () -> Void
 
     @State private var page = 0
-    @State private var exportedPNGs: [Int: Data] = [:]
-    @State private var isRendering = true
+    @State private var backgroundMode: MonthlyLogShareBackgroundMode = .defaultMode
+    @State private var exportCache: [ExportKey: MonthlyLogShareExportAsset] = [:]
+    @State private var isRendering = false
     @State private var actionFeedback: ActionFeedback?
     @State private var feedbackDismissTask: Task<Void, Never>?
     @State private var showDeniedAlert = false
@@ -53,25 +60,13 @@ struct MonthlyLogShareView: View {
     @State private var shareSourceView: UIView?
 
     private var templates: [MonthlyLogShareTemplate] {
-        [.calendarSummary, .largeMonth, .verticalMonth, .minimalSummary]
+        [.calendarSummary, .largeMonth, .verticalMonth, .circledCalendar, .minimalSummary, .monthInBooks]
     }
 
     var body: some View {
         VStack(spacing: 0) {
             header
-            carousel
-                .overlay(alignment: .bottom) {
-                    if let actionFeedback {
-                        successToast(actionFeedback)
-                            .padding(.bottom, 22)
-                            .transition(successToastTransition)
-                            .zIndex(1)
-                    }
-                }
-                .animation(.easeOut(duration: 0.15), value: actionFeedback)
-            pageDots
-                .padding(.top, 8)
-                .padding(.bottom, 32)
+            middleSection
             actionRow
                 .padding(.bottom, 16)
         }
@@ -81,8 +76,8 @@ struct MonthlyLogShareView: View {
         .presentationDragIndicator(.visible)
         .presentationCornerRadius(32)
         .presentationBackground(Color.black)
-        .task {
-            await renderAll()
+        .task(id: currentExportKey) {
+            await renderCurrentIfNeeded()
         }
         .onDisappear {
             feedbackDismissTask?.cancel()
@@ -163,82 +158,169 @@ struct MonthlyLogShareView: View {
         }
         .padding(.horizontal, 12)
         .padding(.top, 20)
-        .padding(.bottom, 8)
+        // ヘッダー下の余白は headerToPreviewMinimumSpacing（カルーセル側）だけで管理する
     }
 
-    private var carousel: some View {
+    // MARK: - 縦方向の間隔（2026-08-21 確定値。見た目上の距離で管理する）
+
+    /// ヘッダー領域の下端からプレビューカード上端までの最小間隔
+    private static let headerToPreviewMinimumSpacing: CGFloat = 24
+    /// 9:16 カードの見えている下端からページドット上端まで
+    private static let previewToPageDotsSpacing: CGFloat = 10
+    /// ページドット下端から、背景スウォッチの見える外周（38pt 選択リング）上端まで
+    private static let pageDotsToSwatchVisibleSpacing: CGFloat = 10
+    /// スウォッチのタップ領域 44pt と見える外周 38pt の差の片側（透明な余白）
+    private static let swatchTapAreaTopInset: CGFloat = (44 - 38) / 2
+    private static let pageDotsHeight: CGFloat = 6
+    private static let swatchRowHeight: CGFloat = 44
+
+    /// ページドットとスウォッチ行の間に置くレイアウト上の間隔。
+    /// タップ領域の透明余白 3pt を差し引き、見た目の距離が 10pt になるようにする。
+    private static var pageDotsToSwatchLayoutSpacing: CGFloat {
+        pageDotsToSwatchVisibleSpacing - swatchTapAreaTopInset
+    }
+
+    /// カルーセルの下に来る固定行の高さ。カードはヘッダー下 24pt とこの分を除いた高さで決め、
+    /// 余った縦スペースはスウォッチとアクション行の間に置く。
+    private static var fixedRowsBelowCarousel: CGFloat {
+        previewToPageDotsSpacing + pageDotsHeight + pageDotsToSwatchLayoutSpacing + swatchRowHeight
+    }
+
+    /// タイトル直下から カルーセル → ページドット → 背景スウォッチ と詰めて並べ、
+    /// 余りは末尾の Spacer が吸収する（アクション行は動かない）。
+    private var middleSection: some View {
         GeometryReader { geometry in
             let spacing = MonthlyLogSharePreviewMetrics.pageSpacing
             let desiredPeek = MonthlyLogSharePreviewMetrics.desiredPeek
             let maxCardWidth = max(1, geometry.size.width - 2 * (desiredPeek + spacing))
-            let maxCardHeight = max(1, geometry.size.height - 8)
+            let maxCardHeight = max(
+                1,
+                geometry.size.height - Self.headerToPreviewMinimumSpacing - Self.fixedRowsBelowCarousel
+            )
             let fitted = MonthlyLogSharePreviewMetrics.referenceCardSize(
                 in: CGSize(width: maxCardWidth, height: maxCardHeight)
             )
             let referenceWidth = fitted.width * MonthlyLogSharePreviewMetrics.displayScale
-            let portraitCardSize = MonthlyLogSharePreviewMetrics.cardSize(
+            let baseCardSize = MonthlyLogSharePreviewMetrics.cardSize(
                 format: .portrait,
                 referenceWidth: referenceWidth
             )
-            let pageWidth = portraitCardSize.width
-            let sideInset = max(0, (geometry.size.width - pageWidth) / 2)
 
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: spacing) {
-                    ForEach(Array(templates.enumerated()), id: \.offset) { index, template in
-                        let cardSize = MonthlyLogSharePreviewMetrics.cardSize(
+            VStack(spacing: 0) {
+                carouselScroll(
+                    baseCardSize: baseCardSize,
+                    referenceWidth: referenceWidth,
+                    spacing: spacing,
+                    availableWidth: geometry.size.width
+                )
+                .overlay(alignment: .bottom) {
+                    if let actionFeedback {
+                        successToast(actionFeedback)
+                            .padding(.bottom, 22)
+                            .transition(successToastTransition)
+                            .zIndex(1)
+                    }
+                }
+                .overlay {
+                    if isRendering, currentAsset == nil {
+                        ProgressView()
+                            .tint(.white)
+                    }
+                }
+                .animation(.easeOut(duration: 0.15), value: actionFeedback)
+                .padding(.top, Self.headerToPreviewMinimumSpacing)
+                pageDots
+                    .padding(.top, Self.previewToPageDotsSpacing)
+                backgroundSelector
+                    .padding(.top, Self.pageDotsToSwatchLayoutSpacing)
+                Spacer(minLength: 0)
+            }
+            .frame(width: geometry.size.width, height: geometry.size.height, alignment: .top)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    /// カード寸法の計算・横スワイプ・見切れ量は従来のまま。高さだけカードちょうどに固定する。
+    private func carouselScroll(
+        baseCardSize: CGSize,
+        referenceWidth: CGFloat,
+        spacing: CGFloat,
+        availableWidth: CGFloat
+    ) -> some View {
+        let pageWidth = baseCardSize.width
+        let sideInset = max(0, (availableWidth - pageWidth) / 2)
+
+        return ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: spacing) {
+                ForEach(Array(templates.enumerated()), id: \.offset) { index, template in
+                    previewPage(
+                        template: template,
+                        cardSize: MonthlyLogSharePreviewMetrics.cardSize(
                             format: template.canvasFormat,
                             referenceWidth: referenceWidth
                         )
-                        previewPage(
-                            template: template,
-                            cardSize: cardSize
-                        )
-                        .frame(
-                            width: pageWidth,
-                            height: portraitCardSize.height,
-                            alignment: .center
-                        )
-                        .frame(
-                            width: pageWidth,
-                            height: geometry.size.height,
-                            alignment: .bottom
-                        )
-                        .id(index)
-                    }
+                    )
+                    .frame(
+                        width: pageWidth,
+                        height: baseCardSize.height,
+                        alignment: .center
+                    )
+                    .id(index)
                 }
-                .scrollTargetLayout()
             }
-            .contentMargins(.horizontal, sideInset, for: .scrollContent)
-            .scrollTargetBehavior(.viewAligned)
-            .scrollPosition(
-                id: Binding(
-                    get: { Optional(page) },
-                    set: { page = $0 ?? page }
-                )
-            )
+            .scrollTargetLayout()
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .contentMargins(.horizontal, sideInset, for: .scrollContent)
+        .scrollTargetBehavior(.viewAligned)
+        .scrollPosition(
+            id: Binding(
+                get: { Optional(page) },
+                set: { page = $0 ?? page }
+            )
+        )
+        .frame(height: baseCardSize.height)
     }
 
     private func previewPage(
         template: MonthlyLogShareTemplate,
         cardSize: CGSize
     ) -> some View {
+        flatPreview(template: template, cardSize: cardSize)
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .overlay {
+                // 黒背景カードはシート背景と同化するため輪郭だけ足す
+                if backgroundMode == .black {
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(Color.white.opacity(0.18), lineWidth: 1)
+                }
+            }
+    }
+
+    private func flatPreview(
+        template: MonthlyLogShareTemplate,
+        cardSize: CGSize
+    ) -> some View {
         let logicalSize = template.canvasFormat.logicalSize
         let scale = logicalSize.width > 0 ? cardSize.width / logicalSize.width : 1
         return ZStack {
-            CheckerboardBackground()
+            switch backgroundMode {
+            case .white:
+                Color.white
+            case .black:
+                Color.black
+            case .transparent:
+                CheckerboardBackground()
+            }
             MonthlyLogShareCanvas(
                 snapshot: session.snapshot,
                 covers: session.covers,
-                template: template
+                template: template,
+                palette: backgroundMode.palette
             )
             .frame(width: logicalSize.width, height: logicalSize.height)
             .scaleEffect(scale)
         }
         .frame(width: cardSize.width, height: cardSize.height)
-        .clipShape(RoundedRectangle(cornerRadius: 8))
     }
 
     private var pageDots: some View {
@@ -254,19 +336,65 @@ struct MonthlyLogShareView: View {
         .accessibilityValue(Text("\(page + 1) / \(templates.count)"))
     }
 
+    private var backgroundSelector: some View {
+        HStack(spacing: 8) {
+            ForEach(MonthlyLogShareBackgroundMode.allCases) { mode in
+                Button {
+                    backgroundMode = mode
+                } label: {
+                    // 中身・通常外枠・選択リングを別サイズの層に分け、中身の上へ線を重ねない
+                    ZStack {
+                        swatchContent(mode)
+                            .frame(width: 30, height: 30)
+                            .clipShape(Circle())
+                        // 通常の外枠: 中身の外側 32pt・1pt。不透明グレーで市松を透けさせない
+                        Circle()
+                            .stroke(Color(white: 0.35), lineWidth: 1)
+                            .frame(width: 32, height: 32)
+                        if backgroundMode == mode {
+                            // 選択リング: さらに外側 38pt・2pt 白。中身との間に黒い隙間が残る
+                            Circle()
+                                .stroke(Color.white, lineWidth: 2)
+                                .frame(width: 38, height: 38)
+                        }
+                    }
+                    .frame(width: 44, height: 44)
+                    .contentShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(Text(LocalizedStringKey(mode.localizationKey)))
+                .accessibilityAddTraits(backgroundMode == mode ? .isSelected : [])
+            }
+        }
+        .accessibilityElement(children: .contain)
+    }
+
+    @ViewBuilder
+    private func swatchContent(_ mode: MonthlyLogShareBackgroundMode) -> some View {
+        switch mode {
+        case .white:
+            Circle().fill(Color.white)
+        case .black:
+            // 輪郭は共通の 2pt 境界線が担うため、個別の縁取りは持たない
+            Circle().fill(Color.black)
+        case .transparent:
+            CheckerboardBackground(cell: 5)
+        }
+    }
+
     private var actionRow: some View {
         HStack(spacing: 28) {
-            actionButton(assetName: "icn_copy", title: "common.copy", enabled: currentPNG != nil) {
+            actionButton(assetName: "icn_copy", title: "common.copy", enabled: currentAsset != nil) {
                 copyCurrent()
             }
             actionButton(
                 assetName: "icn_download",
                 title: "common.save",
-                enabled: currentPNG != nil && !isSaving
+                enabled: currentAsset != nil && !isSaving
             ) {
                 Task { await saveCurrent() }
             }
-            actionButton(assetName: "icn_more", title: "monthly_log_share.more", enabled: currentPNG != nil) {
+            actionButton(assetName: "icn_more", title: "monthly_log_share.more", enabled: currentAsset != nil) {
                 shareCurrent()
             }
             .background {
@@ -300,44 +428,63 @@ struct MonthlyLogShareView: View {
         .disabled(!enabled)
     }
 
-    private var currentPNG: Data? {
-        exportedPNGs[page]
+    // MARK: - 出力の遅延生成
+
+    private var currentExportKey: ExportKey {
+        ExportKey(
+            page: min(max(page, 0), templates.count - 1),
+            mode: backgroundMode
+        )
+    }
+
+    private var currentAsset: MonthlyLogShareExportAsset? {
+        exportCache[currentExportKey]
     }
 
     @MainActor
-    private func renderAll() async {
-        isRendering = true
-        var next: [Int: Data] = [:]
-        for (index, template) in templates.enumerated() {
-            if let data = MonthlyLogShareRenderer.pngData(
-                snapshot: session.snapshot,
-                covers: session.covers,
-                template: template
-            ) {
-                next[index] = data
-            }
+    private func renderCurrentIfNeeded() async {
+        let key = currentExportKey
+        if exportCache[key] != nil {
+            return
         }
-        exportedPNGs = next
+        isRendering = true
+        // ProgressView を一度描画してから重い生成に入る
+        await Task.yield()
+        guard !Task.isCancelled else {
+            isRendering = false
+            return
+        }
+        let asset = MonthlyLogShareRenderer.exportAsset(
+            snapshot: session.snapshot,
+            covers: session.covers,
+            template: templates[key.page],
+            mode: backgroundMode
+        )
+        if let asset {
+            exportCache[key] = asset
+        }
         isRendering = false
     }
 
+    // MARK: - アクション
+
     private func copyCurrent() {
-        guard let data = currentPNG else { return }
+        guard let asset = currentAsset else { return }
         presentFeedback(.copied)
         Task { @MainActor in
-            MonthlyLogShareExport.copyPNGToPasteboard(data)
+            MonthlyLogShareExport.copyToPasteboard(asset)
         }
     }
 
     private func saveCurrent() async {
-        guard let data = currentPNG, !isSaving else { return }
+        guard let asset = currentAsset, !isSaving else { return }
         isSaving = true
         let alreadyAllowed = Self.canSaveWithoutPrompt(saver.authorizationStatus())
         if alreadyAllowed {
             presentFeedback(.saved)
         }
         let controller = MonthlyLogShareSaveController(saver: saver)
-        let outcome = await controller.save(png: data)
+        let outcome = await controller.save(data: asset.data)
         isSaving = false
         switch outcome {
         case .saved:
@@ -393,9 +540,9 @@ struct MonthlyLogShareView: View {
     }
 
     private func shareCurrent() {
-        guard let data = currentPNG else { return }
+        guard let asset = currentAsset else { return }
         do {
-            let url = try MonthlyLogShareExport.writeTemporaryPNG(data)
+            let url = try MonthlyLogShareExport.writeTemporaryFile(asset)
             MonthlyLogShareActivityPresenter.present(url: url, sourceView: shareSourceView)
         } catch {
             showFailedAlert = true

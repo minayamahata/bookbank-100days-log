@@ -96,6 +96,16 @@ struct MonthlyLogShareRendererTests {
         #expect(MonthlyLogShareTemplate.verticalMonth.showsCalendar)
         #expect(MonthlyLogShareTemplate.largeMonth.showsCalendar)
         #expect(!MonthlyLogShareTemplate.minimalSummary.showsCalendar)
+
+        // monthInBooks は金額もカレンダーも持たない 1:1
+        #expect(!MonthlyLogShareTemplate.monthInBooks.showsAmount)
+        #expect(!MonthlyLogShareTemplate.monthInBooks.showsCalendar)
+        #expect(MonthlyLogShareTemplate.monthInBooks.canvasFormat == .square)
+
+        // circledCalendar は書影なしの数字カレンダー（金額なし）で 3枚目と同じ 4:5
+        #expect(!MonthlyLogShareTemplate.circledCalendar.showsAmount)
+        #expect(MonthlyLogShareTemplate.circledCalendar.showsCalendar)
+        #expect(MonthlyLogShareTemplate.circledCalendar.canvasFormat == .portraitFourFive)
     }
 
     @Test func canvasFormatsAreBoundToTemplatesNotDisplayOrder() {
@@ -169,6 +179,8 @@ struct MonthlyLogShareRendererTests {
         let expensive = snapshot(books: [book(id: "a", day: 6, price: 99999)])
         #expect(png(cheap, .verticalMonth) == png(expensive, .verticalMonth))
         #expect(png(cheap, .largeMonth) == png(expensive, .largeMonth))
+        #expect(png(cheap, .monthInBooks) == png(expensive, .monthInBooks), "monthInBooks は金額を含まない")
+        #expect(png(cheap, .circledCalendar) == png(expensive, .circledCalendar), "circledCalendar は金額を含まない")
         #expect(png(cheap, .calendarSummary) != png(expensive, .calendarSummary))
         #expect(png(cheap, .minimalSummary) != png(expensive, .minimalSummary))
     }
@@ -180,6 +192,8 @@ struct MonthlyLogShareRendererTests {
         #expect(png(empty, .verticalMonth) != png(placed, .verticalMonth))
         #expect(png(empty, .largeMonth) != png(placed, .largeMonth))
         #expect(png(empty, .minimalSummary) != png(placed, .minimalSummary), "冊数が違うので金額テンプレも変わる")
+        #expect(png(empty, .monthInBooks) != png(placed, .monthInBooks), "monthInBooks も冊数で変わる")
+        #expect(png(empty, .circledCalendar) != png(placed, .circledCalendar), "読書日の丸で変わる")
     }
 
     @Test func rendersWithoutCoversAndWithZeroBooks() {
@@ -189,6 +203,8 @@ struct MonthlyLogShareRendererTests {
         #expect(png(coverless, .largeMonth).isEmpty == false)
         #expect(MonthlyLogShareTemplate.calendarSummary.monthHeadline(month: 8) == "8")
         #expect(MonthlyLogShareTemplate.minimalSummary.monthHeadline(month: 8) == "08")
+        #expect(MonthlyLogShareTemplate.monthInBooks.monthHeadline(month: 8) == "August")
+        #expect(MonthlyLogShareTemplate.circledCalendar.monthHeadline(month: 8) == "August")
     }
 
     @Test func shareCellsStayTwoByThreeForFourToSixRows() {

@@ -3,7 +3,7 @@ import Foundation
 
 /// 共有プレビューのカード寸法。カルーセルは全ページ同じ幅を使い、高さだけ比率で変える。
 enum MonthlyLogSharePreviewMetrics {
-    static let displayScale: CGFloat = 0.85
+    static let displayScale: CGFloat = 0.90
     static let desiredPeek: CGFloat = 28
     static let pageSpacing: CGFloat = 12
 

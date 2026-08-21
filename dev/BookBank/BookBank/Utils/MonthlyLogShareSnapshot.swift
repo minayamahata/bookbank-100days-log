@@ -2,6 +2,7 @@ import CoreGraphics
 import Foundation
 
 /// マンスリーログ共有テンプレートのキャンバス形式。表示順の index には依存しない。
+/// 2026-08-21 に一度 3:4／8:9／1:1 へ変更したが、同日中に 9:16／4:5／1:1 へ差し戻した。
 enum MonthlyLogShareCanvasFormat: Equatable, Sendable {
     case portrait
     case portraitFourFive
@@ -112,6 +113,10 @@ enum MonthlyLogShareTemplate: Int, CaseIterable, Identifiable, Sendable {
     case verticalMonth
     case largeMonth
     case minimalSummary
+    /// 6枚目（2026-08-21 追加）: 左揃えの「My month in books」＋冊数＋ワードマーク。1:1
+    case monthInBooks
+    /// 4枚目（2026-08-21 追加）: 書影を使わず、読書日を丸で示す数字カレンダー＋冊数。4:5
+    case circledCalendar
 
     var id: Int { rawValue }
 
@@ -119,9 +124,9 @@ enum MonthlyLogShareTemplate: Int, CaseIterable, Identifiable, Sendable {
         switch self {
         case .calendarSummary, .largeMonth:
             return .portrait
-        case .verticalMonth:
+        case .verticalMonth, .circledCalendar:
             return .portraitFourFive
-        case .minimalSummary:
+        case .minimalSummary, .monthInBooks:
             return .square
         }
     }
@@ -131,14 +136,15 @@ enum MonthlyLogShareTemplate: Int, CaseIterable, Identifiable, Sendable {
     }
 
     var showsCalendar: Bool {
-        self != .minimalSummary
+        self == .calendarSummary || self == .verticalMonth || self == .largeMonth
+            || self == .circledCalendar
     }
 
     func monthHeadline(month: Int) -> String {
         switch self {
         case .calendarSummary:
             return String(month)
-        case .verticalMonth:
+        case .verticalMonth, .monthInBooks, .circledCalendar:
             return MonthlyLogShareEnglishLabels.fullMonthName(month)
         case .largeMonth:
             return MonthlyLogShareEnglishLabels.abbreviatedMonthName(month)
