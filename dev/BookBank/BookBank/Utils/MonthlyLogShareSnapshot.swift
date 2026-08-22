@@ -140,6 +140,17 @@ enum MonthlyLogShareTemplate: Int, CaseIterable, Identifiable, Sendable {
             || self == .circledCalendar
     }
 
+    /// 書影を描画しないテンプレートだけ Instagram Stories へ直接共有できる。
+    /// 表示順の index では決めない。カルーセル順を変えても書影入りは対象外のまま。
+    var supportsInstagramStoriesShare: Bool {
+        switch self {
+        case .circledCalendar, .minimalSummary, .monthInBooks:
+            return true
+        case .calendarSummary, .largeMonth, .verticalMonth:
+            return false
+        }
+    }
+
     func monthHeadline(month: Int) -> String {
         switch self {
         case .calendarSummary:

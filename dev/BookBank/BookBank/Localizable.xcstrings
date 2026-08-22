@@ -7646,6 +7646,142 @@
         }
       }
     },
+    "monthly_log_share.instagram_open_failed" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't open Instagram. Please try again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Instagramを開けませんでした。もう一度お試しください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Instagram을 열지 못했습니다. 다시 시도해 주세요."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法打开 Instagram。请再试一次。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法開啟 Instagram。請再試一次。"
+          }
+        }
+      }
+    },
+    "monthly_log_share.instagram_stories" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stories"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ストーリーズ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "스토리"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "快拍"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "限時動態"
+          }
+        }
+      }
+    },
+    "monthly_log_share.instagram_unavailable.message" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "To share to Instagram Stories, the Instagram app is required."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Instagram Storiesに共有するには、Instagramアプリが必要です。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Instagram 스토리로 공유하려면 Instagram 앱이 필요합니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "分享到 Instagram 快拍需要安装 Instagram 应用。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "分享到 Instagram 限時動態需要安裝 Instagram App。"
+          }
+        }
+      }
+    },
+    "monthly_log_share.instagram_unavailable.title" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Instagram Isn’t Installed"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Instagramがありません"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Instagram이 설치되어 있지 않습니다"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未安装 Instagram"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未安裝 Instagram"
+          }
+        }
+      }
+    },
     "monthly_log_share.more" : {
       "localizations" : {
         "en" : {
@@ -12347,31 +12483,31 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Save and share your monthly reading log as a transparent image."
+            "value" : "Save and share your monthly reading log as an image."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "月ごとの読書記録を\n透明な画像として保存・共有できます。"
+            "value" : "月ごとの読書記録を\n画像として保存・共有できます。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "월별 독서 기록을 투명한 이미지로 저장하고 공유할 수 있습니다."
+            "value" : "월별 독서 기록을 이미지로 저장하고 공유할 수 있습니다."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "可以将每月的阅读记录保存并分享为透明图片。"
+            "value" : "可以将每月的阅读记录保存并分享为图片。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "可以將每月的閱讀紀錄儲存並分享為透明圖片。"
+            "value" : "可以將每月的閱讀紀錄儲存並分享為圖片。"
           }
         }
       }
@@ -12528,25 +12664,25 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "メモの文字装飾"
+            "value" : "メモの書式機能"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "메모 서식"
+            "value" : "메모 서식 기능"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "备注格式"
+            "value" : "备注格式功能"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "備註格式"
+            "value" : "備註格式功能"
           }
         }
       }

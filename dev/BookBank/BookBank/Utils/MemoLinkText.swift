@@ -137,7 +137,7 @@ struct MemoFormattedText: View {
                     // 未入力の行は保存時に消えるのでここには来ない
                     if !digits.isEmpty {
                         Text(verbatim: "p.\(digits)")
-                            .font(.app(.footnote))
+                            .font(.app(MemoQuoteBackgroundLayoutManager.quotePageTextStyle))
                             .frame(maxWidth: .infinity, alignment: .trailing)
                             .padding(.bottom, Self.gapBelow(index, in: blocks))
                     }

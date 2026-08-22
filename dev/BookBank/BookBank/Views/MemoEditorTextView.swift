@@ -28,6 +28,8 @@ final class MemoQuoteBackgroundLayoutManager: NSLayoutManager {
     /// あいだが開くと離れて見える（**2026-08-12 オーナー指示**で18→30。書籍詳細と共有する）。
     /// 出典ページが無い引用は、囲みの下がまとまりの下になる
     static let gapBelowQuote: CGFloat = 30
+    /// 引用の出典ページ（枠外・右下）。footnote より一段小さい caption（2026-08-22 オーナー指示）
+    static let quotePageTextStyle: Font.TextStyle = .caption
 
     /// 単体のページ番号（`p.42`）のバッジ。角丸とグレーの背景は文字の背景色属性では作れないので、
     /// 引用の囲みと同じくここで描く（2026-08-11 オーナー指示。文字色はテーマ色のまま）
@@ -405,10 +407,9 @@ struct MemoEditorTextView: UIViewRepresentable {
         textView.text = text
         bridge.textView = textView
         context.coordinator.applyStyling(to: textView, accent: UIColor(accentColor))
-        // 旧 TextEditor と同じく、画面表示から一拍おいて自動フォーカス
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak textView] in
-            textView?.becomeFirstResponder()
-        }
+        // 開いた直後はキーボードを出さない（2026-08-22 オーナー指示）。本文をタップした
+        // ときだけ `UITextView` 標準のタップフォーカスで表示する。ツールバーは従来どおり
+        // キーボードが閉じていても表示される
         return textView
     }
 
@@ -915,7 +916,13 @@ struct MemoEditorTextView: UIViewRepresentable {
                 .foregroundColor: UIColor.tertiaryLabel
             ]
             quoteLayoutManager?.pageHint = NSAttributedString(
-                string: L10n.string("memo.quote.page.hint"), attributes: hintAttributes
+                string: L10n.string("memo.quote.page.hint"),
+                attributes: [
+                    .font: AppTypography.uiFont(
+                        AppTypography.uiTextStyle(for: MemoQuoteBackgroundLayoutManager.quotePageTextStyle)
+                    ),
+                    .foregroundColor: UIColor.tertiaryLabel
+                ]
             )
             quoteLayoutManager?.linkHint = NSAttributedString(
                 string: L10n.string("memo.link.hint"), attributes: hintAttributes
@@ -1054,7 +1061,9 @@ struct MemoEditorTextView: UIViewRepresentable {
             // 数字が未入力なら `p.` を隠して案内を描く
             // （行の高さは残す——潰れるとカーソルも案内も置き場を失う）
             var emptyPageLines: [NSRange] = []
-            let pageLineFont = AppTypography.uiFont(.footnote)
+            let pageLineFont = AppTypography.uiFont(
+                AppTypography.uiTextStyle(for: MemoQuoteBackgroundLayoutManager.quotePageTextStyle)
+            )
             let caret = textView.selectedRange
             for line in quotePageLines {
                 let style = NSMutableParagraphStyle()

@@ -8,6 +8,11 @@
 	<dict/>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>マンスリーログの画像を写真に保存するために使用します</string>
+	<!-- Meta App ID（FacebookAppID）は人間が開発者コンソールから取得して設定する。架空値は置かない。 -->
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>instagram-stories</string>
+	</array>
 	<key>UIAppFonts</key>
 	<array>
 		<string>LINESeedJP-Regular.ttf</string>

@@ -57,6 +57,9 @@ struct MonthlyLogShareView: View {
     @State private var showRestrictedAlert = false
     @State private var showFailedAlert = false
     @State private var isSaving = false
+    @State private var isSharingToInstagram = false
+    @State private var showInstagramUnavailableAlert = false
+    @State private var showInstagramOpenFailedAlert = false
     @State private var shareSourceView: UIView?
 
     private var templates: [MonthlyLogShareTemplate] {
@@ -99,6 +102,14 @@ struct MonthlyLogShareView: View {
             Text("monthly_log_share.save_denied.message")
         }
         .alert("monthly_log_share.save_failed", isPresented: $showFailedAlert) {
+            Button("common.cancel", role: .cancel) {}
+        }
+        .alert("monthly_log_share.instagram_unavailable.title", isPresented: $showInstagramUnavailableAlert) {
+            Button("common.cancel", role: .cancel) {}
+        } message: {
+            Text("monthly_log_share.instagram_unavailable.message")
+        }
+        .alert("monthly_log_share.instagram_open_failed", isPresented: $showInstagramOpenFailedAlert) {
             Button("common.cancel", role: .cancel) {}
         }
     }
@@ -382,8 +393,36 @@ struct MonthlyLogShareView: View {
         }
     }
 
+    private var currentTemplate: MonthlyLogShareTemplate {
+        templates[min(max(page, 0), templates.count - 1)]
+    }
+
+    /// 表示順ではなくテンプレート属性で判定する。書影ありはボタン自体を出さない。
+    private var showsInstagramStoriesButton: Bool {
+        currentTemplate.supportsInstagramStoriesShare
+    }
+
+    /// 4ボタン時は小さい端末でラベルが重ならないよう間隔だけ狭める。3ボタンは従来どおり。
+    private var actionRowSpacing: CGFloat {
+        showsInstagramStoriesButton ? 16 : 28
+    }
+
+    private var canShareToInstagramStories: Bool {
+        currentAsset != nil && !isRendering && !isSharingToInstagram
+    }
+
     private var actionRow: some View {
-        HStack(spacing: 28) {
+        HStack(spacing: actionRowSpacing) {
+            if showsInstagramStoriesButton {
+                actionButton(
+                    assetName: "icn_instagram",
+                    title: "monthly_log_share.instagram_stories",
+                    enabled: canShareToInstagramStories,
+                    fillsCircle: true
+                ) {
+                    Task { await shareToInstagramStories() }
+                }
+            }
             actionButton(assetName: "icn_copy", title: "common.copy", enabled: currentAsset != nil) {
                 copyCurrent()
             }
@@ -401,27 +440,42 @@ struct MonthlyLogShareView: View {
                 ShareSourceView(view: $shareSourceView)
             }
         }
+        .padding(.horizontal, showsInstagramStoriesButton ? 12 : 0)
     }
 
     private func actionButton(
         assetName: String,
         title: LocalizedStringKey,
         enabled: Bool,
+        fillsCircle: Bool = false,
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
             VStack(spacing: 8) {
-                Image(assetName)
-                    .renderingMode(.template)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 20, height: 20)
-                    .frame(width: 52, height: 52)
-                    .background(Circle().fill(Color.white.opacity(0.12)))
+                Group {
+                    if fillsCircle {
+                        Image(assetName)
+                            .renderingMode(.original)
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 52, height: 52)
+                            .clipShape(Circle())
+                    } else {
+                        Image(assetName)
+                            .renderingMode(.template)
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 20, height: 20)
+                            .foregroundStyle(.white)
+                            .frame(width: 52, height: 52)
+                            .background(Circle().fill(Color.white.opacity(0.12)))
+                    }
+                }
+                .opacity(enabled ? 1 : 0.35)
                 Text(title)
                     .font(.app(.caption))
+                    .foregroundStyle(.white.opacity(enabled ? 1 : 0.35))
             }
-            .foregroundStyle(.white.opacity(enabled ? 1 : 0.35))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -546,6 +600,27 @@ struct MonthlyLogShareView: View {
             MonthlyLogShareActivityPresenter.present(url: url, sourceView: shareSourceView)
         } catch {
             showFailedAlert = true
+        }
+    }
+
+    private func shareToInstagramStories() async {
+        guard canShareToInstagramStories else { return }
+        isSharingToInstagram = true
+        let outcome = await MonthlyLogShareInstagramStoriesShare.perform(
+            asset: currentAsset,
+            template: currentTemplate,
+            appID: MonthlyLogShareInstagramStories.appID(from: .main),
+            opener: SystemInstagramStoriesURLOpener(),
+            pasteboard: SystemInstagramStoriesPasteboard()
+        )
+        isSharingToInstagram = false
+        switch outcome {
+        case .shared:
+            break
+        case .failed(.instagramNotInstalled):
+            showInstagramUnavailableAlert = true
+        case .failed:
+            showInstagramOpenFailedAlert = true
         }
     }
 }
